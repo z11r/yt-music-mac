@@ -47,7 +47,7 @@ identifier="io.github.z11r.ytmusicmac"
 [[ "$(read_plist CFBundleExecutable)" == YTMusicMac ]] || { echo "Bundle executable does not match." >&2; exit 1; }
 [[ "$(read_plist CFBundlePackageType)" == APPL ]] || { echo "Bundle type is not APPL." >&2; exit 1; }
 [[ "$(read_plist LSMinimumSystemVersion)" == 14.0 ]] || { echo "Bundle minimum must be macOS 14.0." >&2; exit 1; }
-[[ "$(read_plist NSAppleScriptEnabled)" == true && "$(read_plist NSScriptingDefinition)" == YTMusicMac.sdef &&
+[[ "$(read_plist NSAppleScriptEnabled)" == true && "$(read_plist OSAScriptingDefinition)" == YTMusicMac.sdef &&
    -s "$bundle/Contents/Resources/YTMusicMac.sdef" ]] || {
   echo "The native scripting definition is missing." >&2; exit 1;
 }

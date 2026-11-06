@@ -10,6 +10,15 @@ struct YTMusicMacApp: App {
 
     init() {
         if CommandLine.arguments.contains("--check-bundle") {
+            _ = NSApplication.shared
+            let registry = NSScriptSuiteRegistry.shared()
+            let commandCodes: [UInt32] = [0x696e666f, 0x70766964, 0x706c6179, 0x70617573, 0x766f6c75]
+            guard commandCodes.allSatisfy({ code in
+                registry.commandDescription(withAppleEventClass: 0x59544d63, andAppleEventCode: code) != nil
+            }) else {
+                FileHandle.standardError.write(Data("App scripting registration failed.\n".utf8))
+                exit(1)
+            }
             let bundle = Bundle.main.bundleURL.resolvingSymlinksInPath()
             let resources = AppIdentity.resourceBundle.bundleURL.resolvingSymlinksInPath()
             guard Bundle.main.bundleIdentifier == AppIdentity.identifier,

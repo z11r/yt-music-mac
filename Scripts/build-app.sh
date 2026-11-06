@@ -109,7 +109,7 @@ cat > "$bundle/Contents/Info.plist" <<PLIST
   <key>NSPrincipalClass</key><string>NSApplication</string>
   <key>NSHighResolutionCapable</key><true/>
   <key>NSAppleScriptEnabled</key><true/>
-  <key>NSScriptingDefinition</key><string>YTMusicMac.sdef</string>
+  <key>OSAScriptingDefinition</key><string>YTMusicMac.sdef</string>
   <key>YTMusicBuildConfiguration</key><string>$configuration</string>
 </dict></plist>
 PLIST
