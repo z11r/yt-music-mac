@@ -5,6 +5,20 @@ import XCTest
 /// Explicit opt-in probes. This client has no credential provider and can only make anonymous requests.
 @MainActor
 final class MusicLiveTests: XCTestCase {
+    func testAnonymousExactVideoIDLookup() async throws {
+        guard ProcessInfo.processInfo.environment["YTM_RUN_NETWORK_TESTS"] == "1" else {
+            throw XCTSkip("Set YTM_RUN_NETWORK_TESTS=1 to run anonymous service checks.")
+        }
+        let client = YouTubeMusicClient()
+        let search = try await client.search(query: "Mozart")
+        let track = try XCTUnwrap(search.tracks.first)
+        let lookup = try await client.search(query: track.id)
+        XCTAssertTrue(lookup.tracks.contains { $0.id == track.id }, "Exact video-ID search must return the requested song before scripting can use it.")
+        let benchmarkID = "dQw4w9WgXcQ"
+        let benchmark = try await client.search(query: benchmarkID)
+        XCTAssertTrue(benchmark.tracks.contains { $0.id == benchmarkID }, "The public benchmark song must resolve to its exact video ID.")
+    }
+
     func testAnonymousBrowseSurfaces() async throws {
         guard ProcessInfo.processInfo.environment["YTM_RUN_NETWORK_TESTS"] == "1" else {
             throw XCTSkip("Set YTM_RUN_NETWORK_TESTS=1 to run anonymous service checks.")

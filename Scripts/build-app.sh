@@ -87,6 +87,7 @@ fi
 chmod 755 "$bundle/Contents/MacOS/YTMusicMac"
 [[ -d "$resource_source" ]] || { echo "The Swift package resource bundle is missing." >&2; exit 1; }
 /usr/bin/ditto "$resource_source" "$bundle/Contents/Resources/YTMusicMac_YTMusicMac.bundle"
+cp "$project_dir/Sources/YTMusicMac/Resources/YTMusicMac.sdef" "$bundle/Contents/Resources/YTMusicMac.sdef"
 cp "$project_dir/LICENSE" "$bundle/Contents/Resources/LICENSE"
 cp "$project_dir/THIRD_PARTY_NOTICES.md" "$bundle/Contents/Resources/THIRD_PARTY_NOTICES.md"
 
@@ -107,6 +108,8 @@ cat > "$bundle/Contents/Info.plist" <<PLIST
   <key>LSApplicationCategoryType</key><string>public.app-category.music</string>
   <key>NSPrincipalClass</key><string>NSApplication</string>
   <key>NSHighResolutionCapable</key><true/>
+  <key>NSAppleScriptEnabled</key><true/>
+  <key>NSScriptingDefinition</key><string>YTMusicMac.sdef</string>
   <key>YTMusicBuildConfiguration</key><string>$configuration</string>
 </dict></plist>
 PLIST

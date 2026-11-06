@@ -33,7 +33,8 @@ builds. A public notarized release requires an Apple Developer membership.
 
 See [development setup](docs/DEVELOPMENT.md), the [roadmap](docs/ROADMAP.md),
 [architecture](docs/ARCHITECTURE.md), [testing](docs/TESTING.md), and
-[interface design](docs/DESIGN.md).
+[interface design](docs/DESIGN.md). [Native playback commands](docs/AUTOMATION.md)
+are available for local automation.
 
 ## License
 

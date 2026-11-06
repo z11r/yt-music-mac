@@ -23,7 +23,9 @@ struct YTMusicMacApp: App {
             print("App bundle validation passed.")
             exit(0)
         }
-        _session = State(initialValue: AppSession())
+        let session = AppSession()
+        _session = State(initialValue: session)
+        AppScripting.session = session
     }
 
     private var colorScheme: ColorScheme? {

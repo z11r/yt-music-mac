@@ -53,6 +53,7 @@ final class AppSession {
     @ObservationIgnored private var forwardHistory: [MusicDestination] = []
     @ObservationIgnored private var resumePosition: TimeInterval = 0
     @ObservationIgnored private var systemMedia: SystemMediaControls?
+    @ObservationIgnored private var scriptingPlayGeneration = UUID()
 
     init() {
         let preferences = AppIdentity.preferences
@@ -214,7 +215,27 @@ final class AppSession {
 
     func play(_ track: Track) { playTracks([track], startingAt: 0) }
 
+    func beginScriptedPlaybackRequest() -> UUID {
+        scriptingPlayGeneration = UUID()
+        return scriptingPlayGeneration
+    }
+
+    func playScriptedVideo(_ videoID: String, requestGeneration: UUID) async throws -> String {
+        guard ScriptingInput.videoID(videoID) == videoID else { throw AppScriptingError.invalidVideoID }
+        guard scriptingPlayGeneration == requestGeneration else { throw AppScriptingError.superseded }
+        guard account.isSignedIn else { throw AppScriptingError.signInRequired }
+        let accountScope = accountGeneration
+        let track = try await ScriptedTrackResolver.resolve(videoID: videoID) { [client] query in
+            try await client.search(query: query)
+        }
+        guard scriptingPlayGeneration == requestGeneration, accountGeneration == accountScope,
+              account.isSignedIn else { throw AppScriptingError.superseded }
+        play(track)
+        return track.id
+    }
+
     func playTracks(_ tracks: [Track], startingAt index: Int = 0) {
+        scriptingPlayGeneration = UUID()
         guard !tracks.isEmpty, tracks.indices.contains(index) else { return }
         guard account.isSignedIn else { openAccount(); return }
         wantsPlayback = true
@@ -227,6 +248,7 @@ final class AppSession {
     }
 
     func play() {
+        scriptingPlayGeneration = UUID()
         guard !queue.isEmpty else { return }
         guard account.isSignedIn else { openAccount(); return }
         wantsPlayback = true
@@ -241,6 +263,7 @@ final class AppSession {
     }
 
     func pause() {
+        scriptingPlayGeneration = UUID()
         wantsPlayback = false
         player.pause()
         saveQueue()
@@ -248,11 +271,13 @@ final class AppSession {
     }
 
     func next() {
+        scriptingPlayGeneration = UUID()
         resumePosition = 0
         request(queue.next())
     }
 
     func previous() {
+        scriptingPlayGeneration = UUID()
         resumePosition = 0
         if player.clock.position > 3 { seek(to: 0) }
         else { request(queue.previous()) }
@@ -264,12 +289,14 @@ final class AppSession {
         preferences.set(player.volume, forKey: "volume")
     }
     func retryPlayback() {
+        scriptingPlayGeneration = UUID()
         guard account.isSignedIn else { openAccount(); return }
         wantsPlayback = true
         request(queue.beginPlayback())
     }
 
     func selectQueueEntry(_ id: UUID) {
+        scriptingPlayGeneration = UUID()
         guard account.isSignedIn else { openAccount(); return }
         wantsPlayback = true
         resumePosition = 0
@@ -278,6 +305,7 @@ final class AppSession {
     func playNext(_ tracks: [Track]) { queue.playNext(tracks); saveQueue() }
     func addToQueue(_ tracks: [Track]) { queue.append(tracks); saveQueue() }
     func removeQueueEntries(_ ids: Set<UUID>) {
+        scriptingPlayGeneration = UUID()
         let previous = queue.currentOccurrence
         if let selected = queue.currentEntryID, ids.contains(selected) { resumePosition = 0 }
         wantsPlayback = player.playbackIntent
@@ -289,6 +317,7 @@ final class AppSession {
         saveQueue()
     }
     func undoQueueEdit() {
+        scriptingPlayGeneration = UUID()
         let previous = queue.currentOccurrence
         wantsPlayback = player.playbackIntent
         queue.undo()
@@ -397,6 +426,7 @@ final class AppSession {
     }
 
     func shutdown() async {
+        scriptingPlayGeneration = UUID()
         wantsPlayback = false
         player.pause()
         saveQueue()
