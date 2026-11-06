@@ -42,7 +42,7 @@
         <command name="play videos" code="YTMcpvds" description="Replace the queue with videos by exact YouTube video IDs and start playback.">
             <cocoa class="YTMusicPlayVideosCommand"/>
             <direct-parameter description="YouTube video IDs in queue order."><type type="text" list="yes"/></direct-parameter>
-            <result type="text" description="The accepted playback request as JSON."/>
+            <result type="integer" description="The number of entries added to the queue."/>
         </command>
         <command name="seek to" code="YTMcseek" description="Seek within the selected song.">
             <cocoa class="YTMusicSeekCommand"/>

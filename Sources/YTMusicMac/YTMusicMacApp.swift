@@ -6,7 +6,6 @@ import SwiftUI
 struct YTMusicMacApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @State private var session: AppSession
-    @FocusedValue(\.focusMusicSearch) private var focusMusicSearch
     @AppStorage("appearance", store: AppIdentity.preferences) private var appearance = "system"
 
     init() {
@@ -70,11 +69,7 @@ struct YTMusicMacApp: App {
                     .keyboardShortcut("u", modifiers: [.command, .shift])
                 PlayerWindowCommands()
             }
-            CommandGroup(after: .textEditing) {
-                Button("Search Music") { focusMusicSearch?() }
-                    .keyboardShortcut("f", modifiers: .command)
-                    .disabled(focusMusicSearch == nil)
-            }
+            MusicSearchCommands()
         }
         Window("Mini Player", id: "mini-player") {
             MiniPlayerView(session: session).preferredColorScheme(colorScheme)
@@ -86,6 +81,18 @@ struct YTMusicMacApp: App {
         }.menuBarExtraStyle(.window)
         Settings {
             SettingsView(session: session).preferredColorScheme(colorScheme)
+        }
+    }
+}
+
+private struct MusicSearchCommands: Commands {
+    @FocusedValue(\.focusMusicSearch) private var focusMusicSearch
+
+    var body: some Commands {
+        CommandGroup(after: .textEditing) {
+            Button("Search Music") { focusMusicSearch?() }
+                .keyboardShortcut("f", modifiers: .command)
+                .disabled(focusMusicSearch == nil)
         }
     }
 }
