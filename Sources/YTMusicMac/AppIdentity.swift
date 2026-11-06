@@ -3,6 +3,7 @@ import WebKit
 
 enum AppIdentity {
     static var preferences: UserDefaults {
+        if SceneCheckLaunch.isRequested { return SceneCheckPreferences.current.defaults }
         if Bundle.main.bundleIdentifier == identifier { return .standard }
         return UserDefaults(suiteName: identifier)!
     }

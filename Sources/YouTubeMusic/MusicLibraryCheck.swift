@@ -10,7 +10,7 @@ public struct MusicLibraryCheck: Codable, Equatable, Sendable {
     public let surfaces: [MusicLibrarySurfaceCheck]
 
     public init(surfaces: [MusicLibrarySurfaceCheck]) {
-        self.schemaVersion = 1
+        self.schemaVersion = 2
         self.surfaces = surfaces
     }
 }
@@ -33,6 +33,8 @@ public struct MusicLibrarySurfaceCheck: Codable, Equatable, Sendable {
     public var removableOccurrenceCount = 0
     public var continuationAvailable = false
     public var pagination: Pagination = .notAvailable
+    /// Included only for an unsupported continuation response; contains allowlisted schema paths and counts.
+    public var responseStructure: MusicResponseStructure?
 
     public init(surface: Surface, status: Status = .ok) {
         self.surface = surface
@@ -51,11 +53,11 @@ public struct MusicLibrarySurfaceCheck: Codable, Equatable, Sendable {
 }
 
 extension YouTubeMusicClient {
-    /// Reads at most two pages from each surface, without changing playback, navigation, or the library.
-    public func checkLibrary(timeout: Duration = .seconds(20)) async throws -> MusicLibraryCheck {
-        guard timeout > .zero, timeout <= .seconds(25) else { throw MusicServiceError.invalidInput }
+    /// Reads a bounded number of pages from each surface, without changing playback, navigation, or the library.
+    public func checkLibrary(maximumPages: Int = 25, timeout: Duration = .seconds(20)) async throws -> MusicLibraryCheck {
+        guard (1...50).contains(maximumPages), timeout > .zero, timeout <= .seconds(25) else { throw MusicServiceError.invalidInput }
         return try await withThrowingTaskGroup(of: MusicLibraryCheck.self) { group in
-            group.addTask { try await self.readLibraryCheck() }
+            group.addTask { try await self.readLibraryCheck(maximumPages: maximumPages) }
             group.addTask {
                 try await Task.sleep(for: timeout)
                 throw MusicLibraryCheckError.timedOut
@@ -67,18 +69,18 @@ extension YouTubeMusicClient {
         }
     }
 
-    private func readLibraryCheck() async throws -> MusicLibraryCheck {
+    private func readLibraryCheck(maximumPages: Int) async throws -> MusicLibraryCheck {
         let session = await sessions.snapshot()
         guard session.isAuthenticated else { throw MusicServiceError.signInRequired }
-        let (library, playlistID) = try await inspectLibrarySurface(.library, scope: session.scope) {
+        let (library, playlistID) = try await inspectLibrarySurface(.library, scope: session.scope, maximumPages: maximumPages) {
             try await self.library()
         }
-        let (liked, _) = try await inspectLibrarySurface(.likedSongs, scope: session.scope) {
+        let (liked, _) = try await inspectLibrarySurface(.likedSongs, scope: session.scope, maximumPages: maximumPages) {
             try await self.likedSongs()
         }
         let playlist: MusicLibrarySurfaceCheck
         if let playlistID {
-            (playlist, _) = try await inspectLibrarySurface(.playlist, scope: session.scope) {
+            (playlist, _) = try await inspectLibrarySurface(.playlist, scope: session.scope, maximumPages: maximumPages) {
                 try await self.playlist(id: playlistID)
             }
         } else {
@@ -88,21 +90,28 @@ extension YouTubeMusicClient {
         return MusicLibraryCheck(surfaces: [library, liked, playlist])
     }
 
-    private func inspectLibrarySurface(_ surface: MusicLibrarySurfaceCheck.Surface, scope: UUID,
+    private func inspectLibrarySurface(_ surface: MusicLibrarySurfaceCheck.Surface, scope: UUID, maximumPages: Int,
                                        firstPage: () async throws -> MusicPage) async throws -> (MusicLibrarySurfaceCheck, String?) {
         var result = MusicLibrarySurfaceCheck(surface: surface)
         var playlistID: String?
         do {
             try await validateScope(scope)
-            let page = try await firstPage()
+            var page = try await firstPage()
             try await validateScope(scope)
             playlistID = Self.firstPlaylistID(in: page)
             result.include(page)
-            if let continuation = page.continuation {
+            while let continuation = page.continuation, result.pageCount < maximumPages {
+                try Task.checkCancellation()
                 result.pagination = .failed
-                let next = try await nextPage(continuation)
+                let inspection = try await inspectNextPage(continuation)
                 try await validateScope(scope)
+                guard case let .page(next) = inspection else {
+                    if case let .unsupported(structure) = inspection { result.responseStructure = structure }
+                    result.status = .unsupportedResponse
+                    return (result, playlistID)
+                }
                 result.include(next)
+                page = next
                 playlistID = playlistID ?? Self.firstPlaylistID(in: next)
                 result.pagination = .checked
             }

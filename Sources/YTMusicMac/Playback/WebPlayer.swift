@@ -3,6 +3,19 @@ import MusicCore
 import Observation
 import WebKit
 
+enum PlaybackFailureReason: String, Sendable {
+    case selectionMismatch, controlsUnavailable, playbackBlocked, targetChanged, mediaUnavailable
+    case bridgeUnavailable, loadTimedOut, navigationFailed, processTerminated
+
+    static func bridgeError(_ code: String?) -> Self {
+        switch code {
+        case "playback_blocked": .playbackBlocked
+        case "target_changed": .targetChanged
+        default: .mediaUnavailable
+        }
+    }
+}
+
 struct SessionPageRestoreState {
     private(set) var id: UUID?
     private var synchronizing = false
@@ -36,6 +49,7 @@ final class WebPlayer: NSObject {
     private(set) var isPlaying = false
     private(set) var isBuffering = false
     private(set) var errorMessage: String?
+    private(set) var failureReason: PlaybackFailureReason?
     private(set) var volume: Double = 1
     private(set) var hasConfirmedPosition = false
 
@@ -101,7 +115,7 @@ final class WebPlayer: NSObject {
 
     func load(track: Track, occurrence: PlaybackOccurrence, autoplay: Bool = true) {
         guard occurrence.trackID == track.id else {
-            self.fail("The selected song no longer matches the playback request.")
+            self.fail("The selected song no longer matches the playback request.", reason: .selectionMismatch)
             return
         }
         self.cancelSessionRestore()
@@ -212,6 +226,7 @@ final class WebPlayer: NSObject {
         self.isPlaying = false
         self.isBuffering = false
         self.errorMessage = nil
+        self.failureReason = nil
         self.pendingSeek = nil
         self.hasConfirmedPosition = false
         self.clock.reset()
@@ -239,7 +254,7 @@ final class WebPlayer: NSObject {
     private func navigate() {
         self.hasConfirmedPosition = false
         guard self.scriptAvailable else {
-            self.fail("The player could not load its playback controls. Reinstall the app and try again.")
+            self.fail("The player could not load its playback controls. Reinstall the app and try again.", reason: .controlsUnavailable)
             return
         }
         guard let track, let occurrence, let url = PlaybackNavigation.watchURL(trackID: track.id) else { return }
@@ -254,6 +269,7 @@ final class WebPlayer: NSObject {
         self.isPlaying = false
         self.isBuffering = self.wantsPlaying
         self.errorMessage = nil
+        self.failureReason = nil
         if let currentURL = self.webView.url, PlaybackNavigation.permits(currentURL),
            let documentID = self.lastBoundDocumentID {
             self.replaceNavigation(with: url, loadID: loadID, documentID: documentID)
@@ -264,7 +280,7 @@ final class WebPlayer: NSObject {
         self.deadline = Task { @MainActor [weak self] in
             do { try await Task.sleep(for: .seconds(18)) } catch { return }
             guard let self, self.gate.loadID == loadID else { return }
-            self.retryNavigationOrFail("YouTube Music did not make this song ready. Check your connection or account, then try again.")
+            self.retryNavigationOrFail("YouTube Music did not make this song ready. Check your connection or account, then try again.", reason: .loadTimedOut)
         }
         self.onStateChanged?()
     }
@@ -366,7 +382,7 @@ final class WebPlayer: NSObject {
             case "target_changed": description = "The YouTube Music page changed songs. Choose a song using the app's controls to continue."
             default: description = "YouTube Music could not play this song. It may be unavailable for this account or region."
             }
-            self.fail(description)
+            self.fail(description, reason: .bridgeError(message.errorCode))
             return
         }
         if message.acceptsPagePause(latestCommandRevision: self.commandRevision) {
@@ -379,7 +395,7 @@ final class WebPlayer: NSObject {
             self.deadline = Task { @MainActor [weak self] in
                 do { try await Task.sleep(for: .seconds(18)) } catch { return }
                 guard let self, self.gate.loadID == loadID, self.wantsPlaying else { return }
-                self.retryNavigationOrFail("Playback stalled. Check your connection or retry this song.")
+                self.retryNavigationOrFail("Playback stalled. Check your connection or retry this song.", reason: .loadTimedOut)
             }
         }
         let playing = message.isPlaying && self.wantsPlaying
@@ -402,22 +418,23 @@ final class WebPlayer: NSObject {
         }
     }
 
-    private func retryNavigationOrFail(_ message: String) {
+    private func retryNavigationOrFail(_ message: String, reason: PlaybackFailureReason = .bridgeUnavailable) {
         guard self.gate.loadID != nil else { return }
         if self.fallbackCount < 1 {
             self.fallbackCount += 1
             self.recoverNavigation()
         } else {
-            self.fail(message)
+            self.fail(message, reason: reason)
         }
     }
 
-    private func fail(_ message: String) {
+    private func fail(_ message: String, reason: PlaybackFailureReason = .bridgeUnavailable) {
         guard !self.failureReported else { return }
         self.failureReported = true
         self.deadline?.cancel()
         self.deadline = nil
         self.errorMessage = message
+        self.failureReason = reason
         self.wantsPlaying = false
         self.isPlaying = false
         self.isBuffering = false
@@ -502,7 +519,7 @@ extension WebPlayer: WKNavigationDelegate, WKUIDelegate {
             self.finishSessionRestore(id, succeeded: false)
             return
         }
-        self.retryNavigationOrFail("YouTube Music could not load. Check your connection and try again.")
+        self.retryNavigationOrFail("YouTube Music could not load. Check your connection and try again.", reason: .navigationFailed)
     }
 
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
@@ -510,7 +527,7 @@ extension WebPlayer: WKNavigationDelegate, WKUIDelegate {
             self.finishSessionRestore(id, succeeded: false)
             return
         }
-        self.retryNavigationOrFail("The playback process stopped. Try loading the song again.")
+        self.retryNavigationOrFail("The playback process stopped. Try loading the song again.", reason: .processTerminated)
     }
 
     func webView(_ webView: WKWebView, requestMediaCapturePermissionFor origin: WKSecurityOrigin,

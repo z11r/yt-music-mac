@@ -12,7 +12,7 @@ final class MusicLibraryCheckTests: XCTestCase {
             page([song("private-song", occurrence: "private-occurrence")], token: "playlist-next"),
             page([song("private-song", occurrence: "private-occurrence-two")], token: "more", continuation: true),
         ])
-        let result = try await YouTubeMusicClient(transport: transport, sessions: store).checkLibrary()
+        let result = try await YouTubeMusicClient(transport: transport, sessions: store).checkLibrary(maximumPages: 2)
         XCTAssertEqual(result.surfaces.map(\.surface), [.library, .likedSongs, .playlist])
         XCTAssertEqual(result.surfaces.map(\.status), [.ok, .ok, .ok])
         XCTAssertEqual(result.surfaces.map(\.pageCount), [2, 2, 2])
@@ -39,6 +39,43 @@ final class MusicLibraryCheckTests: XCTestCase {
         XCTAssertEqual(count, 2)
     }
 
+    func testCheckContinuesUntilSurfaceIsComplete() async throws {
+        let transport = LibraryCheckTransport([
+            page([song("one")], token: "second"),
+            page([song("two")], token: "third", continuation: true),
+            page([song("three")], continuation: true), page([]),
+        ])
+        let result = try await YouTubeMusicClient(transport: transport, sessions: session()).checkLibrary()
+        XCTAssertEqual(result.surfaces.first?.pageCount, 3)
+        XCTAssertEqual(result.surfaces.first?.itemCount, 3)
+        XCTAssertEqual(result.surfaces.first?.pagination, .checked)
+        XCTAssertEqual(result.surfaces.first?.continuationAvailable, false)
+        let count = await transport.requests.count
+        XCTAssertEqual(count, 4)
+    }
+
+    func testCheckPageLimitLeavesContinuationVisibleWithoutAnotherRequest() async throws {
+        let transport = LibraryCheckTransport([page([song("one")], token: "second"), page([])])
+        let result = try await YouTubeMusicClient(transport: transport, sessions: session()).checkLibrary(maximumPages: 1)
+        XCTAssertEqual(result.surfaces.first?.pageCount, 1)
+        XCTAssertEqual(result.surfaces.first?.continuationAvailable, true)
+        XCTAssertEqual(result.surfaces.first?.pagination, .notAvailable)
+        let count = await transport.requests.count
+        XCTAssertEqual(count, 2)
+    }
+
+    func testCheckRejectsInvalidPageLimitsWithoutRequests() async throws {
+        let transport = LibraryCheckTransport([])
+        let store = await session()
+        let client = YouTubeMusicClient(transport: transport, sessions: store)
+        for limit in [0, 51] {
+            do { _ = try await client.checkLibrary(maximumPages: limit); XCTFail("Expected bounded page limit") }
+            catch { XCTAssertEqual(error as? MusicServiceError, .invalidInput) }
+        }
+        let count = await transport.requests.count
+        XCTAssertEqual(count, 0)
+    }
+
     func testPlaylistDiscoveredOnTheSecondLibraryPageIsChecked() async throws {
         let transport = LibraryCheckTransport([page([], token: "next"), page([playlist()], continuation: true), page([]), page([])])
         let result = try await YouTubeMusicClient(transport: transport, sessions: session()).checkLibrary()
@@ -61,6 +98,69 @@ final class MusicLibraryCheckTests: XCTestCase {
         let current = await store.snapshot()
         XCTAssertTrue(current.isAuthenticated)
         XCTAssertEqual(current.scope, original)
+    }
+
+    func testUnsupportedContinuationReportsOnlyAllowlistedContainerPathsAndCounts() async throws {
+        let unknown = MusicHTTPResponse(data: try JSONSerialization.data(withJSONObject: [
+            "onResponseReceivedActions": [["commandExecutorCommand": ["commands": [[
+                "appendContinuationItemsAction": ["continuationItems": [song("private-song")]],
+            ]]]]],
+            "private-account-key": ["contents": "private-secret"],
+            "responseContext": ["visitorData": "private-visitor"],
+        ]), statusCode: 200)
+        let transport = LibraryCheckTransport([page([], token: "private-token"), unknown, page([])])
+        let result = try await YouTubeMusicClient(transport: transport, sessions: session()).checkLibrary()
+        XCTAssertEqual(result.schemaVersion, 2)
+        XCTAssertEqual(result.surfaces.first?.status, .unsupportedResponse)
+        XCTAssertEqual(result.surfaces.first?.pagination, .failed)
+        let structure = try XCTUnwrap(result.surfaces.first?.responseStructure)
+        XCTAssertTrue(structure.containers.contains { $0.path.contains("commandExecutorCommand/commands") })
+        XCTAssertGreaterThan(structure.unknownKeyCount, 0)
+        let encoded = String(decoding: try JSONEncoder().encode(result), as: UTF8.self)
+        XCTAssertFalse(encoded.contains("private-"))
+        XCTAssertFalse(encoded.contains("visitorData"))
+    }
+
+    func testStructuralReportHasABoundedTraversalWithoutExposingScalarValues() throws {
+        let data = try JSONSerialization.data(withJSONObject: ["contents": Array(repeating: ["items": "private-value"], count: 5_000)])
+        let report = try XCTUnwrap(MusicResponseStructure.summarize(data))
+        XCTAssertTrue(report.truncated)
+        XCTAssertLessThanOrEqual(report.containers.count, 256)
+        XCTAssertLessThanOrEqual(report.containers.reduce(0) { $0 + $1.objects + $1.arrays + $1.scalars }, 2_048)
+        XCTAssertFalse(String(decoding: try JSONEncoder().encode(report), as: UTF8.self).contains("private-value"))
+    }
+
+    func testUnknownDirectContinuationNameIsReportedWithoutItsContents() throws {
+        let data = try JSONSerialization.data(withJSONObject: [
+            "continuationContents": [
+                "newLibraryContinuation": ["items": [["private-key": "private-value"]], "private-account": "private-id"],
+                "private123Continuation": ["items": []],
+                "private_keyContinuation": ["items": []],
+                "éContinuation": ["items": []],
+                "Continuation": ["items": []],
+                String(repeating: "a", count: 65) + "Continuation": ["items": []],
+            ],
+            "contents": ["outsideContinuation": ["items": []]],
+        ])
+        let report = try XCTUnwrap(MusicResponseStructure.summarize(data))
+        let terminal = try XCTUnwrap(report.containers.first { $0.path == "$/continuationContents/newLibraryContinuation" })
+        XCTAssertEqual(terminal.objects, 1)
+        XCTAssertFalse(report.containers.contains { $0.path.hasPrefix(terminal.path + "/") })
+        let encoded = String(decoding: try JSONEncoder().encode(report), as: UTF8.self)
+        XCTAssertFalse(encoded.contains("private"))
+        XCTAssertFalse(encoded.contains("outsideContinuation"))
+        XCTAssertEqual(report.unknownKeyCount, 6)
+    }
+
+    func testUnknownDirectContinuationNamesAreLimitedToEight() throws {
+        let names = "ABCDEFGHIJKL".map { "unknown\($0)Continuation" }
+        let data = try JSONSerialization.data(withJSONObject: [
+            "continuationContents": Dictionary(uniqueKeysWithValues: names.map { ($0, ["contents": "private-value"]) }),
+        ])
+        let report = try XCTUnwrap(MusicResponseStructure.summarize(data))
+        XCTAssertEqual(report.containers.filter { $0.path.hasPrefix("$/continuationContents/") }.count, 8)
+        XCTAssertTrue(report.truncated)
+        XCTAssertFalse(String(decoding: try JSONEncoder().encode(report), as: UTF8.self).contains("private-value"))
     }
 
     func testAnonymousCheckNeverSendsARequest() async throws {

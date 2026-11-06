@@ -69,19 +69,39 @@ public actor YouTubeMusicClient {
     }
 
     public func nextPage(_ continuation: MusicContinuation) async throws -> MusicPage {
+        switch try await readNextPage(continuation, includeStructure: false) {
+        case let .page(page): return page
+        case .unsupported: throw MusicServiceError.unsupportedResponse
+        }
+    }
+
+    enum NextPageInspection {
+        case page(MusicPage)
+        case unsupported(MusicResponseStructure?)
+    }
+
+    func inspectNextPage(_ continuation: MusicContinuation) async throws -> NextPageInspection {
+        try await readNextPage(continuation, includeStructure: true)
+    }
+
+    private func readNextPage(_ continuation: MusicContinuation, includeStructure: Bool) async throws -> NextPageInspection {
         let session = await sessions.snapshot()
         guard session.scope == continuation.scope else { throw MusicServiceError.sessionChanged }
         guard !continuation.previousTokens.contains(continuation.token) else { throw MusicServiceError.paginationLoop }
         let data = try await request(endpoint: continuation.endpoint, body: ["continuation": continuation.token],
                                      session: session, requiresAuthentication: continuation.requiresAuthentication)
-        let parsed = try MusicResponseParser.parse(data, preservesOccurrences: continuation.preservesOccurrences)
+        let parsed: ParsedMusicPage
+        do { parsed = try MusicResponseParser.parse(data, preservesOccurrences: continuation.preservesOccurrences) }
+        catch MusicServiceError.unsupportedResponse {
+            return .unsupported(includeStructure ? MusicResponseStructure.summarize(data) : nil)
+        }
         var tokens = continuation.previousTokens
         tokens.insert(continuation.token)
         if let token = parsed.token, tokens.contains(token) { throw MusicServiceError.paginationLoop }
-        return makePage(parsed, title: continuation.title, endpoint: continuation.endpoint, session: session,
+        return .page(makePage(parsed, title: continuation.title, endpoint: continuation.endpoint, session: session,
                         requiresAuthentication: continuation.requiresAuthentication,
                         preservesOccurrences: continuation.preservesOccurrences, previousTokens: tokens,
-                        previousItems: continuation.previousItems)
+                        previousItems: continuation.previousItems))
     }
 
     /// Bounded collection for explicit exports or queue construction. The UI should load one page at a time.

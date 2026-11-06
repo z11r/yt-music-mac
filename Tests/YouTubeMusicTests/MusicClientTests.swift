@@ -58,6 +58,49 @@ final class MusicClientTests: XCTestCase {
         XCTAssertEqual(next.tracks.map(\.id), ["one"])
     }
 
+    func testLibraryItemSectionContinuationKeepsDistinctCollectionsAndDeduplicatesRepeatedIDs() async throws {
+        func collection(_ id: String) -> [String: Any] {
+            ["musicTwoRowItemRenderer": ["title": text("Same title"),
+                "navigationEndpoint": ["browseEndpoint": ["browseId": id,
+                    "browseEndpointContextSupportedConfigs": ["browseEndpointContextMusicConfig":
+                        ["pageType": "MUSIC_PAGE_TYPE_PLAYLIST"]]]]]]
+        }
+        let first = json(["contents": ["sectionListRenderer": ["contents": [["gridRenderer": [
+            "items": [collection("VLfirst")], "continuations": [["nextContinuationData": ["continuation": "next"]]],
+        ]]]]]])
+        let second = json(["continuationContents": ["itemSectionContinuation": ["contents": [
+            ["gridRenderer": ["items": [collection("VLfirst"), collection("VLsecond"), collection("VLsecond")]]],
+            collection("VLthird"),
+        ]]]])
+        let store = MusicSessionStore()
+        await setFixtureSession(store)
+        let transport = StubTransport([.response(response(first)), .response(response(second))])
+        let client = client(transport, sessions: store)
+        let initial = try await client.library()
+        let next = try await client.nextPage(XCTUnwrap(initial.continuation))
+        XCTAssertEqual(next.items.map(\.id), ["playlist:VLsecond", "playlist:VLthird"])
+        XCTAssertNil(next.continuation)
+    }
+
+    func testItemSectionContinuationPreservesPlaylistOccurrencesAndContinuationGuard() async throws {
+        let continuation = json(["continuationContents": ["itemSectionContinuation": [
+            "contents": [["musicPlaylistShelfRenderer": ["contents": [song("one"), song("one")]]]],
+            "continuations": [["nextContinuationData": ["continuation": "third"]]],
+        ]]])
+        let repeated = json(["continuationContents": ["itemSectionContinuation": [
+            "contents": [song("two")], "continuations": [["nextContinuationData": ["continuation": "third"]]],
+        ]]])
+        let transport = StubTransport([.response(response(shelf(["one"], token: "second"))),
+            .response(response(continuation)), .response(response(repeated))])
+        let client = client(transport)
+        let initial = try await client.playlist(id: "PLexample")
+        let next = try await client.nextPage(XCTUnwrap(initial.continuation))
+        XCTAssertEqual(next.tracks.map(\.id), ["one", "one"])
+        XCTAssertEqual(next.playlistItems.map(\.track.id), ["one", "one"])
+        do { _ = try await client.nextPage(XCTUnwrap(next.continuation)); XCTFail("Expected pagination loop") }
+        catch { XCTAssertEqual(error as? MusicServiceError, .paginationLoop) }
+    }
+
     func testRepeatedContinuationStopsWithExplicitError() async throws {
         let transport = StubTransport([.response(response(shelf(["one"], token: "next"))),
                                        .response(response(shelf(["two"], token: "next", continuation: true)))])

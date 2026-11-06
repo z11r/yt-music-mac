@@ -9,6 +9,7 @@ struct RootView: View {
     @State private var isSearchPresented = false
     @FocusState private var isSearchFocused: Bool
     @State private var searchWindow = SearchWindowReference()
+    @State private var libraryEditor: LibraryEditorRequest?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -29,7 +30,7 @@ struct RootView: View {
                 .navigationTitle("YT Music")
             } detail: {
                 VStack(spacing: 0) {
-                    MusicContentView(session: session)
+                    MusicContentView(session: session, presentEditor: libraryEditorPresenter)
                     EmbeddedPlayerPanel(session: session)
                 }
                 .navigationTitle(session.destination.title)
@@ -59,6 +60,7 @@ struct RootView: View {
                 QueueView(session: session)
                     .inspectorColumnWidth(min: 260, ideal: 310, max: 420)
             }
+            if libraryEditor == nil { LibraryEditFeedbackView(session: session) }
             Divider()
             PlayerBar(session: session)
         }
@@ -68,12 +70,32 @@ struct RootView: View {
         .sheet(isPresented: $session.showsAccount, onDismiss: session.closeAccount) {
             AccountView(session: session)
         }
+        .sheet(item: $libraryEditor) { request in
+            LibraryEditorView(session: session, request: request)
+        }
+        .onChange(of: session.remoteLibraryEditingEnabled) {
+            if !session.remoteLibraryEditingEnabled { libraryEditor = nil }
+        }
+        .onChange(of: session.libraryEditingScope) { libraryEditor = nil }
         .task { await session.start() }
     }
 
     private var searchAction: (() -> Void)? {
-        guard !session.showsAccount else { return nil }
+        guard !session.showsAccount, libraryEditor == nil else { return nil }
         return { focusSearch() }
+    }
+
+    private func presentLibraryEditor(_ request: LibraryEditorRequest) {
+        guard session.remoteLibraryEditingEnabled, !session.isEditingLibrary, !session.showsAccount else { return }
+        libraryEditor = request
+    }
+
+    private var libraryEditorPresenter: (LibraryEditorRequest) -> Void {
+        let scope = session.libraryEditingScope
+        return { request in
+            guard session.libraryEditingScope == scope else { return }
+            presentLibraryEditor(request)
+        }
     }
 
     private func focusSearch() {

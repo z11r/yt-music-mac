@@ -67,12 +67,13 @@ enum MusicResponseParser {
             }
             visit(renderer["secondaryContents"], result: &result, path: "secondary", preservesOccurrences: preservesOccurrences)
         }
-        for key in ["sectionListContinuation", "musicShelfContinuation", "musicPlaylistShelfContinuation", "gridContinuation"] {
+        for key in ["sectionListContinuation", "itemSectionContinuation", "musicShelfContinuation", "musicPlaylistShelfContinuation", "gridContinuation"] {
             let container = root["continuationContents"][key]
             if container.exists {
                 result.recognized = true
-                if key == "sectionListContinuation" {
-                    visitChildren(container["contents"].array, result: &result, path: "next", preservesOccurrences: preservesOccurrences)
+                if key == "sectionListContinuation" || key == "itemSectionContinuation" {
+                    visitChildren(container["contents"].array + container["items"].array,
+                                  result: &result, path: "next", preservesOccurrences: preservesOccurrences)
                 } else {
                     appendShelf(container, result: &result, path: "next", preservesOccurrences: preservesOccurrences)
                 }

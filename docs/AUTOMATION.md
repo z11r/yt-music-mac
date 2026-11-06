@@ -40,12 +40,26 @@ started. The lookup times out, and a newer playback or account action can replac
 it. A missing result never selects a different song.
 
 Player info is JSON with playing/buffering flags, sign-in state, current video
-ID, elapsed time, duration, volume, queue count, and a generic playback error
+ID, elapsed time, duration, volume, queue count, and a fixed playback error code
 when present. It contains no account identity, credentials, or queue history.
 These commands use the same player as the main window and compact controls.
 
-`check library` reads up to two pages each from the library, liked songs, and one
+Error codes distinguish blocked playback, unavailable media, a changed target,
+missing controls, bridge failures, load timeouts, failed navigation, and a
+terminated playback process. Page error text and URLs are never returned.
+
+`check library` reads up to 25 pages each from the library, liked songs, and one
 discovered playlist, with a 20-second deadline. Its report states whether more
 pages remain, so it is not a complete-library export. It includes no song titles,
 playlist IDs, account identities, continuation tokens, or credentials. It does
 not change playback, navigation, likes, or playlists.
+
+Report schema version 2 adds `responseStructure` when a continuation uses an
+unsupported response format. It lists paths built from a fixed allowlist of
+container names, with object, array, element, and scalar counts. `/[]` groups
+array entries. Direct children of `continuationContents` may also report up to
+eight container names matching `[a-zA-Z]{1,64}Continuation`; their contents are
+not inspected. Other unknown key names and all response values are omitted;
+`unknownKeyCount` counts omitted keys. `truncated` marks reports that reached the
+limit of 2,048 visited nodes, 12 nested levels, or 256 distinct paths. This field
+helps diagnose pagination without exporting library content.

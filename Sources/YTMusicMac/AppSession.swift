@@ -92,6 +92,8 @@ final class AppSession {
     private(set) var isEditingLibrary = false
     private(set) var libraryEditError: String?
     private(set) var libraryEditMessage: String?
+    private(set) var libraryEditingScope = UUID()
+    private(set) var sceneCheckRevision = 0
     var searchText = ""
     var collectionFilter = ""
     var showsQueue = false
@@ -103,6 +105,7 @@ final class AppSession {
     @ObservationIgnored private let client: YouTubeMusicClient
     @ObservationIgnored private let queueStore: QueueStore?
     @ObservationIgnored private let preferences: UserDefaults
+    @ObservationIgnored private let isSceneCheck: Bool
     @ObservationIgnored private var started = false
     @ObservationIgnored private var wantsPlayback = false
     @ObservationIgnored private var pageTask: Task<Void, Never>?
@@ -117,20 +120,15 @@ final class AppSession {
     @ObservationIgnored private var scriptingPlayGeneration = UUID()
     @ObservationIgnored private var libraryEditID: UUID?
 
-    init() {
-        let preferences = AppIdentity.preferences
-        self.preferences = preferences
-        let store = WKWebsiteDataStore(forIdentifier: AppIdentity.websiteDataIdentifier)
-        let credentials = MusicSessionStore()
-        account = WebSession(dataStore: store, credentials: credentials, preferences: preferences)
-        client = YouTubeMusicClient(sessions: credentials)
-        player = WebPlayer(dataStore: store)
-        if let directory = try? AppIdentity.applicationSupportDirectory() {
-            queueStore = QueueStore(fileURL: directory.appendingPathComponent("queue.json"))
-        } else {
-            queueStore = nil
-            queueError = "The queue cannot be saved because application storage is unavailable."
-        }
+    init(configuration: AppSessionConfiguration = .live()) {
+        preferences = configuration.preferences
+        isSceneCheck = configuration.isSceneCheck
+        account = WebSession(dataStore: configuration.dataStore, credentials: configuration.credentials,
+                             preferences: configuration.preferences)
+        client = configuration.client
+        player = WebPlayer(dataStore: configuration.dataStore)
+        queueStore = configuration.queueStore
+        queueError = configuration.queueStorageError
         player.onEnded = { [weak self] occurrence in self?.ended(occurrence) }
         player.onRecoveryRequested = { [weak self] occurrence, position in
             guard let self else { return nil }
@@ -153,7 +151,30 @@ final class AppSession {
             guard let self, self.showsAccount else { return }
             self.closeAccount()
         }
-        systemMedia = SystemMediaControls(session: self)
+        if configuration.installsSystemMedia { systemMedia = SystemMediaControls(session: self) }
+        if isSceneCheck {
+            started = true
+            page = SceneCheckFixture.page
+        }
+    }
+
+    /// Exercises observable queue state without issuing playback or account requests.
+    func advanceSceneCheck(to revision: Int) -> Bool {
+        guard isSceneCheck, revision == sceneCheckRevision + 1, revision <= SceneCheckProgress.target else { return false }
+        let tracks = SceneCheckFixture.tracks
+        queue.replace(with: revision.isMultiple(of: 2) ? tracks : Array(tracks.reversed()))
+        if revision.isMultiple(of: 3) { _ = queue.next() }
+        queue.setShuffle(revision.isMultiple(of: 2))
+        queue.repeatMode = revision.isMultiple(of: 3) ? .all : .off
+        showsQueue = revision % 10 < 5
+        sceneCheckRevision = revision
+        return true
+    }
+
+    var sceneCheckIsIsolated: Bool {
+        isSceneCheck && queueStore == nil && systemMedia == nil && !account.dataStore.isPersistent &&
+        !account.isSignedIn && account.loginWebView == nil && !player.playbackIntent &&
+        !player.isPlaying && !player.isBuffering && player.webView.url == nil && !player.webView.isLoading
     }
 
     var currentTrack: Track? { queue.currentTrack }
@@ -416,6 +437,7 @@ final class AppSession {
     }
 
     private func resetLibraryEditing() {
+        libraryEditingScope = UUID()
         libraryEditID = nil
         isEditingLibrary = false
         clearLibraryEditFeedback()
@@ -538,6 +560,7 @@ final class AppSession {
     }
 
     private func request(_ occurrence: PlaybackOccurrence?, resumingAt position: TimeInterval = 0) {
+        guard !isSceneCheck else { return }
         guard let occurrence, let track = queue.currentTrack else { return }
         resumeState.begin(occurrence, recovering: position)
         player.load(track: track, occurrence: occurrence, autoplay: wantsPlayback)
@@ -554,6 +577,7 @@ final class AppSession {
     }
 
     func openAccount() {
+        guard !isSceneCheck else { return }
         player.cancelSessionRestore()
         account.openLogin()
         showsAccount = true

@@ -91,7 +91,8 @@ struct ScriptingPlayerInfo: Encodable {
     let error: String?
 
     init(playing: Bool, buffering: Bool, signedIn: Bool, currentTrackID: String?,
-         position: Double, duration: Double, volume: Double, queueCount: Int, hasError: Bool) {
+         position: Double, duration: Double, volume: Double, queueCount: Int, hasError: Bool,
+         failureReason: PlaybackFailureReason? = nil) {
         self.playing = playing
         self.buffering = buffering
         self.signedIn = signedIn
@@ -100,7 +101,7 @@ struct ScriptingPlayerInfo: Encodable {
         self.duration = duration.isFinite ? max(0, duration) : 0
         self.volume = volume.isFinite ? min(1, max(0, volume)) : 0
         self.queueCount = max(0, queueCount)
-        self.error = hasError ? "playbackUnavailable" : nil
+        self.error = hasError ? (failureReason?.rawValue ?? "playbackUnavailable") : nil
     }
 
     @MainActor init(session: AppSession) {
@@ -108,7 +109,7 @@ struct ScriptingPlayerInfo: Encodable {
                   signedIn: session.account.isSignedIn, currentTrackID: session.currentTrack?.id,
                   position: session.player.clock.position, duration: session.player.clock.duration,
                   volume: session.player.volume, queueCount: session.queue.entries.count,
-                  hasError: session.player.errorMessage != nil)
+                  hasError: session.player.errorMessage != nil, failureReason: session.player.failureReason)
     }
 
     func json() throws -> String {

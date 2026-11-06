@@ -90,13 +90,19 @@ struct QueueView: View {
         .accessibilityActions {
             Button("Play") { session.selectQueueEntry(entry.id) }
             if index > 0 {
-                Button("Move Up") { session.moveQueueEntries(from: IndexSet(integer: index), to: index - 1) }
+                Button("Move Up") { moveEntry(entry.id, up: true) }
             }
             if index + 1 < session.queue.entries.count {
-                Button("Move Down") { session.moveQueueEntries(from: IndexSet(integer: index), to: index + 2) }
+                Button("Move Down") { moveEntry(entry.id, up: false) }
             }
             Button("Remove from Queue") { session.removeQueueEntries([entry.id]) }
         }
+    }
+
+    private func moveEntry(_ id: UUID, up: Bool) {
+        guard let index = session.queue.entries.firstIndex(where: { $0.id == id }),
+              up ? index > 0 : index + 1 < session.queue.entries.count else { return }
+        session.moveQueueEntries(from: IndexSet(integer: index), to: up ? index - 1 : index + 2)
     }
 
     private func queuePosition(_ entry: QueueEntry, index: Int) -> String {

@@ -6,6 +6,7 @@ import SwiftUI
 struct YTMusicMacApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @State private var session: AppSession
+    private let sceneCheck: SceneCheckDriver?
     @AppStorage("appearance", store: AppIdentity.preferences) private var appearance = "system"
 
     init() {
@@ -29,9 +30,15 @@ struct YTMusicMacApp: App {
             print("App bundle validation passed.")
             exit(0)
         }
-        let session = AppSession()
+        let sceneCheck = SceneCheckLaunch.isRequested ? SceneCheckDriver() : nil
+        self.sceneCheck = sceneCheck
+        let session: AppSession
+        if let sceneCheck {
+            session = AppSession(configuration: .sceneCheck(preferences: SceneCheckPreferences.current.defaults,
+                                                            transport: sceneCheck.transport))
+        } else { session = AppSession() }
         _session = State(initialValue: session)
-        AppScripting.session = session
+        AppScripting.session = sceneCheck == nil ? session : nil
     }
 
     private var colorScheme: ColorScheme? {
@@ -40,7 +47,7 @@ struct YTMusicMacApp: App {
 
     var body: some Scene {
         Window(AppIdentity.displayName, id: "main") {
-            MainSceneView(session: session, delegate: delegate)
+            MainSceneView(session: session, delegate: delegate, sceneCheck: sceneCheck)
                 .preferredColorScheme(colorScheme)
                 .frame(minWidth: 860, minHeight: 600)
         }
@@ -100,14 +107,22 @@ private struct MusicSearchCommands: Commands {
 private struct MainSceneView: View {
     let session: AppSession
     let delegate: AppDelegate
+    let sceneCheck: SceneCheckDriver?
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         RootView(session: session)
+            .background {
+                if let sceneCheck {
+                    SceneCheckRenderProbe(driver: sceneCheck, revision: session.sceneCheckRevision)
+                        .frame(width: 0, height: 0)
+                }
+            }
             .task {
                 delegate.session = session
                 delegate.openMainWindow = { openWindow(id: "main") }
                 await session.start()
+                sceneCheck?.start(session: session)
             }
     }
 }

@@ -47,6 +47,21 @@ struct ScriptingValueTests {
         #expect(object["error"] == nil)
     }
 
+    @Test func failureCodesDoNotIncludeUnrecognizedPageText() throws {
+        for raw in ["private account value", "https://example.com/?token=secret", "", "media_error"] {
+            let reason = PlaybackFailureReason.bridgeError(raw)
+            #expect(reason == .mediaUnavailable)
+            let value = ScriptingPlayerInfo(playing: false, buffering: false, signedIn: true,
+                currentTrackID: nil, position: 0, duration: 0, volume: 0.5, queueCount: 1,
+                hasError: true, failureReason: reason)
+            let data = try #require(value.json().data(using: .utf8))
+            let object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+            #expect(object["error"] as? String == "mediaUnavailable")
+        }
+        #expect(PlaybackFailureReason.bridgeError("playback_blocked") == .playbackBlocked)
+        #expect(PlaybackFailureReason.bridgeError("target_changed") == .targetChanged)
+    }
+
     @Test func lookupSelectsTheExactVideoRatherThanTheFirstResult() async throws {
         let wanted = Track(id: "abcDEF12_-3", title: "Requested song", artist: "Artist")
         let result = try await ScriptedTrackResolver.resolve(videoID: wanted.id) { query in
@@ -135,6 +150,8 @@ struct ScriptingCommandTests {
         let url = try #require(AppIdentity.resourceBundle.url(forResource: "YTMusicMac", withExtension: "sdef"))
         let document = try XMLDocument(contentsOf: url, options: [.nodeLoadExternalEntitiesNever])
         let commands = try document.nodes(forXPath: "/dictionary/suite/command")
+        let queueResult = try document.nodes(forXPath: "/dictionary/suite/command[@code='YTMcpvds']/result/@type")
+        #expect(queueResult.first?.stringValue == "integer")
         #expect(commands.count == 13)
         var codes = Set<String>()
         var names = Set<String>()

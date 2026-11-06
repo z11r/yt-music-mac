@@ -28,7 +28,7 @@ a real library. Playback script tests run in JavaScriptCore with controlled
 media events, including stale document navigation and repeated endings.
 Recovery tests save and reopen isolated queue files after failed loads, and check
 that retries, new occurrences, explicit seeks, and account changes handle saved
-positions correctly. The local deterministic suite currently has 184 tests.
+positions correctly. The local deterministic suite currently has 198 tests.
 
 Check scripts and workflow syntax separately:
 
@@ -44,7 +44,7 @@ silicon/macOS 26. It does not sign in, modify a library, or run network probes.
 
 ```sh
 app_path="$(Scripts/build-app.sh --configuration release --universal)"
-Scripts/check-app.sh "$app_path" --configuration release --universal --smoke-test
+Scripts/check-app.sh "$app_path" --configuration release --universal --smoke-test --ui-smoke-test
 ```
 
 The static check verifies bundle metadata, executable architectures, macOS 14
@@ -54,6 +54,14 @@ resource overrides, and runs the bundle's diagnostic mode. That mode verifies
 its own identity, resource location, and registration of the native playback
 commands before creating a playback session or contacting the music service.
 It does not establish playback or accessibility behavior.
+
+The UI smoke check opens the relocated release app with synthetic music and
+requires 100 rendered queue-state changes in its real window and menu scenes.
+It uses disposable preferences, nonpersistent WebKit storage, a transport that
+rejects requests, and no saved queue or system media registration. It checks
+that no request, sign-in, or playback occurred, then removes its preferences.
+The process must finish within 20 seconds. This check passed locally; it does
+not replace visual, keyboard, VoiceOver, or live playback testing.
 
 ## Anonymous service checks
 
@@ -68,9 +76,11 @@ pages. The native client passed these checks locally on November 6, 2026.
 Service responses vary over time and by region, so a failure needs inspection.
 No response bodies, configuration keys, or account data should be saved in logs.
 
-Signed-in library and liked-song requests still need account testing. Remote
-likes and playlist edits remain unavailable while that work is pending. Do not
-run automatic account mutations as part of CI.
+The Premium account check completed a liked-song collection larger than one
+page. Library and playlist requests loaded initial pages but failed during
+extended pagination; those failures remain under investigation. Remote likes
+and playlist edits remain unavailable while service validation is pending.
+Do not run automatic account mutations as part of CI.
 
 ## Manual playback
 

@@ -3,7 +3,7 @@ set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 usage() {
-  echo "Usage: Scripts/check-app.sh APP [--configuration debug|release] [--arch arm64|x86_64|--universal] [--smoke-test]" >&2
+  echo "Usage: Scripts/check-app.sh APP [--configuration debug|release] [--arch arm64|x86_64|--universal] [--smoke-test] [--ui-smoke-test]" >&2
 }
 [[ $# -gt 0 ]] || { usage; exit 2; }
 [[ "$1" != --help && "$1" != -h ]] || { usage; exit 0; }
@@ -12,6 +12,7 @@ shift
 configuration=""
 architectures=()
 smoke_test=false
+ui_smoke_test=false
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --configuration)
@@ -22,6 +23,7 @@ while [[ $# -gt 0 ]]; do
       architectures+=("$2"); shift 2 ;;
     --universal) architectures=(arm64 x86_64); shift ;;
     --smoke-test) smoke_test=true; shift ;;
+    --ui-smoke-test) ui_smoke_test=true; shift ;;
     --help|-h) usage; exit 0 ;;
     *) usage; exit 2 ;;
   esac
@@ -90,16 +92,53 @@ done < <("$script_dir/with-xcode.sh" xcrun otool -l "$executable" | awk '
 ')
 /usr/bin/codesign --verify --deep --strict --verbose=2 "$bundle"
 
-if [[ "$smoke_test" == true ]]; then
+if [[ "$smoke_test" == true || "$ui_smoke_test" == true ]]; then
   check_dir="$(mktemp -d "${TMPDIR:-/tmp}/ytmusic-bundle-check.XXXXXX")"
-  # Only this freshly-created temporary directory is removed.
-  trap 'rm -rf "$check_dir"' EXIT
+  check_preferences_domain=""
+  cleanup_check() {
+    # Both names belong only to this invocation, including after a child crash.
+    if [[ -n "$check_preferences_domain" ]]; then
+      /usr/bin/defaults delete "$check_preferences_domain" >/dev/null 2>&1 || true
+    fi
+    rm -rf "$check_dir"
+  }
+  trap cleanup_check EXIT
   relocated="$check_dir/Relocated Music.app"
   /usr/bin/ditto "$bundle" "$relocated"
-  (
-    cd "$check_dir"
+  if [[ "$smoke_test" == true ]]; then
+    (
+      cd "$check_dir"
+      env -u PACKAGE_RESOURCE_BUNDLE_PATH -u PACKAGE_RESOURCE_BUNDLE_URL \
+        "$relocated/Contents/MacOS/YTMusicMac" --check-bundle
+    )
+  fi
+  if [[ "$ui_smoke_test" == true ]]; then
+    check_id="$(/usr/bin/uuidgen)"
+    check_preferences_domain="io.github.z11r.ytmusicmac.scenecheck.$check_id"
     env -u PACKAGE_RESOURCE_BUNDLE_PATH -u PACKAGE_RESOURCE_BUNDLE_URL \
-      "$relocated/Contents/MacOS/YTMusicMac" --check-bundle
-  )
+      python3 - "$relocated/Contents/MacOS/YTMusicMac" "$check_id" "$check_dir" <<'PY'
+import json
+import subprocess
+import sys
+
+try:
+    result = subprocess.run(
+        [sys.argv[1], "--check-ui-scenes", "--check-id", sys.argv[2]],
+        cwd=sys.argv[3], capture_output=True, text=True, timeout=20, check=False,
+    )
+except subprocess.TimeoutExpired:
+    sys.exit("UI scene check exceeded 20 seconds.")
+if result.returncode != 0:
+    sys.stderr.write(result.stdout[-4096:] + result.stderr[-4096:])
+    sys.exit(f"UI scene check failed (status {result.returncode}).")
+try:
+    report = json.loads(result.stdout)
+except (ValueError, TypeError):
+    sys.exit("UI scene check did not return a valid report.")
+if report != {"check": "ui-scenes", "passed": True, "reason": "completed", "renderedRevisions": 100}:
+    sys.exit("UI scene check did not confirm 100 rendered revisions.")
+print(json.dumps(report, sort_keys=True))
+PY
+  fi
 fi
 printf 'Checked %s (%s; %s).\n' "$bundle" "$configuration" "${architectures[*]}"

@@ -49,4 +49,4 @@ jobs:
       - name: Check the relocated app bundle
         run: |
           app_path="$(cat "$RUNNER_TEMP/app-path")"
-          Scripts/check-app.sh "$app_path" --configuration release --arch "${{ matrix.arch }}" --smoke-test
+          Scripts/check-app.sh "$app_path" --configuration release --arch "${{ matrix.arch }}" --smoke-test --ui-smoke-test

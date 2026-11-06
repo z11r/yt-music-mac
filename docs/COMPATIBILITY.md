@@ -8,14 +8,16 @@ checks, playback, and performance are separate checks.
 
 | Check | Status |
 | --- | --- |
-| 184 queue, service, session, playback bridge, scripting, recovery, and library tests on Apple silicon, macOS 26.6, Xcode 27.2 | Passed locally |
+| 198 queue, service, session, playback bridge, scripting, recovery, library, and scene-check tests on Apple silicon, macOS 26.6, Xcode 27.2 | Passed locally |
 | Anonymous home, explore, search, album, artist, and playlist requests through the native service client | Passed locally |
 | Debug arm64 bundle and release universal bundle | Built locally; arm64 and x86_64 slices declare macOS 14 |
 | Relocated debug and release bundle diagnostics on Apple silicon/macOS 26.6 | Passed identity, resources, runtime paths, and ad-hoc signature checks |
-| CI tests and host app builds on Intel/macOS 15 and Apple silicon/macOS 26 | All executable changes through [00f26fa](https://github.com/z11r/yt-music-mac/actions/runs/42268192549) passed |
+| CI tests and host app builds on Intel/macOS 15 and Apple silicon/macOS 26 | Checkpoint [6a6572f](https://github.com/z11r/yt-music-mac/actions/runs/42271840586) passed; newer checks pending |
+| Release window and menu scenes with isolated synthetic data | Passed 100 rendered queue-state changes locally |
 | Packaged app on macOS 14, physical Intel and Apple silicon | Pending |
 | Initial Premium sign-in and playback on the development Mac | Manually reported working; extended cases pending |
 | Packaged release: retained sign-in, queue restore without autoplay, saved-position playback, pause, and resume | Verified through native commands on the development Mac |
+| Premium liked-song pagination | Completed a collection larger than one page locally; extended library and playlist pagination still fail |
 | Signed-in playback, session restoration, and library browsing across the OS matrix | Pending |
 | Short background playback and paused resource comparison with Kaset on the development Mac | [Measured](PERFORMANCE.md#november-6-2026-comparison); battery and AC results kept separate |
 | Long listening sessions and memory growth | Pending |

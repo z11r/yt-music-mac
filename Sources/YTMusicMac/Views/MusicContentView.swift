@@ -4,6 +4,7 @@ import YouTubeMusic
 
 struct MusicContentView: View {
     @Bindable var session: AppSession
+    let presentEditor: (LibraryEditorRequest) -> Void
 
     private var usesTrackList: Bool {
         switch session.destination {
@@ -20,7 +21,7 @@ struct MusicContentView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if let page = session.page {
                 if usesTrackList {
-                    CollectionTracksView(session: session, page: page)
+                    CollectionTracksView(session: session, page: page, presentEditor: presentEditor)
                 } else {
                     shelves(page)
                 }
@@ -44,6 +45,11 @@ struct MusicContentView: View {
                         }
                     }
                     Spacer()
+                    if session.destination == .library && session.remoteLibraryEditingEnabled {
+                        Button("New Playlist", systemImage: "plus") { presentEditor(.createPlaylist(tracks: [])) }
+                            .labelStyle(.iconOnly).buttonStyle(.borderless).help("New Playlist")
+                            .disabled(session.isEditingLibrary)
+                    }
                     Button("Refresh", systemImage: "arrow.clockwise", action: session.reload)
                         .labelStyle(.iconOnly).buttonStyle(.borderless).help("Refresh this page")
                 }
@@ -60,7 +66,7 @@ struct MusicContentView: View {
                         ScrollView(.horizontal) {
                             LazyHStack(alignment: .top, spacing: 20) {
                                 ForEach(Array(section.items.enumerated()), id: \.offset) { _, item in
-                                    MusicCard(item: item, session: session)
+                                    MusicCard(item: item, session: session, presentEditor: presentEditor)
                                 }
                             }
                             .padding(.bottom, 6)
@@ -72,7 +78,7 @@ struct MusicContentView: View {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 176, maximum: 220), spacing: 20)],
                               alignment: .leading, spacing: 26) {
                         ForEach(Array(page.items.enumerated()), id: \.offset) { _, item in
-                            MusicCard(item: item, session: session)
+                            MusicCard(item: item, session: session, presentEditor: presentEditor)
                         }
                     }
                 }
@@ -107,6 +113,7 @@ struct MusicContentView: View {
 private struct MusicCard: View {
     let item: MusicItem
     let session: AppSession
+    let presentEditor: (LibraryEditorRequest) -> Void
     @State private var isHovered = false
     @FocusState private var isFocused: Bool
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
@@ -145,7 +152,11 @@ private struct MusicCard: View {
         .overlay {
             if isFocused {
                 RoundedRectangle(cornerRadius: 8)
-                    .strokeBorder(Color(nsColor: .keyboardFocusIndicatorColor), lineWidth: 2)
+                    .strokeBorder(Color(nsColor: .windowBackgroundColor), lineWidth: 4)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 8)
+                            .strokeBorder(Color(nsColor: .keyboardFocusIndicatorColor), lineWidth: 2)
+                    }
                     .allowsHitTesting(false).accessibilityHidden(true)
             }
         }
@@ -157,6 +168,8 @@ private struct MusicCard: View {
             if case let .track(track) = item {
                 Button("Play Next") { session.playNext([track]) }
                 Button("Add to Queue") { session.addToQueue([track]) }
+                LibraryTrackActions(session: session, tracks: [track], presentEditor: presentEditor,
+                                    showsSeparator: false)
             }
         }
         .contextMenu {
@@ -164,6 +177,7 @@ private struct MusicCard: View {
             if case let .track(track) = item {
                 Button("Play Next") { session.playNext([track]) }
                 Button("Add to Queue") { session.addToQueue([track]) }
+                LibraryTrackActions(session: session, tracks: [track], presentEditor: presentEditor)
             }
         }
     }
@@ -174,13 +188,34 @@ private struct MusicCard: View {
 private struct CollectionTracksView: View {
     @Bindable var session: AppSession
     let page: MusicPage
+    let presentEditor: (LibraryEditorRequest) -> Void
     @State private var selection: Set<Int> = []
 
     private struct Row: Identifiable {
         let id: Int
         let track: Track
+        let removalReference: PlaylistItemReference?
     }
-    private var rows: [Row] { session.visibleTracks.enumerated().map { Row(id: $0.offset, track: $0.element) } }
+    private var allTracks: [Track] {
+        page.tracks.isEmpty ? page.sections.flatMap(\.items).compactMap {
+            if case let .track(track) = $0 { track } else { nil }
+        } : page.tracks
+    }
+    private var rows: [Row] {
+        let tracks = allTracks
+        let query = session.collectionFilter.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Match service occurrences before filtering, so identical song IDs
+        // never borrow another occurrence's removal reference.
+        return tracks.enumerated().compactMap { index, track in
+            guard query.isEmpty || track.title.localizedCaseInsensitiveContains(query) ||
+                track.artist.localizedCaseInsensitiveContains(query) else { return nil }
+            let reference: PlaylistItemReference?
+            if page.playlistItems.count == tracks.count, page.playlistItems[index].track == track {
+                reference = page.playlistItems[index].removalReference
+            } else { reference = nil }
+            return Row(id: index, track: track, removalReference: reference)
+        }
+    }
     private var selectedTracks: [Track] { rows.filter { selection.contains($0.id) }.map(\.track) }
 
     var body: some View {
@@ -202,6 +237,7 @@ private struct CollectionTracksView: View {
                     Button("Add to Queue", systemImage: "text.badge.plus") {
                         session.addToQueue(session.visibleTracks)
                     }.disabled(rows.isEmpty)
+                    playlistActions
                 }
                 HStack {
                     TextField("Filter this collection", text: $session.collectionFilter)
@@ -212,6 +248,8 @@ private struct CollectionTracksView: View {
                         Button("Play Selected") { session.playTracks(selectedTracks) }
                         Button("Play Selected Next") { session.playNext(selectedTracks) }
                         Button("Add Selected to Queue") { session.addToQueue(selectedTracks) }
+                        LibraryTrackActions(session: session, tracks: selectedTracks, presentEditor: presentEditor)
+                        removalAction(for: selection)
                     } label: {
                         Label("Selected Songs", systemImage: "ellipsis.circle")
                     }
@@ -251,9 +289,13 @@ private struct CollectionTracksView: View {
                     Button("Play") { session.playTracks(tracks) }
                     Button("Play Next") { session.playNext(tracks) }
                     Button("Add to Queue") { session.addToQueue(tracks) }
+                    LibraryTrackActions(session: session, tracks: tracks, presentEditor: presentEditor)
+                    removalAction(for: ids)
                 }
             } primaryAction: { ids in
-                if let first = ids.min() { session.playTracks(session.visibleTracks, startingAt: first) }
+                if let first = rows.firstIndex(where: { ids.contains($0.id) }) {
+                    session.playTracks(rows.map(\.track), startingAt: first)
+                }
             }
             .overlay {
                 if rows.isEmpty {
@@ -266,6 +308,38 @@ private struct CollectionTracksView: View {
         }
         .onChange(of: session.collectionFilter) { selection.removeAll() }
         .onChange(of: session.destination) { selection.removeAll() }
+    }
+
+    @ViewBuilder private var playlistActions: some View {
+        if session.remoteLibraryEditingEnabled,
+           case let .collection(playlist) = session.destination, playlist.kind == .playlist,
+           page.playlistCapabilities.canRename || page.playlistCapabilities.canDelete {
+            Menu {
+                if page.playlistCapabilities.canRename {
+                    Button("Rename Playlist…") { presentEditor(.renamePlaylist(playlist)) }
+                }
+                if page.playlistCapabilities.canDelete {
+                    Button("Delete Playlist…", role: .destructive) { presentEditor(.deletePlaylist(playlist)) }
+                }
+            } label: {
+                Label("Playlist Actions", systemImage: "ellipsis.circle")
+            }
+            .labelStyle(.iconOnly).menuStyle(.borderlessButton).fixedSize()
+            .disabled(session.isEditingLibrary).help("Playlist actions")
+        }
+    }
+
+    @ViewBuilder private func removalAction(for ids: Set<Int>) -> some View {
+        if session.remoteLibraryEditingEnabled, page.playlistCapabilities.canRemoveItems,
+           case let .collection(playlist) = session.destination, playlist.kind == .playlist {
+            let selected = rows.filter { ids.contains($0.id) }
+            let references = selected.compactMap(\.removalReference)
+            if !selected.isEmpty && references.count == selected.count {
+                Button("Remove from Playlist…", role: .destructive) {
+                    presentEditor(.removeItems(playlist: playlist, tracks: selected.map(\.track), references: references))
+                }.disabled(session.isEditingLibrary)
+            }
+        }
     }
 
     private var collectionHeading: some View {
