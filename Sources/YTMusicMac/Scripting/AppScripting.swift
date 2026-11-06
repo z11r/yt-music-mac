@@ -28,17 +28,20 @@ enum ScriptingInput {
 
 enum AppScriptingError: Error, Equatable, LocalizedError {
     case unavailable, invalidVideoID, signInRequired, noSelection, trackNotFound, superseded, lookupTimedOut, lookupFailed
+    case libraryCheckTimedOut, libraryCheckFailed
 
     var errorDescription: String? {
         switch self {
         case .unavailable: "The player is not ready. Wait for the app to finish opening."
         case .invalidVideoID: "Use an 11-character YouTube video ID containing letters, digits, - or _."
-        case .signInRequired: "Sign in to YouTube Music in the app before starting playback."
+        case .signInRequired: "Sign in to YouTube Music in the app to continue."
         case .noSelection: "Choose a song before starting playback."
         case .trackNotFound: "The requested video ID was not found in YouTube Music."
         case .superseded: "A newer playback or account action replaced this request."
         case .lookupTimedOut: "The song lookup timed out."
         case .lookupFailed: "YouTube Music could not look up the requested song."
+        case .libraryCheckTimedOut: "The library check timed out."
+        case .libraryCheckFailed: "YouTube Music could not complete the library check."
         }
     }
 
@@ -47,7 +50,7 @@ enum AppScriptingError: Error, Equatable, LocalizedError {
         case .invalidVideoID: -1700
         case .unavailable, .noSelection, .trackNotFound: -1728
         case .superseded: -128
-        case .lookupTimedOut: -1712
+        case .lookupTimedOut, .libraryCheckTimedOut: -1712
         default: -10000
         }
     }

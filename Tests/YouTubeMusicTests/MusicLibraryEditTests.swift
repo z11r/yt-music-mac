@@ -4,6 +4,46 @@ import XCTest
 
 @MainActor
 final class MusicLibraryEditTests: XCTestCase {
+    func testUIDispatchCannotBypassTheDisabledFeature() async throws {
+        let transport = EditTransport([])
+        let client = await makeClient(transport)
+        do {
+            _ = try await client.performLibraryEdit(.setLiked(videoID: "song", liked: true))
+            XCTFail("Expected disabled capability")
+        } catch { XCTAssertEqual(error as? MusicLibraryEditError, .featureUnavailable) }
+        let count = await transport.requests.count
+        XCTAssertEqual(count, 0)
+    }
+
+    func testDispatcherRejectsOverlappingSubmissionsUntilOutcomeArrives() async throws {
+        let transport = DeferredEditTransport()
+        let client = await makeClient(transport)
+        let first = Task { try await client.executeLibraryEdit(.setLiked(videoID: "song", liked: true)) }
+        await transport.waitUntilStarted()
+        do {
+            _ = try await client.executeLibraryEdit(.deletePlaylist(id: "PLexample"))
+            XCTFail("Expected in-flight operation guard")
+        } catch { XCTAssertEqual(error as? MusicLibraryEditError, .operationInProgress) }
+        await transport.finish(confirmed())
+        let result = try await first.value
+        XCTAssertEqual(result, .liked(videoID: "song", isLiked: true))
+        let count = await transport.requests.count
+        XCTAssertEqual(count, 1)
+    }
+
+    func testUnconfirmedOutcomeReleasesTheDispatcherWithoutRetrying() async throws {
+        let transport = EditTransport([.failure(.networkConnectionLost), .response(confirmed())])
+        let client = await makeClient(transport)
+        do {
+            _ = try await client.executeLibraryEdit(.renamePlaylist(id: "PLexample", title: "New title"))
+            XCTFail("Expected uncertain result")
+        } catch { XCTAssertEqual(error as? MusicLibraryEditError, .unconfirmedOutcome) }
+        let countBeforeExplicitAction = await transport.requests.count
+        XCTAssertEqual(countBeforeExplicitAction, 1)
+        let result = try await client.executeLibraryEdit(.setLiked(videoID: "song", liked: true))
+        XCTAssertEqual(result, .liked(videoID: "song", isLiked: true))
+    }
+
     func testLikesAndUnlikesUseAuthenticatedRequests() async throws {
         let transport = EditTransport([.response(confirmed()), .response(confirmed())])
         let client = await makeClient(transport)

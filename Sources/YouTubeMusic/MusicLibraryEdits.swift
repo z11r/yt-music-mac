@@ -3,10 +3,19 @@
 import CryptoKit
 import Foundation
 
-public enum PlaylistPrivacy: String, Sendable {
+public enum PlaylistPrivacy: String, Equatable, Sendable {
     case `private` = "PRIVATE"
     case unlisted = "UNLISTED"
     case `public` = "PUBLIC"
+}
+
+public enum MusicLibraryEditAction: Equatable, Sendable {
+    case setLiked(videoID: String, liked: Bool)
+    case createPlaylist(title: String, description: String?, privacy: PlaylistPrivacy, videoIDs: [String])
+    case renamePlaylist(id: String, title: String)
+    case deletePlaylist(id: String)
+    case addItems(playlistID: String, videoIDs: [String], allowDuplicates: Bool)
+    case removeItems(playlistID: String, items: [PlaylistItemReference])
 }
 
 /// A service-assigned playlist occurrence, separate from a song or local queue entry.
@@ -31,6 +40,8 @@ public enum MusicLibraryEditResult: Equatable, Sendable {
 }
 
 public enum MusicLibraryEditError: Error, Equatable, LocalizedError, Sendable {
+    case featureUnavailable
+    case operationInProgress
     case invalidTitle
     case invalidPlaylistItems
     case serviceRejected
@@ -39,6 +50,8 @@ public enum MusicLibraryEditError: Error, Equatable, LocalizedError, Sendable {
 
     public var errorDescription: String? {
         switch self {
+        case .featureUnavailable: "Library editing is not available in this version."
+        case .operationInProgress: "Wait for the current library change to finish."
         case .invalidTitle: "Enter a playlist title of 1–150 characters, without angle brackets or control characters."
         case .invalidPlaylistItems: "The playlist selection is missing valid song or occurrence identifiers. Reload the playlist and try again."
         case .serviceRejected: "YouTube Music declined this change. Check that you can edit this playlist."
@@ -49,6 +62,29 @@ public enum MusicLibraryEditError: Error, Equatable, LocalizedError, Sendable {
 }
 
 extension YouTubeMusicClient {
+    /// UI entry point. An uncertain response never triggers an automatic repeat submission.
+    public func performLibraryEdit(_ action: MusicLibraryEditAction) async throws -> MusicLibraryEditResult {
+        guard supportsRemoteLibraryEdits else { throw MusicLibraryEditError.featureUnavailable }
+        return try await executeLibraryEdit(action)
+    }
+
+    func executeLibraryEdit(_ action: MusicLibraryEditAction) async throws -> MusicLibraryEditResult {
+        try Task.checkCancellation()
+        guard !libraryEditInProgress else { throw MusicLibraryEditError.operationInProgress }
+        libraryEditInProgress = true
+        defer { libraryEditInProgress = false }
+        switch action {
+        case let .setLiked(videoID, liked): return try await setLiked(liked, videoID: videoID)
+        case let .createPlaylist(title, description, privacy, videoIDs):
+            return try await createPlaylist(title: title, description: description, privacy: privacy, videoIDs: videoIDs)
+        case let .renamePlaylist(id, title): return try await renamePlaylist(id: id, title: title)
+        case let .deletePlaylist(id): return try await deletePlaylist(id: id)
+        case let .addItems(playlistID, videoIDs, allowDuplicates):
+            return try await addPlaylistItems(playlistID: playlistID, videoIDs: videoIDs, allowDuplicates: allowDuplicates)
+        case let .removeItems(playlistID, items): return try await removePlaylistItems(playlistID: playlistID, items: items)
+        }
+    }
+
     public func setLiked(_ liked: Bool, videoID: String) async throws -> MusicLibraryEditResult {
         try validateIdentifier(videoID)
         let response = try await libraryMutation(endpoint: liked ? "like/like" : "like/removelike",

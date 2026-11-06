@@ -3,6 +3,31 @@ import MusicCore
 import Observation
 import WebKit
 
+struct SessionPageRestoreState {
+    private(set) var id: UUID?
+    private var synchronizing = false
+
+    mutating func begin() -> UUID {
+        let id = UUID()
+        self.id = id
+        self.synchronizing = false
+        return id
+    }
+
+    mutating func beginSynchronization(_ id: UUID) -> Bool {
+        guard self.id == id, !self.synchronizing else { return false }
+        self.synchronizing = true
+        return true
+    }
+
+    @discardableResult
+    mutating func finish(_ id: UUID) -> Bool {
+        guard self.id == id else { return false }
+        self = Self()
+        return true
+    }
+}
+
 @MainActor
 @Observable
 final class WebPlayer: NSObject {
@@ -21,6 +46,7 @@ final class WebPlayer: NSObject {
     @ObservationIgnored var onPageReady: ((WKWebView) -> Void)?
     @ObservationIgnored var onStateChanged: (() -> Void)?
     @ObservationIgnored var onRecoveryRequested: ((PlaybackOccurrence, TimeInterval) -> TimeInterval?)?
+    @ObservationIgnored var onSessionRestoreFailed: (() -> Void)?
 
     @ObservationIgnored private let messageHandler: PlayerMessageHandler
     @ObservationIgnored private var gate = PlaybackEventGate()
@@ -38,6 +64,11 @@ final class WebPlayer: NSObject {
     @ObservationIgnored private var failureReported = false
     @ObservationIgnored private var scriptAvailable = false
     @ObservationIgnored private var lastBoundDocumentID: UUID?
+    @ObservationIgnored private var sessionRestore = SessionPageRestoreState()
+    @ObservationIgnored private var sessionSynchronizer: (@MainActor (WKWebView) async -> Bool)?
+    @ObservationIgnored private var sessionRestoreTask: Task<Void, Never>?
+    @ObservationIgnored private var sessionRestoreDeadline: Task<Void, Never>?
+    @ObservationIgnored private var sessionMediaSuspended = false
 
     init(dataStore: WKWebsiteDataStore) {
         let controller = WKUserContentController()
@@ -73,6 +104,11 @@ final class WebPlayer: NSObject {
             self.fail("The selected song no longer matches the playback request.")
             return
         }
+        self.cancelSessionRestore()
+        if self.sessionMediaSuspended {
+            self.webView.setAllMediaPlaybackSuspended(false)
+            self.sessionMediaSuspended = false
+        }
         self.track = track
         self.occurrence = occurrence
         self.wantsPlaying = autoplay
@@ -80,6 +116,50 @@ final class WebPlayer: NSObject {
         self.fallbackCount = 0
         self.clock.reset()
         self.navigate()
+    }
+
+    /// Loads account context without creating another web view or starting playback.
+    @discardableResult
+    func restoreSessionPage(synchronize: @escaping @MainActor (WKWebView) async -> Bool) -> Bool {
+        guard self.occurrence == nil, self.gate.loadID == nil, self.scriptAvailable else { return false }
+        self.cancelSessionRestore()
+        let id = self.sessionRestore.begin()
+        self.sessionSynchronizer = synchronize
+        self.webView.setAllMediaPlaybackSuspended(true)
+        self.sessionMediaSuspended = true
+        self.navigation = self.webView.load(URLRequest(url: URL(string: "https://music.youtube.com/")!))
+        self.sessionRestoreDeadline = Task { @MainActor [weak self] in
+            do { try await Task.sleep(for: .seconds(18)) } catch { return }
+            self?.finishSessionRestore(id, succeeded: false)
+        }
+        return true
+    }
+
+    func cancelSessionRestore() {
+        guard let id = self.sessionRestore.id else { return }
+        self.sessionRestore.finish(id)
+        self.clearSessionRestoreWork()
+        self.navigation = nil
+        self.webView.stopLoading()
+    }
+
+    private func clearSessionRestoreWork() {
+        // Account synchronization owns its own epoch fence. Stopping playback
+        // during an account change must not cancel that account update midway.
+        self.sessionRestoreTask = nil
+        self.sessionRestoreDeadline?.cancel()
+        self.sessionRestoreDeadline = nil
+        self.sessionSynchronizer = nil
+    }
+
+    private func finishSessionRestore(_ id: UUID, succeeded: Bool) {
+        guard self.sessionRestore.finish(id) else { return }
+        self.clearSessionRestoreWork()
+        self.navigation = nil
+        if !succeeded {
+            self.webView.stopLoading()
+            self.onSessionRestoreFailed?()
+        }
     }
 
     func play() {
@@ -116,6 +196,7 @@ final class WebPlayer: NSObject {
     }
 
     func stop() {
+        self.cancelSessionRestore()
         self.deadline?.cancel()
         self.deadline = nil
         self.wantsPlaying = false
@@ -362,7 +443,13 @@ extension WebPlayer: WKNavigationDelegate, WKUIDelegate {
         if url.absoluteString == "about:blank", self.gate.loadID == nil {
             decisionHandler(.allow)
         } else {
-            guard PlaybackNavigation.permits(url) else { decisionHandler(.cancel); return }
+            guard PlaybackNavigation.permits(url) else {
+                decisionHandler(.cancel)
+                if navigationAction.targetFrame?.isMainFrame != false, let id = self.sessionRestore.id {
+                    self.finishSessionRestore(id, succeeded: false)
+                }
+                return
+            }
             if navigationAction.targetFrame?.isMainFrame != false,
                let track = self.track,
                let target = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "v" })?.value,
@@ -385,6 +472,16 @@ extension WebPlayer: WKNavigationDelegate, WKUIDelegate {
         guard let expected = self.navigation, navigation === expected,
               let url = webView.url, PlaybackNavigation.permits(url)
         else { return }
+        if let id = self.sessionRestore.id, let synchronize = self.sessionSynchronizer {
+            guard self.sessionRestore.beginSynchronization(id) else { return }
+            self.sessionRestoreTask = Task { @MainActor [weak self, weak webView] in
+                guard let self, let webView else { return }
+                let succeeded = await synchronize(webView)
+                guard !Task.isCancelled else { return }
+                self.finishSessionRestore(id, succeeded: succeeded)
+            }
+            return
+        }
         self.onPageReady?(webView)
         self.bindBridge()
     }
@@ -401,10 +498,18 @@ extension WebPlayer: WKNavigationDelegate, WKUIDelegate {
         guard let expected = self.navigation, navigation === expected,
               (error as NSError).code != NSURLErrorCancelled
         else { return }
+        if let id = self.sessionRestore.id {
+            self.finishSessionRestore(id, succeeded: false)
+            return
+        }
         self.retryNavigationOrFail("YouTube Music could not load. Check your connection and try again.")
     }
 
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        if let id = self.sessionRestore.id {
+            self.finishSessionRestore(id, succeeded: false)
+            return
+        }
         self.retryNavigationOrFail("The playback process stopped. Try loading the song again.")
     }
 

@@ -28,7 +28,7 @@ a real library. Playback script tests run in JavaScriptCore with controlled
 media events, including stale document navigation and repeated endings.
 Recovery tests save and reopen isolated queue files after failed loads, and check
 that retries, new occurrences, explicit seeks, and account changes handle saved
-positions correctly. The local deterministic suite currently has 153 tests.
+positions correctly. The local deterministic suite currently has 184 tests.
 
 Check scripts and workflow syntax separately:
 
@@ -51,7 +51,7 @@ The static check verifies bundle metadata, executable architectures, macOS 14
 deployment targets, packaged playback resources, license files, library paths, and the code
 signature. The smoke check copies the app outside the checkout, clears package
 resource overrides, and runs the bundle's diagnostic mode. That mode verifies
-its own identity, resource location, and registration of all five native playback
+its own identity, resource location, and registration of the native playback
 commands before creating a playback session or contacting the music service.
 It does not establish playback or accessibility behavior.
 

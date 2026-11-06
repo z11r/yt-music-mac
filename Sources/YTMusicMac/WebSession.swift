@@ -42,6 +42,7 @@ final class WebSession: NSObject {
     @ObservationIgnored private var authUser = 0
     @ObservationIgnored private var delegatedSessionID: String?
     @ObservationIgnored private var loginAttempt = false
+    @ObservationIgnored private var isRestoringSession = false
 
     static let userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15"
 
@@ -53,7 +54,7 @@ final class WebSession: NSObject {
         dataStore.httpCookieStore.add(self)
     }
 
-    func restore() async {
+    func restore(using loadSessionPage: @MainActor () -> Bool) async {
         let operation = epoch
         if preferences.bool(forKey: "sessionRestoreBlocked") {
             isClearing = true
@@ -64,15 +65,31 @@ final class WebSession: NSObject {
         let cookies = SessionPolicy.musicCookies(await dataStore.httpCookieStore.allCookies())
         guard operation == epoch, !isClearing, !preferences.bool(forKey: "sessionRestoreBlocked") else { return }
         guard cookies.contains(where: { $0.name == "SAPISID" || $0.name == "__Secure-3PAPISID" }) else { return }
-        // A page load establishes the selected Google profile before native requests start.
-        openLogin(isRestoring: true)
+        // Reuse the playback view to establish the selected profile. A separate
+        // account view is needed only when the user opens the sign-in interface.
+        isRestoringSession = true
+        isWorking = true
+        errorMessage = nil
+        if !loadSessionPage() { sessionRestoreFailed() }
     }
 
-    func openLogin(isRestoring: Bool = false) {
+    func sessionRestoreFailed() {
+        guard isRestoringSession, !isClearing else { return }
+        isRestoringSession = false
+        epoch = UUID()
+        refreshTask?.cancel()
+        isWorking = false
+        errorMessage = "Could not restore the YouTube Music session. Open Account to sign in again."
+    }
+
+    func openLogin() {
         guard !isClearing else { return }
+        epoch = UUID()
+        refreshTask?.cancel()
+        isRestoringSession = false
         errorMessage = nil
         isWorking = true
-        loginAttempt = !isRestoring
+        loginAttempt = true
         if loginWebView == nil {
             let configuration = WKWebViewConfiguration()
             configuration.websiteDataStore = dataStore
@@ -88,6 +105,7 @@ final class WebSession: NSObject {
 
     func closeLogin() {
         epoch = UUID()
+        isRestoringSession = false
         refreshTask?.cancel()
         loginWebView?.stopLoading()
         loginWebView?.navigationDelegate = nil
@@ -97,12 +115,13 @@ final class WebSession: NSObject {
         loginAttempt = false
     }
 
-    func synchronize(from webView: WKWebView) async {
-        guard !isClearing, webView.url?.scheme == "https", webView.url?.host == "music.youtube.com" else { return }
+    @discardableResult
+    func synchronize(from webView: WKWebView) async -> Bool {
+        guard !isClearing, let url = webView.url, PlaybackNavigation.permits(url) else { return false }
         let wasSignedIn = isSignedIn
         var operation = epoch
         var expectedScope = await credentials.snapshot().scope
-        guard operation == epoch, !isClearing else { return }
+        guard operation == epoch, !isClearing else { return false }
         // Read only the account routing/configuration values needed by the native client.
         let script = """
         (() => {
@@ -117,20 +136,20 @@ final class WebSession: NSObject {
         })()
         """
         guard let values = try? await webView.evaluateJavaScript(script) as? [String: Any],
-              operation == epoch, !isClearing else { return }
+              operation == epoch, !isClearing else { return false }
         guard values["loggedIn"] as? Bool == true else {
             isWorking = false
             // An expired session needs an explicit reauthentication; a page failure never erases cookies.
             if isSignedIn { errorMessage = "Open your account to check the YouTube Music session." }
-            return
+            return false
         }
         let index = values["authUser"] as? Int ?? 0
-        guard (0...99).contains(index) else { return }
+        guard (0...99).contains(index) else { return false }
         let delegated = values["delegated"] as? String ?? ""
         guard let accountIdentity = values["account"] as? String, !accountIdentity.isEmpty else {
             isWorking = false
             errorMessage = "YouTube Music has not confirmed the selected account. Reload the account page and try again."
-            return
+            return false
         }
         let identity = "\(accountIdentity):\(index):\(delegated)"
         let key = SHA256.hash(data: Data(identity.utf8)).map { String(format: "%02x", $0) }.joined()
@@ -146,23 +165,25 @@ final class WebSession: NSObject {
             operation = epoch
             isSignedIn = false
             onAccountChanged?(true)
-            guard await credentials.clear(expectedScope: expectedScope) else { return }
-            guard operation == epoch, !isClearing else { return }
+            guard await credentials.clear(expectedScope: expectedScope) else { return false }
+            guard operation == epoch, !isClearing else { return false }
             expectedScope = await credentials.snapshot().scope
-            guard operation == epoch, !isClearing else { return }
+            guard operation == epoch, !isClearing else { return false }
         }
         accountKey = key
         authUser = index
         delegatedSessionID = delegated.isEmpty ? nil : delegated
         await refreshCookies(replace: changed || !isSignedIn, expectedScope: expectedScope)
-        guard operation == epoch, !isClearing else { return }
+        guard operation == epoch, !isClearing else { return false }
         if isSignedIn {
+            isRestoringSession = false
             preferences.set(key, forKey: "lastAccount")
             preferences.set(false, forKey: "sessionRestoreBlocked")
             isWorking = false
             errorMessage = nil
             if !wasSignedIn { onSignInCompleted?() }
         }
+        return isSignedIn
     }
 
     private func refreshCookies(replace: Bool = false, expectedScope suppliedScope: UUID? = nil) async {
@@ -198,6 +219,7 @@ final class WebSession: NSObject {
         preferences.set(true, forKey: "sessionRestoreBlocked")
         preferences.removeObject(forKey: "lastAccount")
         isClearing = true
+        isRestoringSession = false
         epoch = UUID()
         refreshTask?.cancel()
         closeLogin()

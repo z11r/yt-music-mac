@@ -105,7 +105,7 @@ struct ScriptingValueTests {
 struct ScriptingCommandTests {
     @Test func commandsFailCleanlyWithoutAnAppSession() {
         AppScripting.session = nil
-        let commands: [NSScriptCommand] = [PlayScriptCommand(), PauseScriptCommand(), GetPlayerInfoScriptCommand()]
+        let commands: [NSScriptCommand] = [PlayScriptCommand(), PauseScriptCommand(), GetPlayerInfoScriptCommand(), CheckLibraryScriptCommand()]
         for command in commands {
             #expect(command.performDefaultImplementation() == nil)
             #expect(command.scriptErrorNumber == -1728)
@@ -135,7 +135,7 @@ struct ScriptingCommandTests {
         let url = try #require(AppIdentity.resourceBundle.url(forResource: "YTMusicMac", withExtension: "sdef"))
         let document = try XMLDocument(contentsOf: url, options: [.nodeLoadExternalEntitiesNever])
         let commands = try document.nodes(forXPath: "/dictionary/suite/command")
-        #expect(commands.count == 6)
+        #expect(commands.count == 13)
         var codes = Set<String>()
         var names = Set<String>()
         for node in commands {
@@ -148,8 +148,10 @@ struct ScriptingCommandTests {
             let className = try #require(cocoa.attribute(forName: "class")?.stringValue)
             #expect(NSClassFromString(className) != nil)
         }
-        #expect(names == ["quit", "play", "play video", "pause", "set volume", "get player info"])
+        #expect(names == ["quit", "play", "play video", "pause", "set volume", "get player info", "check library",
+                          "play videos", "seek to", "next track", "previous track", "set repeat", "get playback snapshot"])
         #expect(codes.contains("YTMcpvid"))
         #expect(codes.contains("YTMcinfo"))
+        #expect(codes.contains("YTMcclib"))
     }
 }

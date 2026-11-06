@@ -6,16 +6,14 @@ import SwiftUI
 struct YTMusicMacApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @State private var session: AppSession
+    @FocusedValue(\.focusMusicSearch) private var focusMusicSearch
     @AppStorage("appearance", store: AppIdentity.preferences) private var appearance = "system"
 
     init() {
         if CommandLine.arguments.contains("--check-bundle") {
             _ = NSApplication.shared
-            let registry = NSScriptSuiteRegistry.shared()
-            let commandCodes: [UInt32] = [0x696e666f, 0x70766964, 0x706c6179, 0x70617573, 0x766f6c75]
-            guard commandCodes.allSatisfy({ code in
-                registry.commandDescription(withAppleEventClass: 0x59544d63, andAppleEventCode: code) != nil
-            }) else {
+            guard let dictionary = Bundle.main.url(forResource: "YTMusicMac", withExtension: "sdef"),
+                  ScriptingDictionary.isRegistered(at: dictionary) else {
                 FileHandle.standardError.write(Data("App scripting registration failed.\n".utf8))
                 exit(1)
             }
@@ -49,16 +47,17 @@ struct YTMusicMacApp: App {
         }
         .defaultSize(width: 1180, height: 780)
         .commands {
+            SidebarCommands()
             CommandGroup(replacing: .newItem) { }
             CommandMenu("Playback") {
                 Button(session.player.isPlaying ? "Pause" : "Play") { session.togglePlayback() }
                     .keyboardShortcut("p", modifiers: .command)
                     .disabled(session.currentTrack == nil)
                 Button("Next Song") { session.next() }
-                    .keyboardShortcut(.rightArrow, modifiers: .command)
+                    .keyboardShortcut("n", modifiers: [.command, .option])
                     .disabled(!session.queue.hasNext)
                 Button("Previous Song") { session.previous() }
-                    .keyboardShortcut(.leftArrow, modifiers: .command)
+                    .keyboardShortcut("p", modifiers: [.command, .option])
                     .disabled(session.currentTrack == nil)
                 Divider()
                 Button(session.queue.isShuffled ? "Turn Shuffle Off" : "Turn Shuffle On") { session.toggleShuffle() }
@@ -70,6 +69,11 @@ struct YTMusicMacApp: App {
                 Button(session.showsQueue ? "Hide Queue" : "Show Queue") { session.showsQueue.toggle() }
                     .keyboardShortcut("u", modifiers: [.command, .shift])
                 PlayerWindowCommands()
+            }
+            CommandGroup(after: .textEditing) {
+                Button("Search Music") { focusMusicSearch?() }
+                    .keyboardShortcut("f", modifiers: .command)
+                    .disabled(focusMusicSearch == nil)
             }
         }
         Window("Mini Player", id: "mini-player") {

@@ -1,3 +1,4 @@
+import AppKit
 import MusicCore
 import SwiftUI
 import WebKit
@@ -5,6 +6,9 @@ import YouTubeMusic
 
 struct RootView: View {
     @Bindable var session: AppSession
+    @State private var isSearchPresented = false
+    @FocusState private var isSearchFocused: Bool
+    @State private var searchWindow = SearchWindowReference()
 
     var body: some View {
         VStack(spacing: 0) {
@@ -20,6 +24,7 @@ struct RootView: View {
                     }
                 }
                 .listStyle(.sidebar)
+                .accessibilityLabel("Music navigation")
                 .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 300)
                 .navigationTitle("YT Music")
             } detail: {
@@ -29,7 +34,9 @@ struct RootView: View {
                 }
                 .navigationTitle(session.destination.title)
             }
-            .searchable(text: $session.searchText, placement: .toolbar, prompt: "Search music")
+            .searchable(text: $session.searchText, isPresented: $isSearchPresented,
+                        placement: .toolbar, prompt: Text("Search music"))
+            .modifier(CatalogSearchFocus(focus: $isSearchFocused))
             .onSubmit(of: .search) { session.search() }
             .toolbar {
                 ToolbarItemGroup(placement: .navigation) {
@@ -56,16 +63,86 @@ struct RootView: View {
             PlayerBar(session: session)
         }
         .frame(minWidth: 860, minHeight: 600)
+        .background(SearchWindowAnchor(reference: searchWindow).frame(width: 0, height: 0))
+        .focusedSceneValue(\.focusMusicSearch, searchAction)
         .sheet(isPresented: $session.showsAccount, onDismiss: session.closeAccount) {
             AccountView(session: session)
         }
         .task { await session.start() }
     }
 
+    private var searchAction: (() -> Void)? {
+        guard !session.showsAccount else { return nil }
+        return { focusSearch() }
+    }
+
+    private func focusSearch() {
+        isSearchPresented = true
+        if #available(macOS 15, *) {
+            isSearchFocused = true
+        } else {
+            Task { @MainActor in
+                await Task.yield()
+                searchWindow.focusSearchField()
+            }
+        }
+    }
+
     private var destinationSelection: Binding<MusicDestination?> {
         Binding(get: { session.destination }, set: { value in
             if let value, value != session.destination { session.navigate(to: value) }
         })
+    }
+}
+
+private struct MusicSearchActionKey: FocusedValueKey {
+    typealias Value = () -> Void
+}
+
+extension FocusedValues {
+    var focusMusicSearch: (() -> Void)? {
+        get { self[MusicSearchActionKey.self] }
+        set { self[MusicSearchActionKey.self] = newValue }
+    }
+}
+
+private struct CatalogSearchFocus: ViewModifier {
+    let focus: FocusState<Bool>.Binding
+
+    func body(content: Content) -> some View {
+        if #available(macOS 15, *) { content.searchFocused(focus) }
+        else { content }
+    }
+}
+
+@MainActor
+private final class SearchWindowReference {
+    weak var window: NSWindow?
+
+    func focusSearchField() {
+        guard let window,
+              let item = window.toolbar?.items.compactMap({ $0 as? NSSearchToolbarItem }).first else { return }
+        window.makeFirstResponder(item.searchField)
+        item.searchField.selectText(nil)
+    }
+}
+
+private struct SearchWindowAnchor: NSViewRepresentable {
+    let reference: SearchWindowReference
+    func makeNSView(context: Context) -> SearchAnchorView { SearchAnchorView(reference: reference) }
+    func updateNSView(_ view: SearchAnchorView, context: Context) {}
+
+    final class SearchAnchorView: NSView {
+        let reference: SearchWindowReference
+        init(reference: SearchWindowReference) {
+            self.reference = reference
+            super.init(frame: .zero)
+        }
+        required init?(coder: NSCoder) { nil }
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            reference.window = window
+        }
     }
 }
 
@@ -111,12 +188,14 @@ private struct AccountView: View {
             HStack(spacing: 12) {
                 Image(systemName: "person.crop.circle").font(.title2)
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("Your YouTube Music account").font(.headline)
-                    Text("Complete sign-in on Google's page below.")
+                    Text("Your YouTube Music account").font(.headline).accessibilityAddTraits(.isHeader)
+                    Text(session.account.isSignedIn ? "Manage your account on Google's page below." : "Complete sign-in on Google's page below.")
                         .font(.subheadline).foregroundStyle(.secondary)
                 }
                 Spacer()
-                if session.account.isWorking { ProgressView().controlSize(.small) }
+                if session.account.isWorking {
+                    ProgressView().controlSize(.small).accessibilityLabel("Checking account")
+                }
                 Button("Done", action: session.closeAccount).keyboardShortcut(.cancelAction)
             }
             .padding(16)
@@ -142,7 +221,7 @@ struct InlineMessage: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
-            Image(systemName: "exclamationmark.circle").foregroundStyle(.secondary)
+            Image(systemName: "exclamationmark.circle").foregroundStyle(.secondary).accessibilityHidden(true)
             Text(message).font(.callout).textSelection(.enabled)
             Spacer(minLength: 8)
             if let actionTitle, let action { Button(actionTitle, action: action) }

@@ -35,5 +35,36 @@
             <cocoa class="YTMusicGetPlayerInfoCommand"/>
             <result type="text" description="Playing, buffering, sign-in state, current video ID, position, duration, volume, queue count and a generic playback error when present."/>
         </command>
+        <command name="check library" code="YTMcclib" description="Read up to two pages each from the library, liked songs, and one playlist. Returns counts and status codes only.">
+            <cocoa class="YTMusicCheckLibraryCommand"/>
+            <result type="text" description="JSON with page counts, item counts, and pagination status. No music or account identifiers."/>
+        </command>
+        <command name="play videos" code="YTMcpvds" description="Replace the queue with videos by exact YouTube video IDs and start playback.">
+            <cocoa class="YTMusicPlayVideosCommand"/>
+            <direct-parameter description="YouTube video IDs in queue order."><type type="text" list="yes"/></direct-parameter>
+            <result type="text" description="The accepted playback request as JSON."/>
+        </command>
+        <command name="seek to" code="YTMcseek" description="Seek within the selected song.">
+            <cocoa class="YTMusicSeekCommand"/>
+            <direct-parameter type="real" description="A nonnegative position in seconds."/>
+            <result type="boolean" description="Whether the seek request was accepted."/>
+        </command>
+        <command name="next track" code="YTMcnext" description="Move to the next queue entry.">
+            <cocoa class="YTMusicNextCommand"/>
+            <result type="boolean" description="Whether the request was accepted."/>
+        </command>
+        <command name="previous track" code="YTMcprev" description="Restart the current song or move to the previous queue entry.">
+            <cocoa class="YTMusicPreviousCommand"/>
+            <result type="boolean" description="Whether the request was accepted."/>
+        </command>
+        <command name="set repeat" code="YTMcrept" description="Set queue repeat mode.">
+            <cocoa class="YTMusicSetRepeatCommand"/>
+            <direct-parameter type="text" description="off, all, or one."/>
+            <result type="boolean" description="Whether the repeat mode was set."/>
+        </command>
+        <command name="get playback snapshot" code="YTMcsnap" description="Read playback and current queue occurrence state as JSON.">
+            <cocoa class="YTMusicPlaybackSnapshotCommand"/>
+            <result type="text" description="Current playback and queue occurrence identifiers. No account identity or music metadata."/>
+        </command>
     </suite>
 </dictionary>

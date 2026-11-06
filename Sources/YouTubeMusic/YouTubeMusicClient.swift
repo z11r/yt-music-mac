@@ -26,6 +26,7 @@ public actor YouTubeMusicClient {
     private let pause: @Sendable (Duration) async throws -> Void
     let now: @Sendable () -> Date
     private var bootstrapCache: (configuration: MusicClientConfiguration, expires: Date)?
+    var libraryEditInProgress = false
 
     public init(transport: any MusicHTTPTransport = URLSessionMusicTransport(),
                 sessions: any MusicSessionProviding = MusicSessionStore(),
@@ -147,7 +148,8 @@ public actor YouTubeMusicClient {
                               previousTokens: previousTokens, previousItems: seen)
         }
         return MusicPage(title: parsed.title ?? title, sections: sections, items: sections.flatMap(\.items), continuation: next,
-                         playlistItems: parsed.playlistItems)
+                         playlistItems: parsed.playlistItems, playlistCapabilities: parsed.playlistCapabilities,
+                         likeStates: parsed.likeStates)
     }
 
     private func request(endpoint: MusicEndpoint, body: [String: String], session: MusicSession, requiresAuthentication: Bool) async throws -> Data {

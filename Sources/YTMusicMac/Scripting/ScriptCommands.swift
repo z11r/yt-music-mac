@@ -1,4 +1,5 @@
 import AppKit
+import YouTubeMusic
 
 private func setScriptError(_ command: NSScriptCommand, _ error: AppScriptingError) {
     command.scriptErrorNumber = error.scriptErrorNumber
@@ -117,5 +118,40 @@ final class GetPlayerInfoScriptCommand: NSScriptCommand {
         case let .success(json): return json
         case let .failure(error): setScriptError(self, error); return nil
         }
+    }
+}
+
+@objc(YTMusicCheckLibraryCommand)
+final class CheckLibraryScriptCommand: NSScriptCommand {
+    override func performDefaultImplementation() -> Any? {
+        let session = MainActor.assumeIsolated { AppScripting.session }
+        guard let session else { setScriptError(self, .unavailable); return nil }
+        guard MainActor.assumeIsolated({ session.account.isSignedIn }) else {
+            setScriptError(self, .signInRequired)
+            return nil
+        }
+        suspendExecution()
+        let reply = SuspendedScriptReply(self)
+        Task { @MainActor in
+            do {
+                let report = try await session.checkLibrary()
+                let encoder = JSONEncoder()
+                encoder.outputFormatting = [.sortedKeys]
+                reply.resume(result: String(decoding: try encoder.encode(report), as: UTF8.self), error: nil)
+            } catch let error as AppScriptingError {
+                reply.resume(result: nil, error: error)
+            } catch MusicLibraryCheckError.timedOut {
+                reply.resume(result: nil, error: .libraryCheckTimedOut)
+            } catch MusicServiceError.sessionChanged {
+                reply.resume(result: nil, error: .superseded)
+            } catch MusicServiceError.signInRequired {
+                reply.resume(result: nil, error: .signInRequired)
+            } catch is CancellationError {
+                reply.resume(result: nil, error: .superseded)
+            } catch {
+                reply.resume(result: nil, error: .libraryCheckFailed)
+            }
+        }
+        return nil
     }
 }

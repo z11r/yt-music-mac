@@ -79,21 +79,44 @@ public struct MusicPlaylistItem: Hashable, Sendable {
     }
 }
 
+/// Actions explicitly offered by the current playlist response. Missing controls grant no permission.
+public struct MusicPlaylistCapabilities: Hashable, Sendable {
+    public var canRename: Bool
+    public var canDelete: Bool
+    public var canAddItems: Bool
+    public var canRemoveItems: Bool
+
+    public init(canRename: Bool = false, canDelete: Bool = false,
+                canAddItems: Bool = false, canRemoveItems: Bool = false) {
+        self.canRename = canRename
+        self.canDelete = canDelete
+        self.canAddItems = canAddItems
+        self.canRemoveItems = canRemoveItems
+    }
+}
+
 public struct MusicPage: Sendable {
     public let title: String
     public let sections: [MusicSection]
     public let items: [MusicItem]
     public let continuation: MusicContinuation?
     public let playlistItems: [MusicPlaylistItem]
+    public let playlistCapabilities: MusicPlaylistCapabilities
+    /// A missing entry means the response did not establish the song's like state.
+    public let likeStates: [String: Bool]
     public var tracks: [Track] { items.compactMap { if case let .track(track) = $0 { track } else { nil } } }
 
     public init(title: String, sections: [MusicSection], items: [MusicItem], continuation: MusicContinuation? = nil,
-                playlistItems: [MusicPlaylistItem] = []) {
+                playlistItems: [MusicPlaylistItem] = [],
+                playlistCapabilities: MusicPlaylistCapabilities = MusicPlaylistCapabilities(),
+                likeStates: [String: Bool] = [:]) {
         self.title = title
         self.sections = sections
         self.items = items
         self.continuation = continuation
         self.playlistItems = playlistItems
+        self.playlistCapabilities = playlistCapabilities
+        self.likeStates = likeStates
     }
 }
 

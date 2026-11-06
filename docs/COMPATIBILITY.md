@@ -8,7 +8,7 @@ checks, playback, and performance are separate checks.
 
 | Check | Status |
 | --- | --- |
-| 153 queue, service, session, playback bridge, scripting, and recovery tests on Apple silicon, macOS 26.6, Xcode 27.2 | Passed locally |
+| 184 queue, service, session, playback bridge, scripting, recovery, and library tests on Apple silicon, macOS 26.6, Xcode 27.2 | Passed locally |
 | Anonymous home, explore, search, album, artist, and playlist requests through the native service client | Passed locally |
 | Debug arm64 bundle and release universal bundle | Built locally; arm64 and x86_64 slices declare macOS 14 |
 | Relocated debug and release bundle diagnostics on Apple silicon/macOS 26.6 | Passed identity, resources, runtime paths, and ad-hoc signature checks |

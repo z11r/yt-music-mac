@@ -8,7 +8,7 @@ struct QueueView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack(alignment: .firstTextBaseline) {
-                Text("Queue").font(.title2.bold())
+                Text("Queue").font(.title2.bold()).accessibilityAddTraits(.isHeader)
                 Spacer()
                 Text("\(session.queue.entries.count) songs").font(.subheadline).foregroundStyle(.secondary)
             }
@@ -38,12 +38,13 @@ struct QueueView: View {
             .padding(.horizontal, 16).padding(.bottom, 12)
             Divider()
             List(selection: $selection) {
-                ForEach(session.queue.entries) { entry in
-                    queueRow(entry).tag(entry.id)
+                ForEach(Array(session.queue.entries.enumerated()), id: \.element.id) { index, entry in
+                    queueRow(entry, index: index).tag(entry.id)
                 }
                 .onMove(perform: session.moveQueueEntries)
             }
             .listStyle(.inset)
+            .accessibilityLabel("Playback queue")
             .contextMenu(forSelectionType: UUID.self) { ids in
                 if !ids.isEmpty {
                     Button("Play") { playSelection(ids) }
@@ -66,7 +67,7 @@ struct QueueView: View {
         }
     }
 
-    private func queueRow(_ entry: QueueEntry) -> some View {
+    private func queueRow(_ entry: QueueEntry, index: Int) -> some View {
         HStack(spacing: 10) {
             ArtworkView(url: entry.track.artworkURL, size: 40)
             VStack(alignment: .leading, spacing: 4) {
@@ -82,7 +83,26 @@ struct QueueView: View {
             }
         }
         .padding(.vertical, 5)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(entry.track.title), \(entry.track.artist)")
+        .accessibilityValue(queuePosition(entry, index: index))
+        .help("\(entry.track.title) — \(entry.track.artist)")
+        .accessibilityActions {
+            Button("Play") { session.selectQueueEntry(entry.id) }
+            if index > 0 {
+                Button("Move Up") { session.moveQueueEntries(from: IndexSet(integer: index), to: index - 1) }
+            }
+            if index + 1 < session.queue.entries.count {
+                Button("Move Down") { session.moveQueueEntries(from: IndexSet(integer: index), to: index + 2) }
+            }
+            Button("Remove from Queue") { session.removeQueueEntries([entry.id]) }
+        }
+    }
+
+    private func queuePosition(_ entry: QueueEntry, index: Int) -> String {
+        let position = "\(index + 1) of \(session.queue.entries.count)"
+        guard entry.id == session.queue.currentEntryID else { return position }
+        return "\(session.player.isPlaying ? "Now playing" : "Current song"), \(position)"
     }
 
     private func playSelection(_ ids: Set<UUID>) {

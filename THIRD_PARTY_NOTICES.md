@@ -13,6 +13,12 @@ from [Kaset](https://github.com/sozercan/kaset) at commit
 - `Sources/Kaset/Services/API/Parsers/PlaylistParser.swift`
 - `Sources/Kaset/Services/API/Parsers/ParsingHelpers.swift`
 - `Sources/Kaset/Services/API/Parsers/ParsingHelpers+Playlist.swift`
+- `Sources/Kaset/Services/API/Parsers/PlaylistEditability.swift`
+- `Sources/Kaset/Services/API/Parsers/SongMetadataParser.swift`
+
+Synthetic editability and like-state tests also use response shapes documented in
+`Tests/KasetTests/PlaylistParserTests.swift` and
+`Tests/KasetTests/RadioQueueParserTests.swift` at the same revision.
 
 The parser regression tests reuse these sanitized fixtures from
 `Tests/KasetTests/Fixtures/` at the same revision:

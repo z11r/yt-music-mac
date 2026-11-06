@@ -4,19 +4,21 @@ import Foundation
 import MusicCore
 
 indirect enum JSONNode: Decodable {
-    case object([String: JSONNode]), array([JSONNode]), string(String), scalar, null
+    case object([String: JSONNode]), array([JSONNode]), string(String), bool(Bool), scalar, null
     init(from decoder: any Decoder) throws {
         let container = try decoder.singleValueContainer()
         if container.decodeNil() { self = .null }
         else if let value = try? container.decode([String: JSONNode].self) { self = .object(value) }
         else if let value = try? container.decode([JSONNode].self) { self = .array(value) }
         else if let value = try? container.decode(String.self) { self = .string(value) }
-        else if (try? container.decode(Double.self)) != nil || (try? container.decode(Bool.self)) != nil { self = .scalar }
+        else if let value = try? container.decode(Bool.self) { self = .bool(value) }
+        else if (try? container.decode(Double.self)) != nil { self = .scalar }
         else { throw MusicServiceError.invalidResponse }
     }
     subscript(_ key: String) -> JSONNode { if case let .object(value) = self { value[key] ?? .null } else { .null } }
     var array: [JSONNode] { if case let .array(value) = self { value } else { [] } }
     var string: String? { if case let .string(value) = self, !value.isEmpty { value } else { nil } }
+    var bool: Bool? { if case let .bool(value) = self { value } else { nil } }
     var exists: Bool { if case .null = self { false } else { true } }
     var text: String? {
         if let value = self["simpleText"].string { return value }
@@ -31,6 +33,12 @@ struct ParsedMusicPage {
     var token: String?
     var recognized = false
     var playlistItems: [MusicPlaylistItem] = []
+    var playlistCapabilities = MusicPlaylistCapabilities()
+    var playlistEditingDenied = false
+    var likeStateCandidates: [String: Set<Bool>] = [:]
+    var likeStates: [String: Bool] {
+        likeStateCandidates.compactMapValues { $0.count == 1 ? $0.first : nil }
+    }
     var items: [MusicItem] { sections.flatMap(\.items) }
 }
 
@@ -49,6 +57,7 @@ enum MusicResponseParser {
         }
         var result = ParsedMusicPage()
         result.title = headerTitle(root["header"])
+        playlistControls(root["header"], result: &result)
         let contents = root["contents"]
         visit(contents, result: &result, path: "content", preservesOccurrences: preservesOccurrences)
         for key in ["singleColumnBrowseResultsRenderer", "twoColumnBrowseResultsRenderer", "tabbedSearchResultsRenderer"] {
@@ -98,6 +107,7 @@ enum MusicResponseParser {
             visitChildren(node["itemSectionRenderer"]["contents"].array, result: &result, path: path, preservesOccurrences: preservesOccurrences, depth: depth + 1)
         } else if node["musicResponsiveHeaderRenderer"].exists {
             result.title = node["musicResponsiveHeaderRenderer"]["title"].text ?? result.title
+            playlistControls(node, result: &result)
         } else {
             for key in ["musicCarouselShelfRenderer", "musicShelfRenderer", "musicPlaylistShelfRenderer", "musicCardShelfRenderer", "musicImmersiveCarouselShelfRenderer", "gridRenderer"] {
                 if node[key].exists {
@@ -110,6 +120,7 @@ enum MusicResponseParser {
             if let item = item(node) {
                 result.recognized = true
                 result.sections.append(MusicSection(id: path, title: "", items: [item]))
+                if case let .track(track) = item { recordLikeState(node, track: track, result: &result) }
                 if preservesOccurrences, case let .track(track) = item {
                     result.playlistItems.append(playlistItem(node, track: track))
                 }
@@ -143,6 +154,7 @@ enum MusicResponseParser {
                                          preservesOccurrences: Bool) {
         let items = nodes.compactMap { node -> MusicItem? in
             guard let item = item(node) else { return nil }
+            if case let .track(track) = item { recordLikeState(node, track: track, result: &result) }
             if preservesOccurrences, case let .track(track) = item {
                 result.playlistItems.append(playlistItem(node, track: track))
             }
@@ -187,6 +199,58 @@ enum MusicResponseParser {
             return MusicPlaylistItem(track: track, setVideoID: occurrence)
         }
         return MusicPlaylistItem(track: track)
+    }
+
+    private static func recordLikeState(_ node: JSONNode, track: Track, result: inout ParsedMusicPage) {
+        for key in ["musicResponsiveListItemRenderer", "musicTwoRowItemRenderer", "musicMultiRowListItemRenderer"] {
+            for button in node[key]["menu"]["menuRenderer"]["topLevelButtons"].array {
+                let like = button["likeButtonRenderer"]
+                if let target = like["target"]["videoId"].string, target != track.id { continue }
+                switch like["likeStatus"].string {
+                case "LIKE": result.likeStateCandidates[track.id, default: []].insert(true)
+                case "INDIFFERENT", "DISLIKE": result.likeStateCandidates[track.id, default: []].insert(false)
+                default: break
+                }
+            }
+        }
+    }
+
+    private static func playlistControls(_ header: JSONNode, result: inout ParsedMusicPage) {
+        // Inspect the current header only; another playlist's menu in a shelf cannot grant these actions.
+        if containsEditDenial(header) {
+            result.playlistEditingDenied = true
+            result.playlistCapabilities = MusicPlaylistCapabilities()
+        }
+        guard !result.playlistEditingDenied else { return }
+        if case .object = header["musicEditablePlaylistDetailHeaderRenderer"] {
+            result.playlistCapabilities.canRename = true
+            result.playlistCapabilities.canAddItems = true
+            result.playlistCapabilities.canRemoveItems = true
+        }
+        if containsDeleteCommand(header) { result.playlistCapabilities.canDelete = true }
+    }
+
+    private static func containsDeleteCommand(_ node: JSONNode, depth: Int = 0) -> Bool {
+        guard depth < 12 else { return false }
+        if node["deletePlaylistEndpoint"]["playlistId"].string != nil { return true }
+        if let address = node["urlEndpoint"]["url"].string, let url = URL(string: address),
+           url.scheme == "https", url.host == "music.youtube.com", url.path == "/playlist/delete",
+           url.user == nil, url.password == nil, url.port == nil || url.port == 443 { return true }
+        switch node {
+        case let .object(values): return values.values.contains { containsDeleteCommand($0, depth: depth + 1) }
+        case let .array(values): return values.contains { containsDeleteCommand($0, depth: depth + 1) }
+        default: return false
+        }
+    }
+
+    private static func containsEditDenial(_ node: JSONNode, depth: Int = 0) -> Bool {
+        guard depth < 12 else { return false }
+        if node["isEditable"].bool == false { return true }
+        switch node {
+        case let .object(values): return values.values.contains { containsEditDenial($0, depth: depth + 1) }
+        case let .array(values): return values.contains { containsEditDenial($0, depth: depth + 1) }
+        default: return false
+        }
     }
 
     private static func removalOccurrence(_ node: JSONNode, videoID: String, depth: Int = 0) -> String? {

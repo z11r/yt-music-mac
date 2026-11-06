@@ -33,12 +33,16 @@ struct PlayerBar: View {
                 .frame(maxWidth: .infinity)
                 VStack(alignment: .trailing, spacing: 9) {
                     HStack(spacing: 14) {
-                        Button("Open Web Player", systemImage: "play.rectangle") { session.showsWebPlayer.toggle() }
+                        Button(session.showsWebPlayer ? "Hide Web Player" : "Show Web Player", systemImage: "play.rectangle") { session.showsWebPlayer.toggle() }
                             .accessibilityValue(session.showsWebPlayer ? "Shown" : "Hidden")
+                            .help(session.showsWebPlayer ? "Hide Web Player" : "Show Web Player")
                             .disabled(session.currentTrack == nil)
                         Button("Mini-Player", systemImage: "pip") { openWindow(id: "mini-player") }
-                        Button("Queue", systemImage: "list.bullet") { session.showsQueue.toggle() }
+                            .help("Open Mini-Player")
+                        Button(session.showsQueue ? "Hide Queue" : "Show Queue", systemImage: "list.bullet") { session.showsQueue.toggle() }
                             .foregroundStyle(session.showsQueue ? Color.accentColor : Color.secondary)
+                            .accessibilityValue(session.showsQueue ? "Shown" : "Hidden")
+                            .help(session.showsQueue ? "Hide Queue" : "Show Queue")
                     }
                     .labelStyle(.iconOnly).buttonStyle(.borderless)
                     VolumeView(session: session).frame(width: 136)
@@ -85,7 +89,8 @@ struct TransportButtons: View {
 
     var body: some View {
         HStack(spacing: 20) {
-            Button("Previous", systemImage: "backward.end.fill", action: session.previous)
+            Button("Previous Song", systemImage: "backward.end.fill", action: session.previous)
+                .help("Previous Song")
                 .disabled(!session.queue.hasPrevious && session.player.clock.position <= 3)
             Button(action: session.togglePlayback) {
                 Image(systemName: session.player.isPlaying || session.player.isBuffering ? "pause.fill" : "play.fill")
@@ -99,7 +104,8 @@ struct TransportButtons: View {
             .accessibilityValue(session.player.isBuffering ? "Buffering" : "")
             .help(session.player.isPlaying || session.player.isBuffering ? "Pause" : "Play")
             .disabled(session.queue.isEmpty)
-            Button("Next", systemImage: "forward.end.fill", action: session.next)
+            Button("Next Song", systemImage: "forward.end.fill", action: session.next)
+                .help("Next Song")
                 .disabled(!session.queue.hasNext)
         }
         .buttonStyle(.borderless)
@@ -118,11 +124,12 @@ struct SeekView: View {
     var body: some View {
         HStack(spacing: 8) {
             Text(playbackTime(position)).frame(minWidth: 35, alignment: .trailing)
+                .accessibilityHidden(true)
             Slider(value: Binding(get: { min(max(0, position), max(1, duration)) },
                                   set: {
                                       proposedTime = $0
                                       if !isEditing { session.seek(to: $0) }
-                                  }), in: 0...max(1, duration)) { editing in
+                                  }), in: 0...max(1, duration), step: 1) { editing in
                 if editing { proposedTime = session.player.clock.position }
                 isEditing = editing
                 if !editing { session.seek(to: proposedTime) }
@@ -130,8 +137,9 @@ struct SeekView: View {
             .controlSize(.small)
             .disabled(duration <= 0 || session.currentTrack == nil)
             .accessibilityLabel("Playback position")
-            .accessibilityValue("\(playbackTime(position)) of \(playbackTime(duration))")
+            .accessibilityValue("\(playbackTime(position)) elapsed of \(playbackTime(duration))")
             Text(duration > 0 ? playbackTime(duration) : "—").frame(minWidth: 35, alignment: .leading)
+                .accessibilityHidden(true)
         }
         .font(.caption).monospacedDigit().foregroundStyle(.secondary)
         .onChange(of: session.queue.currentOccurrence) { isEditing = false; proposedTime = 0 }
@@ -140,18 +148,16 @@ struct SeekView: View {
 
 struct VolumeView: View {
     let session: AppSession
-    @State private var previousVolume: Double = 0.7
     var body: some View {
         HStack(spacing: 7) {
             Button(session.player.volume == 0 ? "Unmute" : "Mute",
-                   systemImage: session.player.volume == 0 ? "speaker.slash.fill" : "speaker.wave.2.fill") {
-                if session.player.volume == 0 { session.setVolume(previousVolume) }
-                else { previousVolume = session.player.volume; session.setVolume(0) }
-            }
+                   systemImage: session.player.volume == 0 ? "speaker.slash.fill" : "speaker.wave.2.fill",
+                   action: session.toggleMute)
             .labelStyle(.iconOnly).buttonStyle(.borderless).foregroundStyle(.secondary)
+            .help(session.player.volume == 0 ? "Unmute" : "Mute")
             // Keep the setter explicit for Swift 6.2's actor-isolated callback conversion.
             Slider(value: Binding(get: { session.player.volume },
-                                  set: { value in session.setVolume(value) }), in: 0...1)
+                                  set: { value in session.setVolume(value) }), in: 0...1, step: 0.01)
                 .controlSize(.small).accessibilityLabel("Volume")
                 .accessibilityValue("\(Int(session.player.volume * 100)) percent")
         }
@@ -164,6 +170,7 @@ struct ShuffleButton: View {
         Button("Shuffle", systemImage: "shuffle", action: session.toggleShuffle)
             .labelStyle(.iconOnly).buttonStyle(.borderless)
             .foregroundStyle(session.queue.isShuffled ? Color.accentColor : Color.secondary)
+            .modifier(PlaybackStateMark(isActive: session.queue.isShuffled))
             .accessibilityValue(session.queue.isShuffled ? "On" : "Off")
             .help(session.queue.isShuffled ? "Turn Shuffle Off" : "Turn Shuffle On")
             .disabled(session.queue.entries.isEmpty)
@@ -177,9 +184,24 @@ struct RepeatButton: View {
                action: session.cycleRepeat)
             .labelStyle(.iconOnly).buttonStyle(.borderless)
             .foregroundStyle(session.queue.repeatMode == .off ? Color.secondary : Color.accentColor)
+            .modifier(PlaybackStateMark(isActive: session.queue.repeatMode != .off))
             .accessibilityValue(session.queue.repeatMode.rawValue.capitalized)
             .help("Repeat: \(session.queue.repeatMode.rawValue.capitalized)")
             .disabled(session.queue.entries.isEmpty)
+    }
+}
+
+private struct PlaybackStateMark: ViewModifier {
+    let isActive: Bool
+    func body(content: Content) -> some View {
+        content
+            .frame(minWidth: 24, minHeight: 24)
+            .overlay(alignment: .bottom) {
+                if isActive {
+                    Capsule().fill(.primary).frame(width: 10, height: 2)
+                        .offset(y: 3).accessibilityHidden(true)
+                }
+            }
     }
 }
 

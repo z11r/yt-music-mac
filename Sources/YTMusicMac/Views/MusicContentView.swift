@@ -16,11 +16,7 @@ struct MusicContentView: View {
     var body: some View {
         Group {
             if session.isLoading && session.page == nil {
-                VStack(spacing: 14) {
-                    ProgressView()
-                    Text("Loading \(session.destination.title.lowercased())…")
-                        .foregroundStyle(.secondary)
-                }
+                ProgressView("Loading \(session.destination.title.lowercased())…")
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if let page = session.page {
                 if usesTrackList {
@@ -40,7 +36,7 @@ struct MusicContentView: View {
             VStack(alignment: .leading, spacing: 30) {
                 HStack(alignment: .firstTextBaseline) {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text(session.destination.title).font(.largeTitle.bold())
+                        Text(session.destination.title).font(.largeTitle.bold()).accessibilityAddTraits(.isHeader)
                         if case let .search(query) = session.destination {
                             Text("Results for “\(query)”").foregroundStyle(.secondary)
                         } else if !page.title.isEmpty && page.title != session.destination.title {
@@ -58,7 +54,9 @@ struct MusicContentView: View {
                 }
                 ForEach(Array(page.sections.enumerated()), id: \.offset) { _, section in
                     VStack(alignment: .leading, spacing: 14) {
-                        if !section.title.isEmpty { Text(section.title).font(.title2.bold()) }
+                        if !section.title.isEmpty {
+                            Text(section.title).font(.title2.bold()).accessibilityAddTraits(.isHeader)
+                        }
                         ScrollView(.horizontal) {
                             LazyHStack(alignment: .top, spacing: 20) {
                                 ForEach(Array(section.items.enumerated()), id: \.offset) { _, item in
@@ -110,6 +108,8 @@ private struct MusicCard: View {
     let item: MusicItem
     let session: AppSession
     @State private var isHovered = false
+    @FocusState private var isFocused: Bool
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     private var isArtist: Bool {
         if case let .collection(value) = item { value.kind == .artist } else { false }
@@ -120,11 +120,14 @@ private struct MusicCard: View {
             VStack(alignment: .leading, spacing: 9) {
                 ArtworkView(url: item.artworkURL, isArtist: isArtist)
                     .overlay(alignment: .bottomTrailing) {
-                        if isHovered {
+                        if isHovered || isFocused {
                             Image(systemName: isTrack ? "play.fill" : "arrow.up.forward")
                                 .font(.body.weight(.semibold))
                                 .frame(width: 32, height: 32)
-                                .background(.regularMaterial, in: Circle())
+                                .background {
+                                    if reduceTransparency { Circle().fill(Color(nsColor: .windowBackgroundColor)) }
+                                    else { Circle().fill(.regularMaterial) }
+                                }
                                 .padding(9)
                                 .accessibilityHidden(true)
                         }
@@ -138,9 +141,24 @@ private struct MusicCard: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .focused($isFocused)
+        .overlay {
+            if isFocused {
+                RoundedRectangle(cornerRadius: 8)
+                    .strokeBorder(Color(nsColor: .keyboardFocusIndicatorColor), lineWidth: 2)
+                    .allowsHitTesting(false).accessibilityHidden(true)
+            }
+        }
         .onHover { isHovered = $0 }
+        .help([item.title, item.subtitle].compactMap { $0 }.joined(separator: " — "))
         .accessibilityLabel([item.title, item.subtitle].compactMap { $0 }.joined(separator: ", "))
         .accessibilityHint(isTrack ? "Play song" : "Open collection")
+        .accessibilityActions {
+            if case let .track(track) = item {
+                Button("Play Next") { session.playNext([track]) }
+                Button("Add to Queue") { session.addToQueue([track]) }
+            }
+        }
         .contextMenu {
             Button(isTrack ? "Play" : "Open") { session.activate(item) }
             if case let .track(track) = item {
@@ -168,18 +186,15 @@ private struct CollectionTracksView: View {
     var body: some View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 18) {
-                HStack(alignment: .bottom, spacing: 20) {
-                    if case let .collection(value) = session.destination {
-                        ArtworkView(url: value.artworkURL, size: 120)
-                    }
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(session.destination.title).font(.largeTitle.bold()).lineLimit(3)
-                        if case let .collection(value) = session.destination, let subtitle = value.subtitle {
-                            Text(subtitle).foregroundStyle(.secondary).lineLimit(2)
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .bottom, spacing: 20) {
+                        if case let .collection(value) = session.destination {
+                            ArtworkView(url: value.artworkURL, size: 120)
                         }
-                        Text("\(session.visibleTracks.count) songs").foregroundStyle(.secondary)
+                        collectionHeading.frame(minWidth: 220, alignment: .leading)
+                        Spacer(minLength: 0)
                     }
-                    Spacer(minLength: 0)
+                    collectionHeading.frame(maxWidth: .infinity, alignment: .leading)
                 }
                 HStack {
                     Button("Play", systemImage: "play.fill") { session.playTracks(session.visibleTracks) }
@@ -193,10 +208,15 @@ private struct CollectionTracksView: View {
                         .textFieldStyle(.roundedBorder).frame(maxWidth: 290)
                         .accessibilityLabel("Filter this collection")
                     Spacer()
-                    if !selection.isEmpty {
+                    Menu {
                         Button("Play Selected") { session.playTracks(selectedTracks) }
-                            .controlSize(.small)
+                        Button("Play Selected Next") { session.playNext(selectedTracks) }
+                        Button("Add Selected to Queue") { session.addToQueue(selectedTracks) }
+                    } label: {
+                        Label("Selected Songs", systemImage: "ellipsis.circle")
                     }
+                    .labelStyle(.iconOnly).menuStyle(.borderlessButton).fixedSize()
+                    .disabled(selection.isEmpty).help("Actions for selected songs")
                 }
             }
             .padding(24)
@@ -212,12 +232,19 @@ private struct CollectionTracksView: View {
                     }
                     .padding(.vertical, 4)
                     .accessibilityElement(children: .combine)
+                    .help("\(row.track.title) — \(row.track.artist)")
+                    .accessibilityActions {
+                        Button("Play") { session.play(row.track) }
+                        Button("Play Next") { session.playNext([row.track]) }
+                        Button("Add to Queue") { session.addToQueue([row.track]) }
+                    }
                 }.width(min: 190, ideal: 380)
                 TableColumn("Time") { row in
                     Text(row.track.duration.map(playbackTime) ?? "—")
                         .monospacedDigit().foregroundStyle(.secondary)
                 }.width(55)
             }
+            .accessibilityLabel("Songs in \(session.destination.title)")
             .contextMenu(forSelectionType: Int.self) { ids in
                 let tracks = rows.filter { ids.contains($0.id) }.map(\.track)
                 if !tracks.isEmpty {
@@ -239,6 +266,17 @@ private struct CollectionTracksView: View {
         }
         .onChange(of: session.collectionFilter) { selection.removeAll() }
         .onChange(of: session.destination) { selection.removeAll() }
+    }
+
+    private var collectionHeading: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(session.destination.title).font(.largeTitle.bold()).lineLimit(3)
+                .accessibilityAddTraits(.isHeader).help(session.destination.title)
+            if case let .collection(value) = session.destination, let subtitle = value.subtitle {
+                Text(subtitle).foregroundStyle(.secondary).lineLimit(2)
+            }
+            Text("\(session.visibleTracks.count) songs").foregroundStyle(.secondary)
+        }
     }
 }
 
