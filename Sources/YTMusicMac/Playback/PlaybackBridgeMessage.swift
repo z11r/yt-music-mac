@@ -19,6 +19,7 @@ struct PlaybackBridgeMessage: Decodable {
     enum Kind: String, Decodable {
         case ready, state, progress, ended, error
     }
+    enum IntentSource: String, Decodable { case native, page }
 
     let kind: Kind
     let loadID: UUID
@@ -26,6 +27,9 @@ struct PlaybackBridgeMessage: Decodable {
     let documentID: UUID
     let mediaGeneration: Int
     let sequence: Int
+    let commandRevision: Int
+    let playbackIntent: Bool
+    let intentSource: IntentSource
     let videoID: String
     let position: Double
     let duration: Double
@@ -41,12 +45,18 @@ struct PlaybackBridgeMessage: Decodable {
               let data = try? JSONSerialization.data(withJSONObject: body),
               data.count <= 16_384,
               let value = try? JSONDecoder().decode(Self.self, from: data),
-              value.mediaGeneration >= 0, value.sequence > 0,
+              value.mediaGeneration >= 0, value.sequence > 0, value.commandRevision >= 0,
               value.position.isFinite, value.position >= 0,
               value.duration.isFinite, value.duration >= 0,
               value.volume.isFinite, (0...1).contains(value.volume)
         else { return nil }
         return value
+    }
+
+    func acceptsPagePause(latestCommandRevision: Int) -> Bool {
+        (self.kind == .state || self.kind == .progress) && self.intentSource == .page
+            && !self.playbackIntent && !self.isPlaying && self.mediaReady && !self.isAd
+            && self.commandRevision == latestCommandRevision
     }
 }
 

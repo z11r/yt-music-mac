@@ -48,7 +48,8 @@ The static check verifies bundle metadata, executable architectures, macOS 14
 deployment targets, packaged playback resources, license files, library paths, and the code
 signature. The smoke check copies the app outside the checkout, clears package
 resource overrides, and runs the bundle's diagnostic mode. That mode verifies
-its own identity and resource location before creating app or account state.
+its own identity, resource location, and registration of all five native playback
+commands before creating a playback session or contacting the music service.
 It does not establish playback or accessibility behavior.
 
 ## Anonymous service checks

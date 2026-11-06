@@ -273,6 +273,9 @@ final class WebPlayer: NSObject {
             self.fail(description)
             return
         }
+        if message.acceptsPagePause(latestCommandRevision: self.commandRevision) {
+            self.wantsPlaying = false
+        }
         if !self.wantsPlaying || (message.isPlaying && !message.isBuffering) {
             self.deadline?.cancel()
             self.deadline = nil

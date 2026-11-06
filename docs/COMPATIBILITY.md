@@ -8,11 +8,11 @@ checks, playback, and performance are separate checks.
 
 | Check | Status |
 | --- | --- |
-| 136 queue, service, session, playback bridge, and scripting tests on Apple silicon, macOS 26.6, Xcode 27.2 | Passed locally |
+| 145 queue, service, session, playback bridge, and scripting tests on Apple silicon, macOS 26.6, Xcode 27.2 | Passed locally |
 | Anonymous home, explore, search, album, artist, and playlist requests through the native service client | Passed locally |
 | Debug arm64 bundle and release universal bundle | Built locally; arm64 and x86_64 slices declare macOS 14 |
 | Relocated debug and release bundle diagnostics on Apple silicon/macOS 26.6 | Passed identity, resources, runtime paths, and ad-hoc signature checks |
-| CI tests and host app builds on Intel/macOS 15 and Apple silicon/macOS 26 | Configured; results for these changes pending |
+| CI tests and host app builds on Intel/macOS 15 and Apple silicon/macOS 26 | Passed through [c41fa27](https://github.com/z11r/yt-music-mac/actions/runs/42264499292); later changes pending |
 | Packaged app on macOS 14, physical Intel and Apple silicon | Pending |
 | Initial Premium sign-in and playback on the development Mac | Manually reported working; extended cases pending |
 | Signed-in playback, session restoration, and library browsing across the OS matrix | Pending |

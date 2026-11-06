@@ -10,13 +10,16 @@
     let commandRevision = 0;
     let navigationRevision = 0;
     let wantsPlaying = false;
+    let intentSource = "native";
     let desiredVolume = 1;
     let pendingSeek = null;
     let buffering = false;
     let contentReady = false;
+    let hasPlayedCurrentMedia = false;
     let adInThisMedia = false;
     let endedGeneration = -1;
     let lastProgressAt = 0;
+    let lastMediaPosition = 0;
     let removers = [];
 
     function videoID() {
@@ -41,6 +44,9 @@
             documentID,
             mediaGeneration,
             sequence: ++sequence,
+            commandRevision,
+            playbackIntent: wantsPlaying,
+            intentSource,
             videoID: videoID(),
             position: video ? finite(video.currentTime) : 0,
             duration: video ? finite(video.duration) : 0,
@@ -101,16 +107,37 @@
         if (kind === "loadstart" || kind === "emptied") {
             mediaGeneration += 1;
             contentReady = false;
+            hasPlayedCurrentMedia = false;
             adInThisMedia = adShowing();
             endedGeneration = -1;
+            lastMediaPosition = 0;
         }
         if (adShowing()) adInThisMedia = true;
         if (kind === "loadedmetadata") {
             adInThisMedia = adShowing();
             contentReady = !adInThisMedia;
         }
-        if (kind === "waiting" || kind === "stalled") buffering = wantsPlaying;
-        if (["playing", "pause", "seeked", "ended"].includes(kind)) buffering = false;
+        if (kind === "playing" && contentReady && !adShowing() && !adInThisMedia) {
+            hasPlayedCurrentMedia = true;
+        }
+        if (kind === "pause" && wantsPlaying && hasPlayedCurrentMedia && video.paused && !video.ended
+            && matchesTarget() && contentReady && video.readyState >= 2
+            && !video.seeking && !buffering && !adShowing() && !adInThisMedia) {
+            wantsPlaying = false;
+            intentSource = "page";
+        }
+        if (kind === "waiting" || kind === "stalled") {
+            buffering = wantsPlaying && !video.paused && !video.ended && video.readyState < 3;
+        }
+        if (["playing", "pause", "seeked", "ended", "canplay"].includes(kind)) buffering = false;
+        if (kind === "timeupdate") {
+            const position = finite(video.currentTime);
+            if (!video.paused && !video.ended && position > lastMediaPosition) buffering = false;
+            lastMediaPosition = position;
+        }
+        if (kind === "volumechange" && Math.abs(video.volume - desiredVolume) > 0.0001) {
+            video.volume = desiredVolume;
+        }
         if (kind === "play" && (!wantsPlaying || !matchesTarget())) video.pause();
         if (kind === "error") {
             report("error", "media_error");
@@ -145,6 +172,8 @@
         endedGeneration = -1;
         adInThisMedia = adShowing();
         contentReady = !!video && video.readyState >= 1 && !adInThisMedia;
+        hasPlayedCurrentMedia = false;
+        lastMediaPosition = video ? finite(video.currentTime) : 0;
         if (!video) return;
         const events = ["play", "pause", "playing", "waiting", "stalled", "canplay",
             "loadedmetadata", "durationchange", "timeupdate", "seeking", "seeked",
@@ -188,6 +217,7 @@
                 || !value.targetURL.startsWith("https://music.youtube.com/watch?")) return false;
             navigationRevision = value.revision;
             wantsPlaying = false;
+            intentSource = "native";
             if (video) video.pause();
             window.location.replace(value.targetURL);
             return true;
@@ -197,6 +227,8 @@
                 || typeof value.identity.trackID !== "string") return null;
             context = value;
             wantsPlaying = value.autoplay === true;
+            intentSource = "native";
+            hasPlayedCurrentMedia = false;
             desiredVolume = Math.min(1, Math.max(0, value.volume));
             commandRevision = 0;
             pendingSeek = null;
@@ -209,8 +241,11 @@
             if (!context || value.loadID !== context.loadID
                 || !Number.isInteger(value.revision) || value.revision <= commandRevision) return false;
             commandRevision = value.revision;
-            if (value.name === "play") wantsPlaying = true;
-            else if (value.name === "pause") wantsPlaying = false;
+            if (value.name === "play" || value.name === "pause") {
+                wantsPlaying = value.name === "play";
+                intentSource = "native";
+                if (wantsPlaying && video && video.paused) hasPlayedCurrentMedia = false;
+            }
             else if (value.name === "seek" && Number.isFinite(value.value) && value.value >= 0) pendingSeek = value.value;
             else if (value.name === "volume" && Number.isFinite(value.value)) desiredVolume = Math.min(1, Math.max(0, value.value));
             else return false;

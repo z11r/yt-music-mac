@@ -71,6 +71,7 @@ final class AppSession {
         }
         player.onEnded = { [weak self] occurrence in self?.ended(occurrence) }
         player.onStateChanged = { [weak self] in
+            if let self { self.wantsPlayback = self.player.playbackIntent }
             self?.systemMedia?.refresh()
             self?.saveQueue()
         }
@@ -291,8 +292,10 @@ final class AppSession {
     func retryPlayback() {
         scriptingPlayGeneration = UUID()
         guard account.isSignedIn else { openAccount(); return }
+        let position = player.clock.position
         wantsPlayback = true
         request(queue.beginPlayback())
+        if position > 0 { player.seek(to: position) }
     }
 
     func selectQueueEntry(_ id: UUID) {

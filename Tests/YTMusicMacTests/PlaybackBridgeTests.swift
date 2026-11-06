@@ -22,6 +22,7 @@ private func payload(
         "identity": ["sessionID": occurrence.sessionID.uuidString, "entryID": occurrence.entryID.uuidString,
                      "trackID": occurrence.trackID, "generation": String(occurrence.generation)],
         "documentID": documentID.uuidString, "mediaGeneration": media, "sequence": sequence,
+        "commandRevision": 0, "playbackIntent": true, "intentSource": "native",
         "videoID": "song", "position": 10, "duration": 180, "volume": 0.75,
         "isPlaying": kind != "ended", "isBuffering": false, "isAd": isAd, "mediaReady": true,
     ]
@@ -122,6 +123,26 @@ struct PlaybackEventValidationTests {
         let accepted = gate.accept(fresh)
         #expect(accepted)
     }
+
+    @Test func pagePauseCannotOverrideANewerNativeCommand() throws {
+        var body = payload(loadID: UUID(), occurrence: occurrence(), documentID: UUID())
+        body["intentSource"] = "page"
+        body["playbackIntent"] = false
+        body["isPlaying"] = false
+        body["commandRevision"] = 3
+        let pause = try #require(PlaybackBridgeMessage.decode(body))
+        #expect(pause.acceptsPagePause(latestCommandRevision: 3))
+        #expect(!pause.acceptsPagePause(latestCommandRevision: 4))
+        for (key, value): (String, Any) in [
+            ("intentSource", "native"), ("isAd", true), ("mediaReady", false),
+            ("isPlaying", true), ("kind", "ended"), ("kind", "error"),
+        ] {
+            var excluded = body
+            excluded[key] = value
+            let message = try #require(PlaybackBridgeMessage.decode(excluded))
+            #expect(!message.acceptsPagePause(latestCommandRevision: 3))
+        }
+    }
 }
 
 @MainActor
@@ -210,6 +231,97 @@ struct PlaybackScriptTests {
         #expect(fixture.run("media.paused").toBool())
         let wrongLoad = fixture.run("YTMusicNativePlayer.command({loadID: 'old-load', revision: 3, name: 'play'})").toBool()
         #expect(!wrongLoad)
+    }
+
+    @Test func pagePauseSurvivesLaterMediaReadyAndVolumeEvents() throws {
+        let fixture = try BridgeFixture()
+        fixture.run("media.readyState = 4; YTMusicNativePlayer.bind(binding); media.emit('playing')")
+        fixture.run("media.pause(); media.emit('pause'); media.emit('canplay')")
+        #expect(fixture.run("media.paused").toBool())
+        fixture.run("YTMusicNativePlayer.command({loadID: binding.loadID, revision: 1, name: 'volume', value: 0.2})")
+        #expect(fixture.run("media.paused").toBool())
+        #expect(fixture.run("messages[messages.length - 1].intentSource").toString() == "page")
+        #expect(!fixture.run("messages[messages.length - 1].playbackIntent").toBool())
+        #expect(fixture.run("messages[messages.length - 1].commandRevision").toInt32() == 1)
+        fixture.run("YTMusicNativePlayer.command({loadID: binding.loadID, revision: 2, name: 'play'})")
+        #expect(!fixture.run("media.paused").toBool())
+        #expect(fixture.run("messages[messages.length - 1].intentSource").toString() == "native")
+    }
+
+    @Test func delayedPauseEventDoesNotUndoANewerNativePlay() throws {
+        let fixture = try BridgeFixture()
+        fixture.run("media.readyState = 4; YTMusicNativePlayer.bind(binding); media.emit('playing')")
+        fixture.run("YTMusicNativePlayer.command({loadID: binding.loadID, revision: 1, name: 'pause'})")
+        fixture.run("YTMusicNativePlayer.command({loadID: binding.loadID, revision: 2, name: 'play'}); media.emit('pause'); media.emit('canplay')")
+        #expect(!fixture.run("media.paused").toBool())
+        #expect(fixture.run("messages[messages.length - 1].intentSource").toString() == "native")
+    }
+
+    @Test func endedAdsAndLoadingDoNotBecomePagePauseIntent() throws {
+        let sequences = [
+            "media.ended = true",
+            "ad = true",
+            "media.emit('loadstart'); media.readyState = 0",
+            "media.readyState = 2; media.emit('waiting')",
+            "media.seeking = true",
+            "media.emit('emptied'); media.readyState = 4; media.emit('loadedmetadata')",
+        ]
+        for setup in sequences {
+            let fixture = try BridgeFixture()
+            fixture.run("media.readyState = 4; YTMusicNativePlayer.bind(binding); media.emit('playing'); \(setup); media.pause(); media.emit('pause')")
+            #expect(fixture.run("messages[messages.length - 1].intentSource").toString() == "native")
+        }
+    }
+
+    @Test func retrySeekWaitsForMetadataAndKeepsTheRequestedPosition() throws {
+        let fixture = try BridgeFixture()
+        fixture.run("media.readyState = 0; YTMusicNativePlayer.bind(binding)")
+        fixture.run("YTMusicNativePlayer.command({loadID: binding.loadID, revision: 1, name: 'seek', value: 120})")
+        #expect(fixture.run("media.currentTime").toDouble() == 0)
+        fixture.run("media.readyState = 1; media.emit('loadedmetadata')")
+        #expect(fixture.run("media.currentTime").toDouble() == 120)
+    }
+
+    @Test func serviceVolumeChangesRestoreTheNativeVolumeWithoutRepeatedWrites() throws {
+        let fixture = try BridgeFixture()
+        fixture.run("YTMusicNativePlayer.bind(binding)")
+        fixture.run("""
+        let actualVolume = media.volume, volumeWrites = 0;
+        Object.defineProperty(media, 'volume', {
+            get() {return actualVolume;},
+            set(value) {volumeWrites += 1; actualVolume = value; media.emit('volumechange');}
+        });
+        media.volume = 1;
+        """)
+        #expect(fixture.run("media.volume").toDouble() == 0.5)
+        #expect(fixture.run("volumeWrites").toInt32() == 2)
+        fixture.run("YTMusicNativePlayer.command({loadID: binding.loadID, revision: 1, name: 'volume', value: 0.2})")
+        #expect(fixture.run("media.volume").toDouble() == 0.2)
+        #expect(fixture.run("volumeWrites").toInt32() == 3)
+    }
+
+    @Test func networkStallDoesNotBufferPlayableAudio() throws {
+        let fixture = try BridgeFixture()
+        fixture.run("media.readyState = 4; YTMusicNativePlayer.bind(binding); media.emit('playing'); media.emit('stalled')")
+        #expect(!fixture.run("messages[messages.length - 1].isBuffering").toBool())
+    }
+
+    @Test func advancingClockAndCanPlayClearABufferingState() throws {
+        let fixture = try BridgeFixture()
+        fixture.run("media.readyState = 2; YTMusicNativePlayer.bind(binding); media.emit('waiting')")
+        #expect(fixture.run("messages[messages.length - 1].isBuffering").toBool())
+        fixture.run("media.currentTime = 1; media.emit('timeupdate')")
+        #expect(!fixture.run("messages[messages.length - 1].isBuffering").toBool())
+        fixture.run("media.emit('stalled')")
+        #expect(fixture.run("messages[messages.length - 1].isBuffering").toBool())
+        fixture.run("media.readyState = 3; media.emit('canplay')")
+        #expect(!fixture.run("messages[messages.length - 1].isBuffering").toBool())
+    }
+
+    @Test func stationaryClockDoesNotHideARealStall() throws {
+        let fixture = try BridgeFixture()
+        fixture.run("media.readyState = 2; YTMusicNativePlayer.bind(binding); media.emit('waiting'); media.emit('timeupdate')")
+        #expect(fixture.run("messages[messages.length - 1].isBuffering").toBool())
     }
 
     @Test func duplicateMediaEndEventsAreReportedOnce() throws {
