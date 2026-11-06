@@ -28,7 +28,8 @@ a real library. Playback script tests run in JavaScriptCore with controlled
 media events, including stale document navigation and repeated endings.
 Recovery tests save and reopen isolated queue files after failed loads, and check
 that retries, new occurrences, explicit seeks, and account changes handle saved
-positions correctly. The local deterministic suite currently has 198 tests.
+positions correctly. The last verified checkpoint passed 198 deterministic tests.
+Later pagination changes have not been compiled or tested yet.
 
 Check scripts and workflow syntax separately:
 
@@ -81,6 +82,12 @@ page. Library and playlist requests loaded initial pages but failed during
 extended pagination; those failures remain under investigation. Remote likes
 and playlist edits remain unavailable while service validation is pending.
 Do not run automatic account mutations as part of CI.
+
+The next pagination pass needs to verify nested collection cursors against
+parent cursors, refresh-only responses, wrapped continuation commands, and HTTP
+failure reporting. Then repeat signed-in library and playlist paging to confirm
+that complete collections load. Pagination changes await these checks; the
+previous live failures remain open.
 
 ## Manual playback
 

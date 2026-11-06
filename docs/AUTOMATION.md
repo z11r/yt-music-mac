@@ -63,3 +63,7 @@ not inspected. Other unknown key names and all response values are omitted;
 `unknownKeyCount` counts omitted keys. `truncated` marks reports that reached the
 limit of 2,048 visited nodes, 12 nested levels, or 256 distinct paths. This field
 helps diagnose pagination without exporting library content.
+
+When an HTTP request is rejected, the report can include `httpStatusCode`.
+The `requestRejected` status distinguishes these failures from a service outage.
+Response bodies, headers, and request parameters are excluded.

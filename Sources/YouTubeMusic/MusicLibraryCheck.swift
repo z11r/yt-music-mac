@@ -19,7 +19,7 @@ public struct MusicLibrarySurfaceCheck: Codable, Equatable, Sendable {
     public enum Surface: String, Codable, Sendable { case library, likedSongs, playlist }
     public enum Status: String, Codable, Sendable {
         case ok, notAvailable, signInRequired, authenticationRejected, accessDenied
-        case networkFailure, rateLimited, serviceUnavailable, unsupportedResponse, invalidResponse, paginationLoop
+        case networkFailure, rateLimited, serviceUnavailable, requestRejected, unsupportedResponse, invalidResponse, paginationLoop
     }
     public enum Pagination: String, Codable, Sendable { case notAvailable, checked, failed }
 
@@ -33,6 +33,8 @@ public struct MusicLibrarySurfaceCheck: Codable, Equatable, Sendable {
     public var removableOccurrenceCount = 0
     public var continuationAvailable = false
     public var pagination: Pagination = .notAvailable
+    /// HTTP status only; response bodies, headers, and request parameters are excluded.
+    public var httpStatusCode: Int?
     /// Included only for an unsupported continuation response; contains allowlisted schema paths and counts.
     public var responseStructure: MusicResponseStructure?
 
@@ -119,6 +121,10 @@ extension YouTubeMusicClient {
             try await validateScope(scope)
             if error is CancellationError { throw error }
             result.status = Self.libraryCheckStatus(error)
+            if let serviceError = error as? MusicServiceError,
+               case let .httpStatus(code) = serviceError, (100...599).contains(code) {
+                result.httpStatusCode = code
+            }
         }
         return (result, playlistID)
     }
@@ -138,7 +144,8 @@ extension YouTubeMusicClient {
         case .accessDenied: .accessDenied
         case .network: .networkFailure
         case .rateLimited: .rateLimited
-        case .serviceUnavailable, .httpStatus: .serviceUnavailable
+        case .serviceUnavailable: .serviceUnavailable
+        case let .httpStatus(code): (500...599).contains(code) ? .serviceUnavailable : .requestRejected
         case .unsupportedResponse: .unsupportedResponse
         case .paginationLoop: .paginationLoop
         default: .invalidResponse
