@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE dictionary SYSTEM "file://localhost/System/Library/DTDs/sdef.dtd">
+<dictionary title="YT Music for Mac Terminology">
+    <suite name="Standard Suite" code="core" description="Application commands.">
+        <command name="quit" code="aevtquit" description="Quit the application.">
+            <cocoa class="NSQuitCommand"/>
+        </command>
+        <class name="application" code="capp" description="YT Music for Mac.">
+            <cocoa class="NSApplication"/>
+            <responds-to command="quit">
+                <cocoa method="terminate:"/>
+            </responds-to>
+        </class>
+    </suite>
+    <suite name="Music Suite" code="YTMc" description="Playback controls and current player status.">
+        <command name="play" code="YTMcplay" description="Start or resume the selected song.">
+            <cocoa class="YTMusicPlayCommand"/>
+            <result type="boolean" description="Whether the playback request was accepted."/>
+        </command>
+        <command name="play video" code="YTMcpvid" description="Look up an exact YouTube video ID and start that song.">
+            <cocoa class="YTMusicPlayVideoCommand"/>
+            <direct-parameter type="text" description="An 11-character YouTube video ID."/>
+            <result type="text" description="The video ID queued for playback."/>
+        </command>
+        <command name="pause" code="YTMcpaus" description="Pause playback.">
+            <cocoa class="YTMusicPauseCommand"/>
+            <result type="boolean" description="Whether the pause request was accepted."/>
+        </command>
+        <command name="set volume" code="YTMcvolu" description="Set the player's volume.">
+            <cocoa class="YTMusicSetVolumeCommand"/>
+            <direct-parameter type="real" description="Volume from 0.0 to 1.0."/>
+            <result type="boolean" description="Whether the volume was set."/>
+        </command>
+        <command name="get player info" code="YTMcinfo" description="Read the current playback state as JSON.">
+            <cocoa class="YTMusicGetPlayerInfoCommand"/>
+            <result type="text" description="Playing, buffering, sign-in state, current video ID, position, duration, volume, queue count and a generic playback error when present."/>
+        </command>
+        <command name="check library" code="YTMcclib" description="Read up to two pages each from the library, liked songs, and one playlist. Returns counts and status codes only.">
+            <cocoa class="YTMusicCheckLibraryCommand"/>
+            <result type="text" description="JSON with page counts, item counts, and pagination status. No music or account identifiers."/>
+        </command>
+        <command name="play videos" code="YTMcpvds" description="Replace the queue with videos by exact YouTube video IDs and start playback.">
+            <cocoa class="YTMusicPlayVideosCommand"/>
+            <direct-parameter description="YouTube video IDs in queue order."><type type="text" list="yes"/></direct-parameter>
+            <result type="text" description="The accepted playback request as JSON."/>
+        </command>
+        <command name="seek to" code="YTMcseek" description="Seek within the selected song.">
+            <cocoa class="YTMusicSeekCommand"/>
+            <direct-parameter type="real" description="A nonnegative position in seconds."/>
+            <result type="boolean" description="Whether the seek request was accepted."/>
+        </command>
+        <command name="next track" code="YTMcnext" description="Move to the next queue entry.">
+            <cocoa class="YTMusicNextCommand"/>
+            <result type="boolean" description="Whether the request was accepted."/>
+        </command>
+        <command name="previous track" code="YTMcprev" description="Restart the current song or move to the previous queue entry.">
+            <cocoa class="YTMusicPreviousCommand"/>
+            <result type="boolean" description="Whether the request was accepted."/>
+        </command>
+        <command name="set repeat" code="YTMcrept" description="Set queue repeat mode.">
+            <cocoa class="YTMusicSetRepeatCommand"/>
+            <direct-parameter type="text" description="off, all, or one."/>
+            <result type="boolean" description="Whether the repeat mode was set."/>
+        </command>
+        <command name="get playback snapshot" code="YTMcsnap" description="Read playback and current queue occurrence state as JSON.">
+            <cocoa class="YTMusicPlaybackSnapshotCommand"/>
+            <result type="text" description="Current playback and queue occurrence identifiers. No account identity or music metadata."/>
+        </command>
+    </suite>
+</dictionary>
