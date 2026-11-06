@@ -149,7 +149,9 @@ struct VolumeView: View {
                 else { previousVolume = session.player.volume; session.setVolume(0) }
             }
             .labelStyle(.iconOnly).buttonStyle(.borderless).foregroundStyle(.secondary)
-            Slider(value: Binding(get: { session.player.volume }, set: session.setVolume), in: 0...1)
+            // Keep the setter explicit for Swift 6.2's actor-isolated callback conversion.
+            Slider(value: Binding(get: { session.player.volume },
+                                  set: { value in session.setVolume(value) }), in: 0...1)
                 .controlSize(.small).accessibilityLabel("Volume")
                 .accessibilityValue("\(Int(session.player.volume * 100)) percent")
         }
