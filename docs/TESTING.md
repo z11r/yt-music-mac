@@ -26,6 +26,9 @@ isolated URL protocols to check transfer limits, cancellation, and redirects.
 Mutation tests cover service confirmations and account fences without modifying
 a real library. Playback script tests run in JavaScriptCore with controlled
 media events, including stale document navigation and repeated endings.
+Recovery tests save and reopen isolated queue files after failed loads, and check
+that retries, new occurrences, explicit seeks, and account changes handle saved
+positions correctly. The local deterministic suite currently has 153 tests.
 
 Check scripts and workflow syntax separately:
 

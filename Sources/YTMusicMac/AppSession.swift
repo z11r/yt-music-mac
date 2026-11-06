@@ -21,6 +21,63 @@ enum MusicDestination: Hashable {
     }
 }
 
+/// Keeps a saved position through the zero clock used while a resume request loads.
+struct PlaybackResumeState {
+    private struct Point {
+        let entryID: UUID
+        let occurrence: PlaybackOccurrence?
+        let position: TimeInterval
+    }
+
+    private var point: Point?
+
+    mutating func restore(_ snapshot: QueueSnapshot) {
+        clear()
+        guard let entryID = snapshot.currentEntryID, snapshot.resumePosition > 0 else { return }
+        point = Point(entryID: entryID, occurrence: nil, position: snapshot.resumePosition)
+    }
+
+    mutating func begin(_ occurrence: PlaybackOccurrence, recovering position: TimeInterval) {
+        clear()
+        guard position.isFinite, position > 0 else { return }
+        point = Point(entryID: occurrence.entryID, occurrence: occurrence, position: position)
+    }
+
+    mutating func clear() { point = nil }
+
+    mutating func recover(_ occurrence: PlaybackOccurrence, queue: PlaybackQueue,
+                          playerPosition: TimeInterval) -> TimeInterval? {
+        guard queue.accepts(occurrence) else { return nil }
+        let position = position(for: queue, playerPosition: playerPosition)
+        begin(occurrence, recovering: position)
+        return position
+    }
+
+    func position(for queue: PlaybackQueue, playerPosition: TimeInterval) -> TimeInterval {
+        guard queue.currentEntryID != nil else { return 0 }
+        if let point, matches(point, queue: queue) { return point.position }
+        return queue.currentOccurrence == nil ? 0 : playerPosition
+    }
+
+    mutating func snapshot(queue: PlaybackQueue, playerPosition: TimeInterval,
+                           playerDuration: TimeInterval, positionConfirmed: Bool) -> QueueSnapshot {
+        if let point {
+            if !matches(point, queue: queue) {
+                clear()
+            } else if point.occurrence != nil, positionConfirmed {
+                let target = playerDuration > 0 ? min(point.position, playerDuration) : point.position
+                let tolerance = min(0.5, target * 0.05)
+                if playerPosition >= target - tolerance { clear() }
+            }
+        }
+        return queue.snapshot(resumePosition: position(for: queue, playerPosition: playerPosition))
+    }
+
+    private func matches(_ point: Point, queue: PlaybackQueue) -> Bool {
+        point.entryID == queue.currentEntryID && point.occurrence == queue.currentOccurrence
+    }
+}
+
 @MainActor @Observable
 final class AppSession {
     let account: WebSession
@@ -51,7 +108,7 @@ final class AppSession {
     @ObservationIgnored private var accountGeneration = UUID()
     @ObservationIgnored private var backHistory: [MusicDestination] = []
     @ObservationIgnored private var forwardHistory: [MusicDestination] = []
-    @ObservationIgnored private var resumePosition: TimeInterval = 0
+    @ObservationIgnored private var resumeState = PlaybackResumeState()
     @ObservationIgnored private var systemMedia: SystemMediaControls?
     @ObservationIgnored private var scriptingPlayGeneration = UUID()
 
@@ -70,6 +127,10 @@ final class AppSession {
             queueError = "The queue cannot be saved because application storage is unavailable."
         }
         player.onEnded = { [weak self] occurrence in self?.ended(occurrence) }
+        player.onRecoveryRequested = { [weak self] occurrence, position in
+            guard let self else { return nil }
+            return self.resumeState.recover(occurrence, queue: self.queue, playerPosition: position)
+        }
         player.onStateChanged = { [weak self] in
             if let self { self.wantsPlayback = self.player.playbackIntent }
             self?.systemMedia?.refresh()
@@ -111,7 +172,7 @@ final class AppSession {
                    accountGeneration == restoreGeneration, queue.isEmpty,
                    !preferences.bool(forKey: "sessionRestoreBlocked") {
                     queue = try PlaybackQueue(snapshot: saved)
-                    resumePosition = saved.resumePosition
+                    resumeState.restore(saved)
                 }
             } catch { queueError = "The saved queue could not be restored. You can start a new queue." }
         }
@@ -240,7 +301,6 @@ final class AppSession {
         guard !tracks.isEmpty, tracks.indices.contains(index) else { return }
         guard account.isSignedIn else { openAccount(); return }
         wantsPlayback = true
-        resumePosition = 0
         request(queue.replace(with: tracks, startAt: index))
     }
 
@@ -254,11 +314,10 @@ final class AppSession {
         guard account.isSignedIn else { openAccount(); return }
         wantsPlayback = true
         if queue.currentOccurrence == nil {
-            let position = resumePosition
-            resumePosition = 0
-            request(queue.beginPlayback())
-            if position > 0 { player.seek(to: position) }
+            let position = resumeState.position(for: queue, playerPosition: player.clock.position)
+            request(queue.beginPlayback(), resumingAt: position)
         }
+        else if player.errorMessage != nil { retryPlayback() }
         else { player.play() }
         systemMedia?.refresh()
     }
@@ -273,18 +332,21 @@ final class AppSession {
 
     func next() {
         scriptingPlayGeneration = UUID()
-        resumePosition = 0
         request(queue.next())
     }
 
     func previous() {
         scriptingPlayGeneration = UUID()
-        resumePosition = 0
         if player.clock.position > 3 { seek(to: 0) }
         else { request(queue.previous()) }
     }
 
-    func seek(to value: TimeInterval) { player.seek(to: value) }
+    func seek(to value: TimeInterval) {
+        guard value.isFinite, value >= 0 else { return }
+        resumeState.clear()
+        player.seek(to: value)
+        saveQueue()
+    }
     func setVolume(_ value: Double) {
         player.setVolume(value)
         preferences.set(player.volume, forKey: "volume")
@@ -292,17 +354,15 @@ final class AppSession {
     func retryPlayback() {
         scriptingPlayGeneration = UUID()
         guard account.isSignedIn else { openAccount(); return }
-        let position = player.clock.position
+        let position = resumeState.position(for: queue, playerPosition: player.clock.position)
         wantsPlayback = true
-        request(queue.beginPlayback())
-        if position > 0 { player.seek(to: position) }
+        request(queue.beginPlayback(), resumingAt: position)
     }
 
     func selectQueueEntry(_ id: UUID) {
         scriptingPlayGeneration = UUID()
         guard account.isSignedIn else { openAccount(); return }
         wantsPlayback = true
-        resumePosition = 0
         request(queue.select(entryID: id))
     }
     func playNext(_ tracks: [Track]) { queue.playNext(tracks); saveQueue() }
@@ -310,7 +370,6 @@ final class AppSession {
     func removeQueueEntries(_ ids: Set<UUID>) {
         scriptingPlayGeneration = UUID()
         let previous = queue.currentOccurrence
-        if let selected = queue.currentEntryID, ids.contains(selected) { resumePosition = 0 }
         wantsPlayback = player.playbackIntent
         queue.remove(entryIDs: ids)
         reconcileQueue(previous: previous)
@@ -344,9 +403,11 @@ final class AppSession {
         saveQueue()
     }
 
-    private func request(_ occurrence: PlaybackOccurrence?) {
+    private func request(_ occurrence: PlaybackOccurrence?, resumingAt position: TimeInterval = 0) {
         guard let occurrence, let track = queue.currentTrack else { return }
+        resumeState.begin(occurrence, recovering: position)
         player.load(track: track, occurrence: occurrence, autoplay: wantsPlayback)
+        if position > 0 { player.seek(to: position) }
         saveQueue()
         systemMedia?.refresh()
     }
@@ -373,10 +434,10 @@ final class AppSession {
         pageGeneration = UUID()
         pageTask?.cancel()
         wantsPlayback = false
+        resumeState.clear()
         player.stop()
         queue = PlaybackQueue()
         page = nil
-        resumePosition = 0
         saveTask?.cancel()
         await saveTask?.value
         await account.signOut()
@@ -394,10 +455,10 @@ final class AppSession {
         accountGeneration = UUID()
         pageTask?.cancel()
         if replacedAccount {
+            resumeState.clear()
             player.stop()
             wantsPlayback = false
             queue = PlaybackQueue()
-            resumePosition = 0
             backHistory.removeAll()
             forwardHistory.removeAll()
             searchText = ""
@@ -411,7 +472,9 @@ final class AppSession {
         guard let queueStore else { return }
         let previousTask = saveTask
         previousTask?.cancel()
-        let snapshot = queue.snapshot(resumePosition: queue.currentOccurrence == nil ? resumePosition : player.clock.position)
+        let snapshot = resumeState.snapshot(queue: queue, playerPosition: player.clock.position,
+            playerDuration: player.clock.duration,
+            positionConfirmed: player.hasConfirmedPosition && !player.isBuffering && player.errorMessage == nil)
         let generation = accountGeneration
         saveTask = Task { [weak self] in
             await previousTask?.value

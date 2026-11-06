@@ -113,8 +113,10 @@ checks provide different evidence; record them separately.
 | R6 | Public beta signing and distribution | R2–R5 | Developer ID, notarization, fresh install, and update checks pass. |
 
 F2–F4 and S1–S2 have automated coverage. Anonymous live checks for B1 pass.
-Integration, interface, and packaging work is in progress. Signed-in checks,
-older-system runtime checks, and performance measurements remain open; see
+The native interface and local packaging are implemented. Initial Premium
+playback works, Intel and Apple silicon CI checks pass, and a short Kaset
+comparison is recorded in [performance](PERFORMANCE.md). Extended signed-in
+checks, accessibility, long sessions, and older-system runtime checks remain open; see
 [testing](TESTING.md) and [compatibility](COMPATIBILITY.md) for evidence.
 
 The first local build uses ad-hoc signing. R6 requires an Apple Developer

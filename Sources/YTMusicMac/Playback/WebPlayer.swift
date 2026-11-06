@@ -12,6 +12,7 @@ final class WebPlayer: NSObject {
     private(set) var isBuffering = false
     private(set) var errorMessage: String?
     private(set) var volume: Double = 1
+    private(set) var hasConfirmedPosition = false
 
     var playbackIntent: Bool { self.wantsPlaying }
 
@@ -19,6 +20,7 @@ final class WebPlayer: NSObject {
     @ObservationIgnored var onFailure: (() -> Void)?
     @ObservationIgnored var onPageReady: ((WKWebView) -> Void)?
     @ObservationIgnored var onStateChanged: (() -> Void)?
+    @ObservationIgnored var onRecoveryRequested: ((PlaybackOccurrence, TimeInterval) -> TimeInterval?)?
 
     @ObservationIgnored private let messageHandler: PlayerMessageHandler
     @ObservationIgnored private var gate = PlaybackEventGate()
@@ -130,6 +132,7 @@ final class WebPlayer: NSObject {
         self.isBuffering = false
         self.errorMessage = nil
         self.pendingSeek = nil
+        self.hasConfirmedPosition = false
         self.clock.reset()
         self.onStateChanged?()
     }
@@ -137,11 +140,23 @@ final class WebPlayer: NSObject {
     func retry() {
         guard self.track != nil, self.occurrence != nil else { return }
         self.fallbackCount = 0
-        if self.clock.position > 0 { self.pendingSeek = self.clock.position }
+        self.recoverNavigation()
+    }
+
+    private func recoverNavigation() {
+        guard let occurrence else { return }
+        var position = self.pendingSeek ?? self.clock.position
+        if let onRecoveryRequested {
+            guard let retained = onRecoveryRequested(occurrence, position) else { return }
+            position = retained
+        }
+        guard position.isFinite, position >= 0 else { return }
+        self.pendingSeek = position
         self.navigate()
     }
 
     private func navigate() {
+        self.hasConfirmedPosition = false
         guard self.scriptAvailable else {
             self.fail("The player could not load its playback controls. Reinstall the app and try again.")
             return
@@ -283,7 +298,6 @@ final class WebPlayer: NSObject {
             self.deadline = Task { @MainActor [weak self] in
                 do { try await Task.sleep(for: .seconds(18)) } catch { return }
                 guard let self, self.gate.loadID == loadID, self.wantsPlaying else { return }
-                if self.clock.position > 0 { self.pendingSeek = self.clock.position }
                 self.retryNavigationOrFail("Playback stalled. Check your connection or retry this song.")
             }
         }
@@ -295,6 +309,7 @@ final class WebPlayer: NSObject {
         self.volume = message.volume
         if !message.isAd, message.mediaReady {
             self.clock.update(position: message.position, duration: message.duration)
+            self.hasConfirmedPosition = true
         }
         if message.kind == .ended, let occurrence = self.occurrence {
             self.isPlaying = false
@@ -310,7 +325,7 @@ final class WebPlayer: NSObject {
         guard self.gate.loadID != nil else { return }
         if self.fallbackCount < 1 {
             self.fallbackCount += 1
-            self.navigate()
+            self.recoverNavigation()
         } else {
             self.fail(message)
         }
