@@ -55,7 +55,7 @@ if [[ ${#architectures[@]} -eq 0 ]]; then
   read -r -a architectures <<< "$("$script_dir/with-xcode.sh" xcrun lipo -archs "$executable")"
 fi
 for architecture in "${architectures[@]}"; do
-  "$script_dir/with-xcode.sh" xcrun lipo -verify_arch "$architecture" "$executable"
+  "$script_dir/with-xcode.sh" xcrun lipo "$executable" -verify_arch "$architecture"
   minimum="$("$script_dir/with-xcode.sh" xcrun vtool -arch "$architecture" -show-build "$executable" | awk '$1 == "minos" { print $2 }')"
   [[ "$minimum" == 14.0 || "$minimum" == 14.0.0 ]] || {
     echo "The $architecture executable minimum is $minimum; expected macOS 14.0." >&2; exit 1;

@@ -53,7 +53,7 @@ for architecture in "${architectures[@]}"; do
   MACOSX_DEPLOYMENT_TARGET=14.0 "$script_dir/with-xcode.sh" xcrun swift build "${build_args[@]}" >&2
   bin_path="$(MACOSX_DEPLOYMENT_TARGET=14.0 "$script_dir/with-xcode.sh" xcrun swift build "${build_args[@]}" --show-bin-path)"
   [[ -x "$bin_path/YTMusicMac" ]] || { echo "Build did not produce YTMusicMac for $architecture." >&2; exit 1; }
-  "$script_dir/with-xcode.sh" xcrun lipo -verify_arch "$architecture" "$bin_path/YTMusicMac"
+  "$script_dir/with-xcode.sh" xcrun lipo "$bin_path/YTMusicMac" -verify_arch "$architecture"
   # Rewrite only the packaging copy; retain SwiftPM's original build product.
   thin_executable="$build_dir/YTMusicMac-$architecture"
   cp "$bin_path/YTMusicMac" "$thin_executable"
