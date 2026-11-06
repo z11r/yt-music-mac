@@ -1,0 +1,14 @@
+# macOS and local editor state
+.DS_Store
+**/xcuserdata/
+*.xcuserstate
+
+# Swift and Xcode build products
+.build/
+DerivedData/
+
+# Local configuration and private development artifacts
+.env
+.env.*
+!.env.example
+.local/

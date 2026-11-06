@@ -1,0 +1,58 @@
+name: Bug or compatibility problem
+description: Report playback, performance, or macOS compatibility problems.
+body:
+  - type: markdown
+    attributes:
+      value: "Please omit cookies, tokens, email addresses, listening history, and authenticated network captures."
+  - type: input
+    id: app-version
+    attributes:
+      label: App version or commit
+      description: Include release/debug build and installation source.
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version and build
+      placeholder: "Example: 15.7, build from About This Mac"
+    validations:
+      required: true
+  - type: dropdown
+    id: architecture
+    attributes:
+      label: Processor and execution mode
+      options:
+        - Apple silicon, native
+        - Intel, native
+        - Apple silicon, running under Rosetta
+        - Unsure
+    validations:
+      required: true
+  - type: input
+    id: hardware
+    attributes:
+      label: Mac model and memory
+      description: Do not include a serial number.
+  - type: input
+    id: audio
+    attributes:
+      label: Audio output and relevant settings
+      description: Speakers, Bluetooth, USB DAC, AirPlay; include EQ state when relevant.
+  - type: input
+    id: environment
+    attributes:
+      label: Language and account tier
+      description: UI language, Free/Premium/signed out; no account identifiers.
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps, expected result, and actual result
+      description: Include frequency and whether sleep/wake or a network change triggers it.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Optional redacted evidence
+      description: Review screenshots and logs before sharing. Separate app and WebKit memory figures.

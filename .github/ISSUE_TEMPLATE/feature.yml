@@ -1,0 +1,16 @@
+name: Feature idea
+description: Suggest a useful improvement for listening on a Mac.
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What listening task is difficult today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Include familiar Mac interactions or examples when helpful.
+    validations:
+      required: true
