@@ -90,16 +90,32 @@ private final class SceneCheckCompletion: @unchecked Sendable {
     private var rendered = 0
     private var milestones: [String: Int] = [:]
     private var windowVisible: Bool?
+    private var lastHeartbeat: Int?
+    private var windows: [String] = []
 
     init(preferences: SceneCheckPreferences) { self.preferences = preferences }
 
+    private var elapsedMilliseconds: Int {
+        let elapsed = ContinuousClock.now - started
+        return Int(elapsed.components.seconds * 1000 + elapsed.components.attoseconds / 1_000_000_000_000_000)
+    }
+
     /// Records the first time a milestone is reached, in milliseconds since the driver was created.
     func record(_ milestone: String) {
-        let elapsed = ContinuousClock.now - started
-        let milliseconds = Int(elapsed.components.seconds * 1000 + elapsed.components.attoseconds / 1_000_000_000_000_000)
+        let milliseconds = elapsedMilliseconds
         lock.lock()
         defer { lock.unlock() }
         if milestones[milestone] == nil { milestones[milestone] = milliseconds }
+    }
+
+    /// Records that the main run loop is responsive, with the class names and visibility of its windows.
+    func heartbeat(windows: [String]) {
+        let milliseconds = elapsedMilliseconds
+        lock.lock()
+        defer { lock.unlock() }
+        if milestones["mainRunLoop"] == nil { milestones["mainRunLoop"] = milliseconds }
+        lastHeartbeat = milliseconds
+        self.windows = windows
     }
 
     func record(rendered: Int) {
@@ -121,6 +137,10 @@ private final class SceneCheckCompletion: @unchecked Sendable {
         var result: [String: Any] = ["check": "ui-scenes", "passed": success, "reason": reason,
                                      "renderedRevisions": rendered, "milestonesMs": milestones]
         if let windowVisible { result["windowVisible"] = windowVisible }
+        if !success {
+            result["windows"] = windows
+            if let lastHeartbeat { result["lastMainHeartbeatMs"] = lastHeartbeat }
+        }
         let data = (try? JSONSerialization.data(withJSONObject: result, options: [.sortedKeys])) ?? Data()
         FileHandle.standardOutput.write(data + Data([10]))
         exit(success ? 0 : 1)
@@ -135,13 +155,28 @@ final class SceneCheckDriver {
     private var hasStarted = false
     private weak var window: NSWindow?
 
+    /// Lets app launch code report milestones; set only while a scene check runs.
+    static private(set) weak var current: SceneCheckDriver?
+
     init() {
         let completion = SceneCheckCompletion(preferences: SceneCheckPreferences.current)
         self.completion = completion
         DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + 18) {
             completion.finish(success: false, reason: "timeout")
         }
+        let heartbeat = Timer(timeInterval: 0.25, repeats: true) { _ in
+            MainActor.assumeIsolated {
+                let windows = NSApplication.shared.windows.prefix(8).map {
+                    "\(type(of: $0))\($0.isVisible ? "(visible)" : "")"
+                }
+                completion.heartbeat(windows: windows)
+            }
+        }
+        RunLoop.main.add(heartbeat, forMode: .common)
+        Self.current = self
     }
+
+    func record(_ milestone: String) { completion.record(milestone) }
 
     func rendered(_ revision: Int, in window: NSWindow?) {
         guard let window, window.contentView != nil else { return }

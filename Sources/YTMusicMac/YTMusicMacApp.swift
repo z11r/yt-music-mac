@@ -37,6 +37,7 @@ struct YTMusicMacApp: App {
             session = AppSession(configuration: .sceneCheck(preferences: SceneCheckPreferences.current.defaults,
                                                             transport: sceneCheck.transport))
         } else { session = AppSession() }
+        sceneCheck?.record("sessionCreated")
         _session = State(initialValue: session)
         AppScripting.session = sceneCheck == nil ? session : nil
     }
@@ -143,6 +144,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApplication.shared.setActivationPolicy(.regular)
+        SceneCheckDriver.current?.record("didFinishLaunching")
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
