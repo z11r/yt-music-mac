@@ -46,7 +46,9 @@ jobs:
         run: |
           app_path="$(Scripts/build-app.sh --configuration release)"
           printf '%s\n' "$app_path" > "$RUNNER_TEMP/app-path"
+      # The UI scene check (--ui-smoke-test) runs on a local Mac. Hosted runners
+      # do not open the app's main window; see docs/TESTING.md.
       - name: Check the relocated app bundle
         run: |
           app_path="$(cat "$RUNNER_TEMP/app-path")"
-          Scripts/check-app.sh "$app_path" --configuration release --arch "${{ matrix.arch }}" --smoke-test --ui-smoke-test
+          Scripts/check-app.sh "$app_path" --configuration release --arch "${{ matrix.arch }}" --smoke-test

@@ -56,17 +56,22 @@ its own identity, resource location, and registration of the native playback
 commands before creating a playback session or contacting the music service.
 It does not establish playback or accessibility behavior.
 
-The UI smoke check opens the relocated release app through Launch Services,
-as Finder does, with synthetic music. It requires 100 rendered queue-state
-changes in its real window and menu scenes. On hosted CI runners, a directly
-executed app finished launching but never opened its main window, so the check
-does not run the binary directly. It uses disposable preferences, nonpersistent
-WebKit storage, a transport that rejects requests, and no saved queue or system
-media registration. It checks that no request, sign-in, or playback occurred,
-then removes its preferences. The app stops itself after 18 seconds and reports
-how far it got: launch steps, rendered changes, and the windows it had open.
-This check does not replace visual, keyboard, VoiceOver, or live playback
-testing.
+The UI smoke check opens the relocated release app with synthetic music and
+requires 100 rendered queue-state changes in its real window and menu scenes.
+It uses disposable preferences, nonpersistent WebKit storage, a transport that
+rejects requests, and no saved queue or system media registration. It checks
+that no request, sign-in, or playback occurred, then removes its preferences.
+The app stops itself after 18 seconds and reports how far it got: launch steps,
+rendered changes, and the windows it had open. This check does not replace
+visual, keyboard, VoiceOver, or live playback testing.
+
+Run the UI smoke check on a Mac with a logged-in desktop session. CI runs the
+static and smoke checks but not the UI check. On November 7, 2026, the hosted
+macOS 15 Intel and macOS 26 Apple silicon runners finished launching the app
+and kept its main thread responsive, but never created its main window. Only the
+menu bar item appeared, whether the app was started directly or through Launch
+Services. On an Apple silicon Mac running macOS 26, the same check completed
+100 changes in 5.4 to 8.5 seconds.
 
 ## Anonymous service checks
 

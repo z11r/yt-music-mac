@@ -115,43 +115,28 @@ if [[ "$smoke_test" == true || "$ui_smoke_test" == true ]]; then
   if [[ "$ui_smoke_test" == true ]]; then
     check_id="$(/usr/bin/uuidgen)"
     check_preferences_domain="io.github.z11r.ytmusicmac.scenecheck.$check_id"
-    python3 - "$relocated" "$check_id" "$check_dir" <<'PY'
+    env -u PACKAGE_RESOURCE_BUNDLE_PATH -u PACKAGE_RESOURCE_BUNDLE_URL \
+      python3 - "$relocated/Contents/MacOS/YTMusicMac" "$check_id" "$check_dir" <<'PY'
 import json
-import os
 import subprocess
 import sys
 
-bundle, check_id, check_dir = sys.argv[1:4]
-report_path = os.path.join(check_dir, "ui-scenes.json")
-errors_path = os.path.join(check_dir, "ui-scenes.err")
-# Launch Services starts the app as Finder and the Dock do. On hosted CI runners, a
-# directly executed binary finished launching without opening its main window.
-command = ["/usr/bin/open", "-n", "-W", "-F", "--stdout", report_path, "--stderr", errors_path,
-           bundle, "--args", "--check-ui-scenes", "--check-id", check_id]
 try:
-    subprocess.run(command, capture_output=True, text=True, timeout=25, check=False)
+    result = subprocess.run(
+        [sys.argv[1], "--check-ui-scenes", "--check-id", sys.argv[2]],
+        cwd=sys.argv[3], capture_output=True, text=True, timeout=20, check=False,
+    )
 except subprocess.TimeoutExpired:
-    subprocess.run(["/usr/bin/pkill", "-f", "check-id " + check_id], check=False)
-    sys.exit("UI scene check exceeded 25 seconds.")
-
-
-def read(path):
-    try:
-        with open(path, encoding="utf-8") as file:
-            return file.read()
-    except OSError:
-        return ""
-
-
-output = read(report_path)
+    sys.exit("UI scene check exceeded 20 seconds.")
+if result.returncode != 0:
+    sys.stderr.write(result.stdout[-4096:] + result.stderr[-4096:])
+    sys.exit(f"UI scene check failed (status {result.returncode}).")
 try:
-    report = json.loads(output)
-except ValueError:
-    sys.stderr.write(output[-4096:] + read(errors_path)[-4096:])
+    report = json.loads(result.stdout)
+except (ValueError, TypeError):
     sys.exit("UI scene check did not return a valid report.")
 required = {"check": "ui-scenes", "passed": True, "reason": "completed", "renderedRevisions": 100}
 if not isinstance(report, dict) or any(report.get(key) != value for key, value in required.items()):
-    sys.stderr.write(output[-4096:] + read(errors_path)[-4096:])
     sys.exit("UI scene check did not confirm 100 rendered revisions.")
 print(json.dumps(report, sort_keys=True))
 PY
