@@ -82,18 +82,45 @@ struct SceneCheckProgress {
 }
 
 /// The watchdog runs off the main thread so a blocked UI cannot leave the check running.
+/// Progress is shared with it so that a timeout reports how far the check got.
 private final class SceneCheckCompletion: @unchecked Sendable {
     private let lock = NSLock()
     private let preferences: SceneCheckPreferences
+    private let started = ContinuousClock.now
+    private var rendered = 0
+    private var milestones: [String: Int] = [:]
+    private var windowVisible: Bool?
 
     init(preferences: SceneCheckPreferences) { self.preferences = preferences }
 
-    func finish(success: Bool, reason: String, rendered: Int) -> Never {
+    /// Records the first time a milestone is reached, in milliseconds since the driver was created.
+    func record(_ milestone: String) {
+        let elapsed = ContinuousClock.now - started
+        let milliseconds = Int(elapsed.components.seconds * 1000 + elapsed.components.attoseconds / 1_000_000_000_000_000)
+        lock.lock()
+        defer { lock.unlock() }
+        if milestones[milestone] == nil { milestones[milestone] = milliseconds }
+    }
+
+    func record(rendered: Int) {
+        lock.lock()
+        defer { lock.unlock() }
+        self.rendered = rendered
+    }
+
+    func record(windowVisible: Bool) {
+        lock.lock()
+        defer { lock.unlock() }
+        if self.windowVisible == nil { self.windowVisible = windowVisible }
+    }
+
+    func finish(success: Bool, reason: String) -> Never {
         lock.lock()
         // Hold the lock through exit so timeout and normal completion cannot race cleanup.
         preferences.remove()
-        let result: [String: Any] = ["check": "ui-scenes", "passed": success,
-                                    "reason": reason, "renderedRevisions": rendered]
+        var result: [String: Any] = ["check": "ui-scenes", "passed": success, "reason": reason,
+                                     "renderedRevisions": rendered, "milestonesMs": milestones]
+        if let windowVisible { result["windowVisible"] = windowVisible }
         let data = (try? JSONSerialization.data(withJSONObject: result, options: [.sortedKeys])) ?? Data()
         FileHandle.standardOutput.write(data + Data([10]))
         exit(success ? 0 : 1)
@@ -112,25 +139,29 @@ final class SceneCheckDriver {
         let completion = SceneCheckCompletion(preferences: SceneCheckPreferences.current)
         self.completion = completion
         DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + 18) {
-            completion.finish(success: false, reason: "timeout", rendered: 0)
+            completion.finish(success: false, reason: "timeout")
         }
     }
 
     func rendered(_ revision: Int, in window: NSWindow?) {
         guard let window, window.contentView != nil else { return }
+        if self.window == nil { completion.record("windowAttached") }
         self.window = window
-        progress.acknowledge(revision, attached: true)
+        if progress.acknowledge(revision, attached: true) { completion.record(rendered: progress.rendered) }
     }
 
     func start(session: AppSession) {
         guard !hasStarted else { return }
         hasStarted = true
+        completion.record("sessionStarted")
         Task { @MainActor in
             while window == nil { try? await Task.sleep(for: .milliseconds(10)) }
+            completion.record("revisionsStarted")
+            completion.record(windowVisible: window?.occlusionState.contains(.visible) ?? false)
             for _ in 0..<SceneCheckProgress.target {
                 guard session.sceneCheckIsIsolated,
                       let revision = progress.requestNext(), session.advanceSceneCheck(to: revision) else {
-                    completion.finish(success: false, reason: "isolation-or-state", rendered: progress.rendered)
+                    completion.finish(success: false, reason: "isolation-or-state")
                 }
                 while progress.rendered < revision {
                     try? await Task.sleep(for: .milliseconds(10))
@@ -143,9 +174,10 @@ final class SceneCheckDriver {
             let authenticated = await session.account.credentials.snapshot().isAuthenticated
             guard progress.isComplete, window != nil, session.sceneCheckIsIsolated,
                   attempts == 0, !authenticated else {
-                completion.finish(success: false, reason: "isolation-or-render", rendered: progress.rendered)
+                completion.finish(success: false, reason: "isolation-or-render")
             }
-            completion.finish(success: true, reason: "completed", rendered: progress.rendered)
+            completion.record("revisionsFinished")
+            completion.finish(success: true, reason: "completed")
         }
     }
 }

@@ -135,7 +135,8 @@ try:
     report = json.loads(result.stdout)
 except (ValueError, TypeError):
     sys.exit("UI scene check did not return a valid report.")
-if report != {"check": "ui-scenes", "passed": True, "reason": "completed", "renderedRevisions": 100}:
+required = {"check": "ui-scenes", "passed": True, "reason": "completed", "renderedRevisions": 100}
+if not isinstance(report, dict) or any(report.get(key) != value for key, value in required.items()):
     sys.exit("UI scene check did not confirm 100 rendered revisions.")
 print(json.dumps(report, sort_keys=True))
 PY
