@@ -77,11 +77,15 @@ pages. The native client passed these checks locally on November 6, 2026.
 Service responses vary over time and by region, so a failure needs inspection.
 No response bodies, configuration keys, or account data should be saved in logs.
 
-The Premium account check completed a liked-song collection larger than one
-page. Library and playlist requests loaded initial pages but failed during
-extended pagination; those failures remain under investigation. Remote likes
-and playlist edits remain unavailable while service validation is pending.
-Do not run automatic account mutations as part of CI.
+On November 6, 2026, a Premium account check completed a liked-song collection
+larger than one page, but library and playlist paging failed. On November 7, a
+release build of commit `fdc2b32` loaded the library and liked songs across two
+pages each, with no pages remaining. The checked playlist fit on one page, and
+the check made no further request for it. A playlist longer than one page,
+recovery after a failed page, and agreement with the counts shown by the service
+still need checking. Remote likes and playlist edits remain unavailable while
+service validation is pending. Do not run automatic account mutations as part
+of CI.
 
 Pagination tests now cover cursor selection with synthetic responses:
 
@@ -94,9 +98,7 @@ Pagination tests now cover cursor selection with synthetic responses:
 - A rejected request is reported with its HTTP status instead of as an outage.
 
 These rules match the library and playlist parsers in Kaset at the pinned
-revision and in ytmusicapi. The tests do not show that live collections are
-complete. Repeat the signed-in library and playlist checks to confirm that; the
-earlier live failures remain open until then.
+revision and in ytmusicapi.
 
 ## Manual playback
 
