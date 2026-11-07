@@ -187,8 +187,17 @@ private struct EmbeddedPlayerPanel: View {
             }
             // Keep one host attached for the lifetime of the main window. Its
             // player owns the WebKit view; secondary windows never host it.
-            ExistingWebView(webView: session.player.webView)
-                .frame(height: session.showsWebPlayer ? 320 : 1)
+            // The player replaces the view to unload an idle page; the host
+            // swaps it in place.
+            // WebKit judges page visibility by the view's hidden state and its
+            // window, not by size or opacity. A hidden page stops rendering and
+            // slows its timers. The page stays visible while a song starts,
+            // because WebKit can refuse to start media in a hidden page.
+            let player = session.player
+            ExistingWebView(webView: { [weak player] in player?.webView },
+                            identity: player.webViewGeneration,
+                            isHidden: !session.showsWebPlayer && !player.isStartingPlayback)
+                .frame(width: session.showsWebPlayer ? nil : 1, height: session.showsWebPlayer ? 320 : 1)
                 .opacity(session.showsWebPlayer ? 1 : 0)
                 .allowsHitTesting(session.showsWebPlayer)
                 .accessibilityHidden(!session.showsWebPlayer)
@@ -197,9 +206,47 @@ private struct EmbeddedPlayerPanel: View {
 }
 
 struct ExistingWebView: NSViewRepresentable {
-    let webView: WKWebView
-    func makeNSView(context: Context) -> WKWebView { webView }
-    func updateNSView(_ nsView: WKWebView, context: Context) {}
+    /// Looked up at update time. SwiftUI can keep old copies of this value (for
+    /// example in toolbar bookkeeping), so it must not hold the web view itself:
+    /// a stale copy would keep a replaced view and its page process alive.
+    let webView: @MainActor () -> WKWebView?
+    /// Changes with the provided web view so SwiftUI updates the host. Never
+    /// the view itself, which a stale copy would keep alive.
+    let identity: AnyHashable?
+    var isHidden = false
+
+    func makeNSView(context: Context) -> WebViewHost {
+        let host = WebViewHost()
+        host.show(webView(), hidden: isHidden)
+        return host
+    }
+
+    func updateNSView(_ host: WebViewHost, context: Context) {
+        host.show(webView(), hidden: isHidden)
+    }
+}
+
+/// Holds the current web view as its only subview. Swapping in a replacement
+/// removes the previous view, so nothing in the window keeps its page alive.
+final class WebViewHost: NSView {
+    func show(_ webView: WKWebView?, hidden: Bool) {
+        guard let webView else {
+            subviews.forEach { $0.removeFromSuperview() }
+            return
+        }
+        if webView.superview !== self {
+            subviews.forEach { old in
+                // The key view loop holds linked views strongly.
+                if let next = nextKeyView, next === old || next.isDescendant(of: old) { nextKeyView = nil }
+                old.nextKeyView = nil
+                old.removeFromSuperview()
+            }
+            webView.frame = bounds
+            webView.autoresizingMask = [.width, .height]
+            addSubview(webView)
+        }
+        if webView.isHidden != hidden { webView.isHidden = hidden }
+    }
 }
 
 private struct AccountView: View {
@@ -226,7 +273,9 @@ private struct AccountView: View {
                 InlineMessage(message: message, actionTitle: "Try Again", action: session.openAccount)
             }
             if let view = session.account.loginWebView {
-                ExistingWebView(webView: view)
+                let account = session.account
+                ExistingWebView(webView: { [weak account] in account?.loginWebView },
+                                identity: AnyHashable(ObjectIdentifier(view)))
             } else {
                 ContentUnavailableView("Account Closed", systemImage: "person.crop.circle",
                                        description: Text("Open your account again to sign in."))

@@ -44,7 +44,16 @@ struct SessionPageRestoreState {
 @MainActor
 @Observable
 final class WebPlayer: NSObject {
-    let webView: WKWebView
+    /// How long the page stays loaded while nothing plays. Its WebContent
+    /// process holds most of the app's memory; replacing the web view ends it.
+    static let idleUnloadDelay: Duration = .seconds(180)
+
+    /// Replaced when the page is unloaded. Not observed: SwiftUI keeps copies of
+    /// observed values it read, which would keep a replaced view and its page
+    /// process alive. Views observe `webViewGeneration` instead.
+    @ObservationIgnored private(set) var webView: WKWebView
+    /// Increases whenever `webView` is replaced.
+    private(set) var webViewGeneration = 0
     let clock = PlaybackClock()
     private(set) var isPlaying = false
     private(set) var isBuffering = false
@@ -52,6 +61,9 @@ final class WebPlayer: NSObject {
     private(set) var failureReason: PlaybackFailureReason?
     private(set) var volume: Double = 1
     private(set) var hasConfirmedPosition = false
+    /// True from a load or play request until the song itself is playing.
+    /// The host keeps the page visible to WebKit during that window.
+    private(set) var isStartingPlayback = false
 
     var playbackIntent: Bool { self.wantsPlaying }
 
@@ -83,34 +95,67 @@ final class WebPlayer: NSObject {
     @ObservationIgnored private var sessionRestoreTask: Task<Void, Never>?
     @ObservationIgnored private var sessionRestoreDeadline: Task<Void, Never>?
     @ObservationIgnored private var sessionMediaSuspended = false
+    @ObservationIgnored private let dataStore: WKWebsiteDataStore
+    @ObservationIgnored private let bridgeSource: String?
+    @ObservationIgnored private var idleUnload: Task<Void, Never>?
+    /// AppKit can keep a view created during launch alive for the life of the
+    /// process: a notification observer registered while the view is set up
+    /// holds it. The web view made in `init` may be such a view, so it never
+    /// loads a page; the first load swaps in a fresh one.
+    @ObservationIgnored private var usesLaunchWebView = true
+    /// True when no page is loaded: at launch and after an idle unload.
+    @ObservationIgnored private(set) var isPageUnloaded = true
+    /// Set while the web player panel shows the page; it is never unloaded then.
+    @ObservationIgnored var isPresented = false {
+        didSet {
+            guard self.isPresented != oldValue else { return }
+            // Showing the panel after an unload loads the song again, paused.
+            if self.isPresented, self.isPageUnloaded, self.track != nil, self.occurrence != nil {
+                self.retry()
+            }
+            self.updateIdleUnload()
+        }
+    }
 
     init(dataStore: WKWebsiteDataStore) {
-        let controller = WKUserContentController()
         let handler = PlayerMessageHandler()
-        controller.add(handler, contentWorld: .defaultClient, name: "playerBridge")
         let scriptURL = AppIdentity.resourceBundle.url(forResource: "PlayerBridge", withExtension: "js")
-        if let scriptURL, let source = try? String(contentsOf: scriptURL, encoding: .utf8) {
+        let source = scriptURL.flatMap { try? String(contentsOf: $0, encoding: .utf8) }
+        self.dataStore = dataStore
+        self.bridgeSource = source
+        self.scriptAvailable = source != nil
+        self.messageHandler = handler
+        self.webView = Self.makeWebView(dataStore: dataStore, handler: handler, bridgeSource: source)
+        super.init()
+        handler.owner = self
+        self.configure(self.webView)
+    }
+
+    private static func makeWebView(dataStore: WKWebsiteDataStore, handler: PlayerMessageHandler,
+                                    bridgeSource: String?) -> WKWebView {
+        let controller = WKUserContentController()
+        controller.add(handler, contentWorld: .defaultClient, name: "playerBridge")
+        if let bridgeSource {
             controller.addUserScript(WKUserScript(
-                source: source,
+                source: bridgeSource,
                 injectionTime: .atDocumentStart,
                 forMainFrameOnly: true,
                 in: .defaultClient
             ))
-            self.scriptAvailable = true
         }
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = dataStore
         configuration.userContentController = controller
         configuration.mediaTypesRequiringUserActionForPlayback = []
         configuration.allowsAirPlayForMediaPlayback = true
-        self.webView = WKWebView(frame: .zero, configuration: configuration)
-        self.messageHandler = handler
-        super.init()
-        handler.owner = self
-        self.webView.navigationDelegate = self
-        self.webView.uiDelegate = self
-        self.webView.allowsBackForwardNavigationGestures = false
-        self.webView.customUserAgent = WebSession.userAgent
+        return WKWebView(frame: .zero, configuration: configuration)
+    }
+
+    private func configure(_ webView: WKWebView) {
+        webView.navigationDelegate = self
+        webView.uiDelegate = self
+        webView.allowsBackForwardNavigationGestures = false
+        webView.customUserAgent = WebSession.userAgent
     }
 
     func load(track: Track, occurrence: PlaybackOccurrence, autoplay: Bool = true) {
@@ -139,8 +184,11 @@ final class WebPlayer: NSObject {
         self.cancelSessionRestore()
         let id = self.sessionRestore.begin()
         self.sessionSynchronizer = synchronize
+        self.retireLaunchWebView()
         self.webView.setAllMediaPlaybackSuspended(true)
         self.sessionMediaSuspended = true
+        self.isPageUnloaded = false
+        self.updateIdleUnload()
         self.navigation = self.webView.load(URLRequest(url: URL(string: "https://music.youtube.com/")!))
         self.sessionRestoreDeadline = Task { @MainActor [weak self] in
             do { try await Task.sleep(for: .seconds(18)) } catch { return }
@@ -174,15 +222,21 @@ final class WebPlayer: NSObject {
             self.webView.stopLoading()
             self.onSessionRestoreFailed?()
         }
+        // The account values are read; the Home page is no longer needed. Its
+        // media is also still suspended, which a song must not inherit.
+        if self.occurrence == nil { self.replaceWebView() }
     }
 
     func play() {
         self.wantsPlaying = true
-        if self.errorMessage != nil {
+        if !self.isPlaying { self.setStartingPlayback(true) }
+        if self.errorMessage != nil || self.isPageUnloaded {
+            // An unloaded page resumes through recovery at the kept position.
             self.retry()
         } else {
             self.sendCommand("play")
         }
+        self.updateIdleUnload()
     }
 
     func pause() {
@@ -190,6 +244,8 @@ final class WebPlayer: NSObject {
         self.sendCommand("pause")
         self.isPlaying = false
         self.isBuffering = false
+        self.setStartingPlayback(false)
+        self.updateIdleUnload()
         self.onStateChanged?()
     }
 
@@ -215,16 +271,13 @@ final class WebPlayer: NSObject {
         self.deadline = nil
         self.wantsPlaying = false
         self.sendCommand("pause")
-        self.gate = PlaybackEventGate()
-        self.lastBoundDocumentID = nil
         self.track = nil
         self.occurrence = nil
-        self.navigation = nil
-        self.replacementPending = false
-        self.webView.stopLoading()
-        self.webView.loadHTMLString("<!doctype html><title>Player</title>", baseURL: nil)
+        // Nothing is left to resume, so end the page's process now.
+        self.replaceWebView()
         self.isPlaying = false
         self.isBuffering = false
+        self.setStartingPlayback(false)
         self.errorMessage = nil
         self.failureReason = nil
         self.pendingSeek = nil
@@ -258,6 +311,7 @@ final class WebPlayer: NSObject {
             return
         }
         guard let track, let occurrence, let url = PlaybackNavigation.watchURL(trackID: track.id) else { return }
+        self.retireLaunchWebView()
         self.deadline?.cancel()
         self.navigation = nil
         self.webView.stopLoading()
@@ -268,8 +322,11 @@ final class WebPlayer: NSObject {
         self.failureReported = false
         self.isPlaying = false
         self.isBuffering = self.wantsPlaying
+        self.setStartingPlayback(self.wantsPlaying)
         self.errorMessage = nil
         self.failureReason = nil
+        self.isPageUnloaded = false
+        self.updateIdleUnload()
         if let currentURL = self.webView.url, PlaybackNavigation.permits(currentURL),
            let documentID = self.lastBoundDocumentID {
             self.replaceNavigation(with: url, loadID: loadID, documentID: documentID)
@@ -388,6 +445,10 @@ final class WebPlayer: NSObject {
         if message.acceptsPagePause(latestCommandRevision: self.commandRevision) {
             self.wantsPlaying = false
         }
+        if !self.wantsPlaying || message.confirmsContentPlayback {
+            self.setStartingPlayback(false)
+        }
+        self.updateIdleUnload()
         if !self.wantsPlaying || (message.isPlaying && !message.isBuffering) {
             self.deadline?.cancel()
             self.deadline = nil
@@ -401,12 +462,14 @@ final class WebPlayer: NSObject {
         let playing = message.isPlaying && self.wantsPlaying
         let buffering = self.wantsPlaying && (message.isBuffering || (!message.mediaReady && !message.isAd))
         let changed = self.isPlaying != playing || self.isBuffering != buffering
-        self.isPlaying = playing
-        self.isBuffering = buffering
-        self.volume = message.volume
+        // Observation notifies views on every assignment, even of an equal
+        // value. Progress arrives about once a second, so write only changes.
+        if self.isPlaying != playing { self.isPlaying = playing }
+        if self.isBuffering != buffering { self.isBuffering = buffering }
+        if self.volume != message.volume { self.volume = message.volume }
         if !message.isAd, message.mediaReady {
             self.clock.update(position: message.position, duration: message.duration)
-            self.hasConfirmedPosition = true
+            if !self.hasConfirmedPosition { self.hasConfirmedPosition = true }
         }
         if message.kind == .ended, let occurrence = self.occurrence {
             self.isPlaying = false
@@ -438,9 +501,86 @@ final class WebPlayer: NSObject {
         self.wantsPlaying = false
         self.isPlaying = false
         self.isBuffering = false
+        self.setStartingPlayback(false)
         self.sendCommand("pause")
+        self.updateIdleUnload()
         self.onStateChanged?()
         self.onFailure?()
+    }
+
+    private var isIdle: Bool {
+        !self.wantsPlaying && !self.isStartingPlayback && self.sessionRestore.id == nil
+            && !self.isPresented && !self.isPageUnloaded
+    }
+
+    /// Schedules an unload while idle and cancels it once anything starts.
+    private func updateIdleUnload() {
+        guard self.isIdle else {
+            self.idleUnload?.cancel()
+            self.idleUnload = nil
+            return
+        }
+        guard self.idleUnload == nil else { return }
+        self.idleUnload = Task { @MainActor [weak self] in
+            do { try await Task.sleep(for: Self.idleUnloadDelay) } catch { return }
+            guard let self, self.isIdle else { return }
+            self.replaceWebView()
+        }
+    }
+
+    /// Ends the page's WebContent process by replacing the web view. The song,
+    /// queue occurrence, and clock are kept, so play reloads where it stopped.
+    private func replaceWebView() {
+        self.idleUnload?.cancel()
+        self.idleUnload = nil
+        self.deadline?.cancel()
+        self.deadline = nil
+        self.swapWebView()
+        // Late messages from the old page fail the gate's load check.
+        self.gate = PlaybackEventGate()
+        self.lastBoundDocumentID = nil
+        self.navigation = nil
+        self.replacementPending = false
+        self.sessionMediaSuspended = false
+        self.isPageUnloaded = true
+        // The site's service worker keeps a WebContent process running after its
+        // page closes. Removing the registration ends it; the next page load
+        // registers it again. Cookies and sign-in data are not touched.
+        self.dataStore.removeData(ofTypes: [WKWebsiteDataTypeServiceWorkerRegistrations],
+                                  modifiedSince: .distantPast) {}
+    }
+
+    /// Swaps the never-loaded launch web view for a fresh one before a first load.
+    private func retireLaunchWebView() {
+        guard self.usesLaunchWebView else { return }
+        self.swapWebView()
+    }
+
+    private func swapWebView() {
+        self.usesLaunchWebView = false
+        let previous = self.webView
+        previous.navigationDelegate = nil
+        previous.uiDelegate = nil
+        previous.stopLoading()
+        // AppKit's key view loop keeps strong references between linked views;
+        // splice the old view out or it, and its page process, stay alive.
+        if let before = previous.previousKeyView, before.nextKeyView === previous {
+            let after = previous.nextKeyView
+            before.nextKeyView = after.map { $0.isDescendant(of: previous) } ?? true ? nil : after
+        }
+        previous.nextKeyView = nil
+        previous.removeFromSuperview()
+        let replacement = Self.makeWebView(dataStore: self.dataStore, handler: self.messageHandler,
+                                           bridgeSource: self.bridgeSource)
+        self.configure(replacement)
+        self.webView = replacement
+        self.webViewGeneration += 1
+    }
+
+    /// Observation notifies on every assignment, so skip unchanged values to
+    /// avoid invalidating the host view on each progress message.
+    private func setStartingPlayback(_ value: Bool) {
+        if self.isStartingPlayback != value { self.isStartingPlayback = value }
     }
 }
 

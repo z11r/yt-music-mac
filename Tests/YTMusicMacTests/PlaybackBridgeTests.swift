@@ -143,6 +143,21 @@ struct PlaybackEventValidationTests {
             #expect(!message.acceptsPagePause(latestCommandRevision: 3))
         }
     }
+
+    @Test func onlyAdvancingSongContentEndsAPlaybackStart() throws {
+        let body = payload(loadID: UUID(), occurrence: occurrence(), documentID: UUID())
+        let playing = try #require(PlaybackBridgeMessage.decode(body))
+        #expect(playing.confirmsContentPlayback)
+        for (key, value): (String, Any) in [
+            ("isPlaying", false), ("isBuffering", true), ("isAd", true), ("mediaReady", false),
+            ("kind", "ended"), ("kind", "error"),
+        ] {
+            var excluded = body
+            excluded[key] = value
+            let message = try #require(PlaybackBridgeMessage.decode(excluded))
+            #expect(!message.confirmsContentPlayback)
+        }
+    }
 }
 
 @MainActor
@@ -175,18 +190,28 @@ private final class BridgeFixture {
     globalThis.addEventListener = () => {};
     globalThis.MutationObserver = class {observe() {}};
     let ad = false;
+    let blockPlay = false;
+    let blockError = 'NotAllowedError';
+    const timers = [];
+    globalThis.setTimeout = action => timers.push(action);
     const media = {
         tagName: 'VIDEO', isConnected: true, currentTime: 0, duration: 180,
         paused: true, ended: false, readyState: 1, volume: 1, listeners: {},
         addEventListener(name, action) {this.listeners[name] = action;},
         removeEventListener(name) {delete this.listeners[name];},
         pause() {this.paused = true;},
-        play() {this.paused = false; return {catch() {}};},
+        play() {
+            if (blockPlay) return {catch(handler) {handler(Object.assign(new Error(blockError), {name: blockError}));}};
+            this.paused = false;
+            return {catch() {}};
+        },
         emit(name) {if (this.listeners[name]) this.listeners[name]({type: name, target: this});}
     };
     globalThis.document = {
+        visibilityState: 'visible', listeners: {},
         querySelector(selector) {return selector === '#movie_player' ? {classList: {contains: () => ad}} : media;},
-        addEventListener() {}
+        addEventListener(name, action) {(this.listeners[name] = this.listeners[name] || []).push(action);},
+        emit(name) {(this.listeners[name] || []).forEach(action => action({type: name}));}
     };
     const binding = {
         loadID: '00000000-0000-4000-8000-000000000002', autoplay: true, volume: 0.5,
@@ -353,5 +378,51 @@ struct PlaybackScriptTests {
         fixture.run("YTMusicNativePlayer.command({loadID: binding.loadID, revision: 1, name: 'play'})")
         #expect(fixture.run("media.paused").toBool())
         #expect(fixture.run("messages[messages.length - 2].errorCode").toString() == "target_changed")
+    }
+
+    @Test func playBlockedInAHiddenPageRetriesOnceVisible() throws {
+        let fixture = try BridgeFixture()
+        fixture.run("document.visibilityState = 'hidden'; blockPlay = true; media.readyState = 4")
+        fixture.run("YTMusicNativePlayer.bind(binding)")
+        #expect(fixture.run("media.paused").toBool())
+        #expect(fixture.run("messages.every(message => message.errorCode === null)").toBool())
+        fixture.run("blockPlay = false; document.visibilityState = 'visible'; document.emit('visibilitychange')")
+        #expect(!fixture.run("media.paused").toBool())
+        #expect(fixture.run("messages.every(message => message.errorCode === null)").toBool())
+    }
+
+    @Test func anInterruptedStartIsRetriedInsteadOfReported() throws {
+        let fixture = try BridgeFixture()
+        fixture.run("blockPlay = true; blockError = 'AbortError'; media.readyState = 4")
+        fixture.run("YTMusicNativePlayer.bind(binding)")
+        #expect(fixture.run("media.paused").toBool())
+        #expect(fixture.run("messages.every(message => message.errorCode === null)").toBool())
+        fixture.run("blockPlay = false; timers.splice(0).forEach(action => action())")
+        #expect(!fixture.run("media.paused").toBool())
+        #expect(fixture.run("messages.every(message => message.errorCode === null)").toBool())
+    }
+
+    @Test func anInterruptedStartIsNotRetriedAfterPause() throws {
+        let fixture = try BridgeFixture()
+        fixture.run("blockPlay = true; blockError = 'AbortError'; media.readyState = 4")
+        fixture.run("YTMusicNativePlayer.bind(binding)")
+        fixture.run("YTMusicNativePlayer.command({loadID: binding.loadID, revision: 1, name: 'pause'})")
+        fixture.run("blockPlay = false; timers.splice(0).forEach(action => action())")
+        #expect(fixture.run("media.paused").toBool())
+    }
+
+    @Test func playBlockedInAVisiblePageIsReported() throws {
+        let fixture = try BridgeFixture()
+        fixture.run("blockPlay = true; media.readyState = 4; YTMusicNativePlayer.bind(binding)")
+        #expect(fixture.run("messages.some(message => message.errorCode === 'playback_blocked')").toBool())
+    }
+
+    @Test func becomingVisibleDoesNotRestartAPausedSong() throws {
+        let fixture = try BridgeFixture()
+        fixture.run("document.visibilityState = 'hidden'; blockPlay = true; media.readyState = 4")
+        fixture.run("YTMusicNativePlayer.bind(binding)")
+        fixture.run("YTMusicNativePlayer.command({loadID: binding.loadID, revision: 1, name: 'pause'})")
+        fixture.run("blockPlay = false; document.visibilityState = 'visible'; document.emit('visibilitychange')")
+        #expect(fixture.run("media.paused").toBool())
     }
 }

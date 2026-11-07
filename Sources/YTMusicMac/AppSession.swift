@@ -98,7 +98,9 @@ final class AppSession {
     var collectionFilter = ""
     var showsQueue = false
     var showsAccount = false
-    var showsWebPlayer = false
+    var showsWebPlayer = false {
+        didSet { player.isPresented = showsWebPlayer }
+    }
     private(set) var canGoBack = false
     private(set) var canGoForward = false
 

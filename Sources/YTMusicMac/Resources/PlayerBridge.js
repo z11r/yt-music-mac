@@ -20,6 +20,7 @@
     let endedGeneration = -1;
     let lastProgressAt = 0;
     let lastMediaPosition = 0;
+    let blockedWhileHidden = false;
     let removers = [];
 
     function videoID() {
@@ -92,10 +93,23 @@
             const target = video;
             const promise = video.play();
             if (promise && typeof promise.catch === "function") {
-                promise.catch(() => {
-                    if (video === target && wantsPlaying && revision === commandRevision) {
-                        report("error", "playback_blocked");
+                promise.catch(error => {
+                    if (video !== target || !wantsPlaying || revision !== commandRevision) return;
+                    // A start interrupted by the page's own load or pause is not a
+                    // refusal; try again once the player settles.
+                    if (error && error.name === "AbortError") {
+                        setTimeout(() => {
+                            if (video === target && wantsPlaying && revision === commandRevision) applyIntent();
+                        }, 300);
+                        return;
                     }
+                    // WebKit can refuse to start media in a hidden page. The app
+                    // shows the page while a song starts, so retry once visible.
+                    if (document.visibilityState === "hidden") {
+                        blockedWhileHidden = true;
+                        return;
+                    }
+                    report("error", "playback_blocked");
                 });
             }
         }
@@ -206,6 +220,11 @@
         }
         attach();
     };
+    document.addEventListener("visibilitychange", () => {
+        if (!blockedWhileHidden || document.visibilityState !== "visible") return;
+        blockedWhileHidden = false;
+        applyIntent();
+    });
     document.addEventListener("yt-navigate-finish", checkNavigation);
     window.addEventListener("popstate", checkNavigation);
 

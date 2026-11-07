@@ -53,6 +53,12 @@ struct PlaybackBridgeMessage: Decodable {
         return value
     }
 
+    /// The song itself, not an advertisement or a loading state, is advancing.
+    var confirmsContentPlayback: Bool {
+        self.kind != .error && self.kind != .ended && self.isPlaying && !self.isBuffering
+            && self.mediaReady && !self.isAd
+    }
+
     func acceptsPagePause(latestCommandRevision: Int) -> Bool {
         (self.kind == .state || self.kind == .progress) && self.intentSource == .page
             && !self.playbackIntent && !self.isPlaying && self.mediaReady && !self.isAd

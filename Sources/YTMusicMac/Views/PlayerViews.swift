@@ -91,7 +91,7 @@ struct TransportButtons: View {
         HStack(spacing: 20) {
             Button("Previous Song", systemImage: "backward.end.fill", action: session.previous)
                 .help("Previous Song")
-                .disabled(!session.queue.hasPrevious && session.player.clock.position <= 3)
+                .disabled(!session.queue.hasPrevious && !session.player.clock.isPastRestartThreshold)
             Button(action: session.togglePlayback) {
                 Image(systemName: session.player.isPlaying || session.player.isBuffering ? "pause.fill" : "play.fill")
                     .font(.system(size: prominent ? 18 : 15, weight: .semibold))
@@ -117,19 +117,28 @@ struct SeekView: View {
     let session: AppSession
     @State private var isEditing = false
     @State private var proposedTime: Double = 0
+    @State private var isWindowVisible = true
+    @State private var coveredSeconds = 0
 
     private var duration: Double { session.player.clock.duration }
-    private var position: Double { isEditing ? proposedTime : session.player.clock.position }
+    /// A fully covered window shows its last value instead of observing the
+    /// clock, so progress reports do not redraw it.
+    private var position: Double {
+        if isEditing { return proposedTime }
+        return Double(isWindowVisible ? session.player.clock.elapsedSeconds : coveredSeconds)
+    }
 
     var body: some View {
         HStack(spacing: 8) {
             Text(playbackTime(position)).frame(minWidth: 35, alignment: .trailing)
                 .accessibilityHidden(true)
+            // No `step`: a stepped slider draws one tick mark per second of the
+            // song, and redrawing those dominated the app's playback CPU.
             Slider(value: Binding(get: { min(max(0, position), max(1, duration)) },
                                   set: {
-                                      proposedTime = $0
-                                      if !isEditing { session.seek(to: $0) }
-                                  }), in: 0...max(1, duration), step: 1) { editing in
+                                      proposedTime = $0.rounded()
+                                      if !isEditing { session.seek(to: proposedTime) }
+                                  }), in: 0...max(1, duration)) { editing in
                 if editing { proposedTime = session.player.clock.position }
                 isEditing = editing
                 if !editing { session.seek(to: proposedTime) }
@@ -143,6 +152,43 @@ struct SeekView: View {
         }
         .font(.caption).monospacedDigit().foregroundStyle(.secondary)
         .onChange(of: session.queue.currentOccurrence) { isEditing = false; proposedTime = 0 }
+        .background(WindowVisibilityReader(isVisible: $isWindowVisible))
+        .onChange(of: isWindowVisible) {
+            if !isWindowVisible { coveredSeconds = session.player.clock.elapsedSeconds }
+        }
+    }
+}
+
+/// Reports whether any part of the hosting window is visible on screen.
+struct WindowVisibilityReader: NSViewRepresentable {
+    @Binding var isVisible: Bool
+
+    func makeNSView(context: Context) -> ReaderView { ReaderView() }
+
+    func updateNSView(_ view: ReaderView, context: Context) {
+        let binding = $isVisible
+        view.onChange = { visible in
+            if binding.wrappedValue != visible { binding.wrappedValue = visible }
+        }
+    }
+
+    final class ReaderView: NSView {
+        var onChange: ((Bool) -> Void)?
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            NotificationCenter.default.removeObserver(self, name: NSWindow.didChangeOcclusionStateNotification, object: nil)
+            guard let window else { return }
+            NotificationCenter.default.addObserver(self, selector: #selector(occlusionChanged),
+                                                   name: NSWindow.didChangeOcclusionStateNotification, object: window)
+            occlusionChanged()
+        }
+
+        @objc private func occlusionChanged() {
+            let visible = window?.occlusionState.contains(.visible) ?? false
+            // Report after the current view update; state cannot change during one.
+            DispatchQueue.main.async { [weak self] in self?.onChange?(visible) }
+        }
     }
 }
 
@@ -156,8 +202,9 @@ struct VolumeView: View {
             .labelStyle(.iconOnly).buttonStyle(.borderless).foregroundStyle(.secondary)
             .help(session.player.volume == 0 ? "Unmute" : "Mute")
             // Keep the setter explicit for Swift 6.2's actor-isolated callback conversion.
+            // No `step`, which would draw 101 tick marks; round in the setter instead.
             Slider(value: Binding(get: { session.player.volume },
-                                  set: { value in session.setVolume(value) }), in: 0...1, step: 0.01)
+                                  set: { value in session.setVolume((value * 100).rounded() / 100) }), in: 0...1)
                 .controlSize(.small).accessibilityLabel("Volume")
                 .accessibilityValue("\(Int(session.player.volume * 100)) percent")
         }
