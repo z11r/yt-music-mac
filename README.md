@@ -2,12 +2,14 @@
 
 A native YouTube Music player for macOS.
 
-Early development. There is no playable app or download yet. This repository
-contains the development setup and plans for the first Swift/SwiftUI prototype.
+Local prototype. The native interface, browsing client, playback bridge, and
+queue are implemented. Signed-in playback and the compatibility matrix are
+still being validated. There is no signed public download yet.
 
-The first version will focus on playback, search, playlists, and a queue that
-keeps playing while you browse. Mac features on the roadmap include media keys,
-Control Center, a mini-player, and menu bar controls.
+The app includes search, discovery, collection pages, an editable queue,
+shuffle/repeat, a mini-player, and menu bar controls. Google sign-in uses the
+app's own WebKit session. Remote likes and playlist edits remain disabled until
+signed-in checks pass.
 
 ## Compatibility
 
@@ -21,11 +23,18 @@ Install Xcode, then run:
 ```sh
 brew bundle
 Scripts/doctor.sh
+Scripts/with-xcode.sh swift test --jobs 2
+app_path="$(Scripts/build-app.sh)"
+open "$app_path"
 ```
+
+This creates an ad-hoc signed development app with separate storage from release
+builds. A public notarized release requires an Apple Developer membership.
 
 See [development setup](docs/DEVELOPMENT.md), the [roadmap](docs/ROADMAP.md),
 [architecture](docs/ARCHITECTURE.md), [testing](docs/TESTING.md), and
-[contributing](CONTRIBUTING.md).
+[interface design](docs/DESIGN.md). [Native playback commands](docs/AUTOMATION.md)
+are available for local automation.
 
 ## License
 

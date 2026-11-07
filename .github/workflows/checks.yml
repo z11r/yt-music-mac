@@ -20,10 +20,10 @@ jobs:
         run: shellcheck Scripts/*.sh
       - name: Check workflow
         run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12 .github/workflows/checks.yml
-  tools:
-    name: Development tools / ${{ matrix.runner }}
+  build:
+    name: Test and bundle / ${{ matrix.runner }}
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 10
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -40,3 +40,15 @@ jobs:
         run: |
           test "$(uname -m)" = "${{ matrix.arch }}"
           Scripts/doctor.sh
+      - name: Run isolated tests
+        run: Scripts/with-xcode.sh swift test --jobs 2
+      - name: Build release app for the host architecture
+        run: |
+          app_path="$(Scripts/build-app.sh --configuration release)"
+          printf '%s\n' "$app_path" > "$RUNNER_TEMP/app-path"
+      # The UI scene check (--ui-smoke-test) runs on a local Mac. Hosted runners
+      # do not open the app's main window; see docs/TESTING.md.
+      - name: Check the relocated app bundle
+        run: |
+          app_path="$(cat "$RUNNER_TEMP/app-path")"
+          Scripts/check-app.sh "$app_path" --configuration release --arch "${{ matrix.arch }}" --smoke-test

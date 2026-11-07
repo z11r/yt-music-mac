@@ -1,6 +1,8 @@
 # Architecture
 
-This is the design for the first prototype. The app target has not been added yet.
+The prototype has three Swift package targets and no third-party runtime
+dependencies. Playback and native browsing share an account session, while
+queue rules can be tested without WebKit or a live account.
 
 Use SwiftUI for the main window and AppKit for window behavior where needed.
 Keep the music state separate from the interface, and keep YouTube-specific
@@ -20,15 +22,17 @@ Record source revisions and preserve license notices for every imported module.
 
 ## Code layout
 
-Start with two targets: `MusicCore` for models, queue rules, and persistence
-interfaces; `YTMusicMac` for the app, services, and views. Use Swift Testing for
-core tests. Split more targets only when that makes testing or ownership clearer.
+`MusicCore` contains models, queue rules, and versioned persistence.
+`YouTubeMusic` contains the request client, session store, response parsing, and
+pagination. `YTMusicMac` contains WebKit playback, account handling, native
+controls, and views. The service target has injectable networking and session
+providers so its tests run without credentials. Tests use Swift Testing.
 
 | Part | Responsibility |
 | --- | --- |
 | App session | Own the player, signed-in session, library client, and window state |
 | MusicCore | Track and queue-entry identities, shuffle/repeat rules, saved queue format |
-| Library client | Search and browse requests, response parsing, pagination, account-scoped caches |
+| Library client | Search and browse requests, response parsing, pagination, and account fences |
 | Playback bridge | Own the persistent WKWebView, send commands, validate incoming events |
 | Views | Render state and forward actions; no independent playback or authentication logic |
 | Mac integration | Media keys, Now Playing, Dock commands, and compact player windows |
@@ -54,13 +58,17 @@ using decoded image cost, and stop decorative animation when it is not visible.
 
 ## Sessions and storage
 
-Use a persistent WebKit data store for the app's session. Use Keychain for any
-credential archive needed beyond that store. Keep debug and release identities
-separate, including their storage and update configuration.
+Use a persistent WebKit data store identified by an app-specific UUID. The
+native client receives necessary session values in memory. There is no extra
+cookie archive or access to another browser's profile. Debug and release have
+different bundle identifiers, storage directories, preferences, and WebKit stores.
 
 Do not clear a valid session after a temporary connection failure. Sign-out
 must stop account work, clear stored credentials, and invalidate delayed replies
-from the previous session. Tests use temporary stores and mock credentials.
+from the previous session. Account writes check the expected session scope
+inside the session-store actor. A durable sign-out marker prevents restoration
+if the app exits while clearing its WebKit data. Tests use temporary stores and
+mock credentials.
 
 Store settings and the saved queue locally with a versioned format. Restore the
 queue without starting playback. Keep account data out of diagnostic exports.
