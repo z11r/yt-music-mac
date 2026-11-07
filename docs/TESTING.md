@@ -56,13 +56,17 @@ its own identity, resource location, and registration of the native playback
 commands before creating a playback session or contacting the music service.
 It does not establish playback or accessibility behavior.
 
-The UI smoke check opens the relocated release app with synthetic music and
-requires 100 rendered queue-state changes in its real window and menu scenes.
-It uses disposable preferences, nonpersistent WebKit storage, a transport that
-rejects requests, and no saved queue or system media registration. It checks
-that no request, sign-in, or playback occurred, then removes its preferences.
-The process must finish within 20 seconds. This check passed locally; it does
-not replace visual, keyboard, VoiceOver, or live playback testing.
+The UI smoke check opens the relocated release app through Launch Services,
+as Finder does, with synthetic music. It requires 100 rendered queue-state
+changes in its real window and menu scenes. On hosted CI runners, a directly
+executed app finished launching but never opened its main window, so the check
+does not run the binary directly. It uses disposable preferences, nonpersistent
+WebKit storage, a transport that rejects requests, and no saved queue or system
+media registration. It checks that no request, sign-in, or playback occurred,
+then removes its preferences. The app stops itself after 18 seconds and reports
+how far it got: launch steps, rendered changes, and the windows it had open.
+This check does not replace visual, keyboard, VoiceOver, or live playback
+testing.
 
 ## Anonymous service checks
 
