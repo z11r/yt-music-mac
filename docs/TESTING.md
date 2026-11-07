@@ -28,8 +28,8 @@ a real library. Playback script tests run in JavaScriptCore with controlled
 media events, including stale document navigation and repeated endings.
 Recovery tests save and reopen isolated queue files after failed loads, and check
 that retries, new occurrences, explicit seeks, and account changes handle saved
-positions correctly. The last verified checkpoint passed 198 deterministic tests.
-Later pagination changes have not been compiled or tested yet.
+positions correctly. On November 7, 2026, 207 deterministic tests passed locally
+on Apple silicon; the two opt-in network tests were skipped.
 
 Check scripts and workflow syntax separately:
 
@@ -83,11 +83,20 @@ extended pagination; those failures remain under investigation. Remote likes
 and playlist edits remain unavailable while service validation is pending.
 Do not run automatic account mutations as part of CI.
 
-The next pagination pass needs to verify nested collection cursors against
-parent cursors, refresh-only responses, wrapped continuation commands, and HTTP
-failure reporting. Then repeat signed-in library and playlist paging to confirm
-that complete collections load. Pagination changes await these checks; the
-previous live failures remain open.
+Pagination tests now cover cursor selection with synthetic responses:
+
+- A grid or track cursor takes precedence over the cursor of the enclosing
+  section list.
+- On a playlist page, the section list cursor is not followed, because it loads
+  suggestions instead of more tracks.
+- A refresh cursor is not treated as the next page.
+- A cursor wrapped in a command list is found.
+- A rejected request is reported with its HTTP status instead of as an outage.
+
+These rules match the library and playlist parsers in Kaset at the pinned
+revision and in ytmusicapi. The tests do not show that live collections are
+complete. Repeat the signed-in library and playlist checks to confirm that; the
+earlier live failures remain open until then.
 
 ## Manual playback
 

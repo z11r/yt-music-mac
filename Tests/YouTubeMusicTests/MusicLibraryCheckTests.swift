@@ -163,6 +163,18 @@ final class MusicLibraryCheckTests: XCTestCase {
         XCTAssertFalse(String(decoding: try JSONEncoder().encode(report), as: UTF8.self).contains("private-value"))
     }
 
+    func testRejectedContinuationIsNotReportedAsAnOutage() async throws {
+        let transport = LibraryCheckTransport([page([song("private-song")], token: "next"),
+                                                MusicHTTPResponse(data: Data("private-body".utf8), statusCode: 400), page([])])
+        let result = try await YouTubeMusicClient(transport: transport, sessions: session()).checkLibrary()
+        let library = try XCTUnwrap(result.surfaces.first)
+        XCTAssertEqual(library.status, .requestRejected)
+        XCTAssertEqual(library.httpStatusCode, 400)
+        XCTAssertEqual(library.pagination, .failed)
+        XCTAssertEqual(library.pageCount, 1)
+        XCTAssertFalse(String(decoding: try JSONEncoder().encode(result), as: UTF8.self).contains("private-"))
+    }
+
     func testAnonymousCheckNeverSendsARequest() async throws {
         let transport = LibraryCheckTransport([])
         do {

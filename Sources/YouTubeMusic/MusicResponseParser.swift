@@ -79,7 +79,9 @@ enum MusicResponseParser {
                 } else {
                     appendShelf(container, result: &result, path: "next", preservesOccurrences: preservesOccurrences)
                 }
-                result.token = result.token ?? continuation(container) ?? previousToken
+                result.token = key == "sectionListContinuation"
+                    ? sectionListToken(container, collectionToken: result.token, previousToken: previousToken)
+                    : result.token ?? continuation(container) ?? previousToken
             }
         }
         for key in ["onResponseReceivedActions", "onResponseReceivedEndpoints", "onResponseReceivedCommands"] {
@@ -106,8 +108,7 @@ enum MusicResponseParser {
             result.token = nil
             result.recognized = true
             visitChildren(container["contents"].array, result: &result, path: path, preservesOccurrences: preservesOccurrences, depth: depth + 1)
-            // A track/grid cursor belongs to the collection; the enclosing section may have its own cursor.
-            result.token = result.token ?? continuation(container) ?? previousToken
+            result.token = sectionListToken(container, collectionToken: result.token, previousToken: previousToken)
         } else if node["itemSectionRenderer"].exists {
             let container = node["itemSectionRenderer"]
             let previousToken = result.token
@@ -160,6 +161,13 @@ enum MusicResponseParser {
         if includesCard { children.insert(.object(["musicTwoRowItemRenderer": node]), at: 0) }
         appendShelfItems(children, title: title, result: &result, path: path, preservesOccurrences: preservesOccurrences)
         result.token = result.token ?? continuation(node) ?? previousToken
+    }
+
+    /// A track or grid cursor belongs to the collection and takes precedence over the section list's own cursor.
+    /// When the section list holds a playlist shelf, its own cursor loads suggestions, so it is never followed.
+    private static func sectionListToken(_ container: JSONNode, collectionToken: String?, previousToken: String?) -> String? {
+        if container["contents"].array.contains(where: { $0["musicPlaylistShelfRenderer"].exists }) { return collectionToken }
+        return collectionToken ?? continuation(container) ?? previousToken
     }
 
     private static func appendShelfItems(_ nodes: [JSONNode], title: String, result: inout ParsedMusicPage, path: String,
