@@ -35,8 +35,9 @@ A cold invocation can report that the app is still restoring its account; run
 the action again after startup finishes. Extracted metadata and isolated dispatch
 tests do not establish installed Shortcuts discovery, Siri invocation, background
 launch, playback, or macOS 14/Intel runtime support. Those checks remain required
-on the installed app. Older build toolchains that do not emit compiler constant
-values fail metadata packaging explicitly.
+on the installed app. Packaging explicitly requests compiler constant values for both the native
+SwiftPM and Swift Build engines, then verifies all eight actions and phrases.
+Missing or ambiguous compiler outputs fail packaging.
 
 ## AppleScript
 

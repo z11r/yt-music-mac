@@ -1,6 +1,6 @@
 # Feature plan
 
-Status reviewed November 7, 2026. This plan expands the [roadmap](ROADMAP.md)
+Status reviewed November 8, 2026. This plan expands the [roadmap](ROADMAP.md)
 with the remaining features, implementation order, and acceptance checks.
 It describes proposed work, not a released feature set or delivery dates.
 
@@ -36,14 +36,14 @@ formats or controls in the YouTube Music playback path.
 | Area | Current state | Remaining work |
 | --- | --- | --- |
 | Playback | Native transport, radio, queue-end autoplay, sleep timer, seek, volume, shuffle, repeat, and recovery logic | Live transition, interruption, timer, and recovery checks on the combined build. |
-| Queue | Duplicate-safe editing, undo, persistent restore, search, remaining duration, named saved queues, and metadata/link import/export | Drag and drop, recommendation sections, and Save Queue as Playlist. |
-| Browsing | Search filters/suggestions, library categories, listening history, Explore categories/See All, and metadata links | Live destination coverage, country filters, service-wide library search, and remaining metadata. |
+| Queue | Duplicate-safe editing, undo, persistent restore, search, remaining duration, drag and drop, named saved queues, metadata/link exchange, recommendation previews, and reviewed playlist-save recovery | Native interaction checks; service playlist writes remain disabled pending live verification. |
+| Browsing | Search filters/suggestions, library categories, history, podcasts, Explore categories/See All, service-offered chart countries, and metadata links | Live destination coverage, service-wide library search, and remaining metadata. |
 | Pagination | A local release completed a non-liked playlist with 618 playable occurrences across seven pages | Repeat the live read with the combined build; verify failed-page recovery and displayed totals. |
 | Collection playback | Play All, Shuffle All, and Add All load every page before changing the queue, with cancellation and retry | Live queue construction and navigation/accessibility checks. See [collection behavior](COLLECTIONS.md). |
 | Library edits | Three-state ratings, operation-specific gates, basic playlist forms, and a bounded disposable-playlist diagnostic | Live confirmation before enabling each operation. See [editing boundaries](LIBRARY_EDITING.md). |
 | Mac integration | Standard shortcuts, media keys, Now Playing, Dock, mini-player, menu bar, player windows, output picker, notifications, startup controls, links, and AppleScript | Device routing, notification delivery, installed login items, visual layout, and VoiceOver checks. |
 | Lyrics | Service plain lyrics and validated timed lyrics, with attribution, stale-request fencing, and line seeking | Live recording/provider coverage and window/accessibility checks. |
-| Local organization | Account-specific pins and folders, retained across sign-out without remote sync | Tags, saved filters, and rule-based collections. |
+| Local organization | Account-specific pins, folders, tags, saved loaded-library filters and rules over explicit captured-song snapshots | Runtime/layout checks; captured metadata does not cover the whole service library. |
 | Advanced playback | Capability audit completed | Follow the specific playback-path and device proofs in [capability boundaries](PLAYBACK_CAPABILITIES.md). |
 
 These implementations are on the feature development branch. Deterministic
@@ -99,7 +99,7 @@ and the correct song version must be established separately.
 | G09 | Library tabs for Playlists, Songs, Albums, and Artists | Partial; native categories implemented | Add native destinations and paging; distinguish saved songs from liked songs and account uploads. |
 | G10 | Save/unsave albums and follow/unfollow artists | Implemented; disabled pending live checks | Read authoritative state and confirm approved edits; an artist page alone does not establish subscription. |
 | G11 | Recently played and listening history | Implemented; live checks pending | Separate service history from any local history; provide scope labels, account fences, and appropriate clearing controls. |
-| G12 | Charts, moods/genres, new releases, mixes, and See All | Partial; categories and scoped See All implemented | Add routes and pagination for each offered destination; retain service personalization without inventing recommendations. |
+| G12 | Charts, moods/genres, new releases, mixes, and See All | Partial; categories, scoped See All and chart countries implemented | Add routes and pagination for each offered destination; retain service personalization without inventing recommendations. |
 | G13 | Collection/library sorting, library search, and pinned playlist navigation | Implemented for loaded items; runtime checks pending | Offer supported title/artist/order choices; state whether search covers loaded items or the entire collection. Keep sort order separate from service order. |
 | G14 | Rich track/album/artist navigation and metadata | Partial; links, explicit/unavailable indicators implemented | Add album and artist links, durations, available credits, explicit/unavailable indicators, and useful collection totals. Missing metadata must remain unknown. |
 | G15 | Plain lyrics | Implemented; live checks pending | Prefer service-provided lyrics; handle instrumental/missing lyrics and stale requests. Show provider attribution where required. |
@@ -127,23 +127,37 @@ are a separate service library from files stored on the Mac.
 | ID | Feature | State | Acceptance check |
 | --- | --- | --- | --- |
 | G23 | Local folders, pins, tags, and saved library filters | Implemented; runtime checks pending | Version and restore local organization; sign-out/account changes cannot mix private libraries. |
-| G24 | Named saved queues, Save Queue as Playlist, and playlist-link import/export | Partial; named queues and metadata/link exchange implemented | Preserve order and duplicates; export metadata/links only and import defensively. Service playlist saving depends on G07. |
-| G25 | Rule-based local collections | Missing | Evaluate rules against a clearly stated, sufficiently loaded metadata set; expose incomplete results. |
+| G24 | Named saved queues, Save Queue as Playlist, and playlist-link import/export | Implemented; service writes disabled pending live checks | Preserve order and duplicates; export metadata/links only and import defensively. Service playlist saving depends on G07. |
+| G25 | Rule-based local collections | Implemented for explicit loaded-song snapshots; runtime checks pending | Evaluate rules against a clearly stated, sufficiently loaded metadata set; expose incomplete results. |
 | G26 | Native Shortcuts/Siri actions and configurable keyboard bindings | Implemented; installed invocation/settings checks pending | Add supported [App Intents](https://developer.apple.com/documentation/appintents); reuse native commands and honor locked/account/superseded states. Any global hotkeys are opt-in and conflict-aware. |
-| G27 | Optional Spotlight library search | In progress; default-off native index | Opt-in indexing, bounded updates, and account-specific index deletion; older systems retain in-app search. |
-| G28 | Localization, including long text and right-to-left layouts | In progress; resources and French locale | Externalize strings; verify keyboard behavior, pluralization, layout, and non-English service results. |
+| G27 | Optional Spotlight library search | Implemented; default-off, installed checks pending | Opt-in indexing, bounded updates, and account-specific index deletion; older systems retain in-app search. |
+| G28 | Localization, including long text and right-to-left layouts | Partial; English/French resources and plural rules integrated | Externalize strings; verify keyboard behavior, pluralization, layout, and non-English service results. |
 | G29 | Cache limits, cache clearing, and read-only offline metadata | Implemented; storage/UI/resource checks pending | Show what is stored, bound disk/memory use, and clear caches without removing a valid session or saved queues. |
-| G30 | Explicit privacy controls and multiple account/profile workflows | Partial session fences | Distinguish local history from service listening history; verify the service controls before offering private-listening claims. Isolate queues, caches, and indexes. |
-| G31 | Optional Last.fm/ListenBrainz scrobbling | Missing | Opt in; prevent duplicate reports across seek, pause, retry, and restore; store tokens securely and support disconnection. |
-| G32 | Optional Discord presence and streaming metadata export | Missing | Opt in; expose only selected public playback metadata, clear paused/stale presence, and keep background work bounded. |
+| G30 | Explicit privacy controls and multiple account/profile workflows | In progress; existing session fences retained | Distinguish local history from service listening history; verify the service controls before offering private-listening claims. Isolate queues, caches, and indexes. |
+| G31 | Optional Last.fm/ListenBrainz scrobbling | Implemented; default-off, provider acceptance pending | Opt in; prevent duplicate reports across seek, pause, retry, and restore; store tokens securely and support disconnection. |
+| G32 | Optional Discord presence and streaming metadata export | In progress | Opt in; expose only selected public playback metadata, clear paused/stale presence, and keep background work bounded. |
 | G33 | Desktop widget | Missing | Read shared snapshots without launching another playback engine; route actions through the app. |
 | G34 | Browse/search/play uploaded music | Implemented; signed-in playback checks pending | Use the account's uploads scope; distinguish uploads from catalog results and verify permitted playback behavior. |
 | G35 | Upload management | Source path researched; native transfer/management missing | Establish the supported upload path first; show transfer/cancellation state and verify account restrictions. |
-| G36 | Podcasts, episode progress, speed, and skip intervals | In progress; browsing/identity ready | Add episode identity and progress independently of music queues; verify subscriptions, paging, and resume. |
+| G36 | Podcasts, episode progress, speed, and skip intervals | Partial; browsing, local progress and skip controls implemented; speed in progress | Add episode identity and progress independently of music queues; verify subscriptions, paging, and resume. |
 | G37 | Collaborative playlists | Missing | Respect collaborator permissions and concurrent edits; use the actual service workflow. This is separate from synchronized group playback. |
-| G38 | Music-video toggle, fullscreen video, and picture in picture | Partial web-player fallback | Verify audio/video identity and position continuity; preserve single-player ownership and idle resource behavior. |
-| G39 | Smart Shuffle or recommendation insertion | Missing; basic shuffle exists | Keep plain shuffle available; label inserted recommendations and preserve the user's explicit queue. |
+| G38 | Music-video toggle, fullscreen video, and picture in picture | Partial; shared native video window/fullscreen and conditional PiP implemented | Verify audio/video identity and position continuity; preserve single-player ownership and idle resource behavior. |
+| G39 | Smart Shuffle or recommendation insertion | Implemented as explicit recommendation preview/insertion; runtime checks pending | Keep plain shuffle available; label inserted recommendations and preserve the user's explicit queue. |
 | G40 | Service Recap and personalized summary access | Missing | Use actual available [Recap data or the official experience](https://support.google.com/youtubemusic/answer/11418178?hl=en-ZZ); verify desktop availability and do not fabricate listening statistics. |
+
+Local song rules evaluate a dated capture of loaded songs, preserving missing
+metadata and duplicate occurrences; see [local song rules](LOCAL_SONG_RULES.md).
+[Queue playlist saving](SAVE_QUEUE_AS_PLAYLIST.md) journals each uncertain write
+and does not replay it automatically. [Recommendation previews](QUEUE_RECOMMENDATIONS.md)
+append only the songs the user accepts and preserve the existing queue.
+[Chart country choices](CHARTS.md) use the service's offered tokens and label.
+
+[ListenBrainz](LISTENBRAINZ.md) and [Last.fm](LASTFM.md) have independent consent,
+credentials and delivery receipts. They require a provider connection; Last.fm
+also requires registered application credentials. Neither provider has received
+a live acceptance check on this combined build. [Video presentation](VIDEO_PRESENTATION.md)
+shares one WebKit player; actual native animation/PiP behavior remains unverified,
+and switching between corresponding audio/video recordings is still unavailable.
 
 Scrobbling and external presence have precedents in
 [Pear Desktop](https://peardesktop.com/). Synchronized social listening is a
