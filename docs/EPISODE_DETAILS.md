@@ -16,7 +16,9 @@ from description watch endpoints targeting this same episode video. Source order
 and labels are retained. Clock-like text alone, missing targets, other videos,
 booleans, fractional values and out-of-range values cannot create references.
 These are read-only positions, not inferred chapter titles or playback controls.
-No seek action is provided by this feature.
+No seek action is provided by this feature. Position labels preserve the full
+admitted range: 604,800 seconds displays as `168:00:00`. They do not inherit the
+ordinary playback clock's display cap.
 
 ## Request and ownership limits
 

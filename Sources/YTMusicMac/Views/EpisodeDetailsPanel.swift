@@ -59,7 +59,7 @@ struct EpisodeDetailsPanel: View {
                             .font(.caption).foregroundStyle(.secondary)
                         ForEach(details.timestamps, id: \.sourceIndex) { timestamp in
                             HStack {
-                                Text(verbatim: playbackTime(Double(timestamp.seconds))).monospacedDigit()
+                                Text(verbatim: EpisodeDetailsTimestampFormatter.text(timestamp.seconds) ?? "—").monospacedDigit()
                                 if !timestamp.text.isEmpty { Text(verbatim: timestamp.text).foregroundStyle(.secondary) }
                             }
                         }

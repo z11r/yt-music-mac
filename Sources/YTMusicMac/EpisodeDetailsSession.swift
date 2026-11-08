@@ -98,3 +98,14 @@ enum EpisodeDetailsText {
         AppLocalization.bundle.localizedString(forKey: String(describing: key), value: nil, table: "EpisodeDetails")
     }
 }
+
+/// Source positions are whole seconds bounded by the episode-details parser.
+/// Formatting preserves the full admitted range instead of clamping transport time.
+enum EpisodeDetailsTimestampFormatter {
+    static func text(_ seconds: Int) -> String? {
+        guard (0...604_800).contains(seconds) else { return nil }
+        func twoDigits(_ value: Int) -> String { value < 10 ? "0" + String(value) : String(value) }
+        let tail = twoDigits(seconds / 60 % 60) + ":" + twoDigits(seconds % 60)
+        return seconds >= 3_600 ? String(seconds / 3_600) + ":" + tail : String(seconds / 60) + ":" + twoDigits(seconds % 60)
+    }
+}
