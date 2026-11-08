@@ -187,12 +187,12 @@ private struct MainSceneView: View {
                         .frame(width: 0, height: 0)
                 }
             }
-            .task(id: "\(profiles.activationID)-\(profiles.isSwitching)") {
+            .task(id: "\(profiles.activationID)-\(profiles.isSwitching)-\(profiles.isLoading)") {
                 delegate.sessionProvider = { profiles.accepts(profiles.activationID) ? profiles.current.session : nil }
                 delegate.shutdownOwner = { await profiles.shutdown() }
                 let activation = profiles.activationID
                 await profiles.start()
-                guard profiles.accepts(activation), profiles.current.session === session else { return }
+                guard !Task.isCancelled, profiles.accepts(activation), profiles.current.session === session else { return }
                 delegate.session = session
                 delegate.openMainWindow = { openWindow(id: "main") }
                 let open = openWindow
@@ -202,7 +202,7 @@ private struct MainSceneView: View {
                     open(id: "main")
                 }
                 await session.start()
-                guard profiles.accepts(activation), profiles.current.session === session else { return }
+                guard !Task.isCancelled, profiles.accepts(activation), profiles.current.session === session else { return }
                 session.links.isReady = sceneCheck == nil
                 session.processPendingMusicLink()
                 sceneCheck?.start(session: session)

@@ -208,6 +208,21 @@ struct AppProfileOwnerTests {
         #expect(f.events.values == ["bind", "default.startPaused"])
     }
 
+    @Test func fallbackStartupRemainsLoadingUntilItsPausedRuntimeIsReady() async throws {
+        let f = try ProfileOwnerFixture(bytes: Data("malformed".utf8))
+        let gate = ProfileTestGate()
+        f.initial.onStartPaused = { await gate.wait() }
+        let startup = Task { await f.owner.start() }
+        while !gate.isWaiting { await Task.yield() }
+        #expect(f.owner.isLoading && !f.owner.accepts(f.owner.activationID))
+        await f.owner.start()
+        #expect(f.owner.isLoading)
+        gate.open(); await startup.value
+        #expect(!f.owner.isLoading && f.owner.accepts(f.owner.activationID))
+        #expect(!f.owner.canEdit && f.owner.errorMessage != nil)
+        #expect(f.events.values == ["bind", "default.startPaused"])
+    }
+
     @Test func reenteringSameProfileUsesNewActivationAndNeverRevivesAnOldRuntime() async throws {
         let f = try ProfileOwnerFixture()
         await f.owner.start(); let oldID = f.owner.activationID
@@ -264,13 +279,14 @@ private final class ProfileMemoryIO: AppProfileRegistryIO, @unchecked Sendable {
     var playing = false, didShutdown = false
     let events: ProfileEvents
     var onSettle: (() async -> Void)?
+    var onStartPaused: (() async -> Void)?
     var label: String { profile.isDefault ? "default" : "A" }
     init(_ profile: AppProfile, events: ProfileEvents) { self.profile = profile; self.events = events }
     func quiesce() { playing = false; events.add(label + ".quiesce") }
     func settle() async { events.add(label + ".settle"); await onSettle?() }
     func resumePausedOwnership() { precondition(!didShutdown); playing = false; events.add(label + ".resumePaused") }
     func shutdown() async { didShutdown = true; events.add(label + ".shutdown") }
-    func startPaused() async { precondition(!didShutdown); playing = false; events.add(label + ".startPaused") }
+    func startPaused() async { precondition(!didShutdown); playing = false; events.add(label + ".startPaused"); await onStartPaused?() }
 }
 @MainActor private struct ProfileOwnerFixture {
     let events: ProfileEvents

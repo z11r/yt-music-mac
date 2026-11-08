@@ -64,10 +64,11 @@ final class AppProfileOwner<Runtime: AppProfileRuntime> {
                 isLoading = false
             }
         } catch {
-            canEdit = false; isLoading = false; errorMessage = error.localizedDescription
-            guard !quitting else { return }
+            canEdit = false; errorMessage = error.localizedDescription
+            guard !quitting else { isLoading = false; return }
             bind(current, activationID)
             await current.startPaused()
+            isLoading = false
         }
     }
 
