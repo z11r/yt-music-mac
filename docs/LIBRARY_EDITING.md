@@ -32,3 +32,25 @@ credential snapshot and before and after the request. Responses must confirm
 the requested operation; HTTP success alone does not establish success.
 Writes are never automatically repeated after a timeout, lost connection,
 server error, or uncertain result. Check the service before submitting again.
+
+## Disposable playlist verification
+
+`YouTubeMusicClient.checkPlaylistEdits` is an explicit diagnostic for a
+separately configured verification client with playlist edits enabled. It
+creates one private playlist, renames it, adds the supplied song twice, reads
+both occurrences, removes one occurrence, reads the remaining occurrence,
+and deletes the playlist. It does not change song ratings or existing playlists.
+The workload has a 15-second deadline and cleanup has a separate five-second
+deadline. Cancellation still allows cleanup on the original account.
+
+The result contains fixed status codes and occurrence counts. It omits song,
+playlist, account, title, and occurrence identifiers. `passed` requires every
+step and deletion to be confirmed. `cleanupNeeded` and `uncertainOutcome`
+identify incomplete or uncertain work.
+
+Retain the verification client until cleanup is confirmed. It keeps the
+created playlist identifier in memory and blocks another check while cleanup
+is unresolved. An explicit `retryPlaylistEditCleanup` checks the original
+account and reads current delete permission before one more deletion attempt.
+It never searches by title. If creation did not return a confirmed identifier,
+automatic cleanup is unavailable and the service needs manual inspection.

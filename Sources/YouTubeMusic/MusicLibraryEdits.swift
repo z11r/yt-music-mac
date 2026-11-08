@@ -77,6 +77,7 @@ public enum MusicLibraryEditError: Error, Equatable, LocalizedError, Sendable {
     case serviceRejected
     case interactionRequired
     case unconfirmedOutcome
+    case verificationCleanupRequired
 
     public var errorDescription: String? {
         switch self {
@@ -87,6 +88,7 @@ public enum MusicLibraryEditError: Error, Equatable, LocalizedError, Sendable {
         case .serviceRejected: "YouTube Music declined this change. Check that you can edit this playlist."
         case .interactionRequired: "YouTube Music requires an account action before making this change. Open YouTube Music to continue."
         case .unconfirmedOutcome: "YouTube Music did not confirm the change. Check your library before trying again."
+        case .verificationCleanupRequired: "A previous verification playlist still needs cleanup before another check can start."
         }
     }
 }

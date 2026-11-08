@@ -36,6 +36,7 @@ public actor YouTubeMusicClient {
     let now: @Sendable () -> Date
     private var bootstrapCache: (configuration: MusicClientConfiguration, expires: Date)?
     var libraryEditInProgress = false
+    var pendingPlaylistEditCleanup: PendingPlaylistEditCleanup?
 
     public init(transport: any MusicHTTPTransport = URLSessionMusicTransport(),
                 sessions: any MusicSessionProviding = MusicSessionStore(),
