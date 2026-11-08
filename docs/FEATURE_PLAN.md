@@ -185,7 +185,7 @@ shipping these features; see [playback capabilities](PLAYBACK_CAPABILITIES.md).
 | G48 | Lossless/spatial audio | Require actual service content and a supported playback/output path. Converting a compressed stream cannot create a lossless source. |
 | G49 | Local-file playback | Decide whether this belongs in the product; it requires a separate file library, decoding/player path, permissions, and mixed-source queue design. |
 | G50 | Web extensions, SponsorBlock, and content-filtering options | Review service compatibility, permissions, account behavior, performance, and supported OS APIs before adopting an extension system. |
-| G51 | Natural-language commands and generated playlists | Partial: [typed Quick Commands](QUICK_COMMANDS.md) are implemented locally on the macOS 14/Intel target. Open-ended requests and generated playlists still need a supported implementation, privacy review and measurable cost. |
+| G51 | Natural-language commands and generated playlists | Partial: [typed commands](QUICK_COMMANDS.md) and a [reviewed catalog queue builder](CATALOG_QUEUE_BUILDER.md) support the macOS 14/Intel target. [Optional on-device command review](ON_DEVICE_COMMANDS.md) requires an eligible macOS 26 Apple silicon Mac. Real model accuracy, resource use and open-ended playlist generation remain pending. |
 | G52 | Custom themes, visualizers, and haptics | Partial: [native Control Accent choices](APPEARANCE.md) are implemented with per-profile preferences and a system-accent fallback for Increase Contrast. Native visual/VoiceOver checks remain pending. Custom palettes, visualizers and haptics still need supported paths and resource measurements. |
 
 ## Delivery sequence
