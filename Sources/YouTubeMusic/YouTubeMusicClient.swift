@@ -140,7 +140,8 @@ public actor YouTubeMusicClient {
         do {
             let prepared = try continuation.contentOrigin == .upload ? MusicUploadResponseAdapter.prepare(data, isSearch: continuation.endpoint == .search) : data
             let scoped = try continuation.librarySearch == nil ? prepared : MusicLibrarySearchAdapter.prepare(prepared, continuation: true)
-            parsed = try MusicResponseParser.parse(scoped, preservesOccurrences: continuation.preservesOccurrences)
+            parsed = try MusicResponseParser.parse(scoped, preservesOccurrences: continuation.preservesOccurrences,
+                hasPlaylistContributorAttribution: continuation.hasPlaylistContributorAttribution)
             if continuation.librarySearch != nil { try MusicLibrarySearchAdapter.validate(parsed) }
             try validateUploadTracks(parsed, origin: continuation.contentOrigin)
         }
@@ -232,7 +233,8 @@ public actor YouTubeMusicClient {
         let next = parsed.token.map {
             MusicContinuation(token: $0, endpoint: endpoint, scope: session.scope, title: parsed.title ?? title,
                               requiresAuthentication: requiresAuthentication, preservesOccurrences: preservesOccurrences,
-                              previousTokens: previousTokens, previousItems: seen, contentOrigin: contentOrigin, librarySearch: librarySearch)
+                              previousTokens: previousTokens, previousItems: seen, contentOrigin: contentOrigin, librarySearch: librarySearch,
+                              hasPlaylistContributorAttribution: parsed.hasPlaylistContributorAttribution)
         }
         return MusicPage(title: parsed.title ?? title, sections: sections, items: sections.flatMap(\.items), continuation: next,
                          playlistItems: parsed.playlistItems.map { item in

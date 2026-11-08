@@ -31,6 +31,8 @@ indirect enum JSONNode: Decodable {
 struct ParsedMusicPage {
     var title: String?
     var collectionHeader: MusicCollectionHeader?
+    /// Retained only by this response and its account-bound continuation chain.
+    var hasPlaylistContributorAttribution = false
     var sections: [MusicSection] = []
     var token: String?
     var recognized = false
@@ -60,7 +62,7 @@ struct ParsedMusicPage {
 
 /// Traverses only content containers, never menus or arbitrary nested navigation actions.
 enum MusicResponseParser {
-    static func parse(_ data: Data, preservesOccurrences: Bool) throws -> ParsedMusicPage {
+    static func parse(_ data: Data, preservesOccurrences: Bool, hasPlaylistContributorAttribution: Bool = false) throws -> ParsedMusicPage {
         let root: JSONNode
         do { root = try JSONDecoder().decode(JSONNode.self, from: data) }
         catch { throw MusicServiceError.invalidResponse }
@@ -74,6 +76,8 @@ enum MusicResponseParser {
         var result = ParsedMusicPage()
         result.title = headerTitle(root["header"])
         result.collectionHeader = MusicCollectionHeaderParser.parse(root)
+        result.hasPlaylistContributorAttribution = hasPlaylistContributorAttribution ||
+            MusicCollectionHeaderParser.currentHeader(root).map(MusicPlaylistCollaborationParser.hasMarker) == true
         playlistControls(root["header"], result: &result)
         let contents = root["contents"]
         try visit(contents, result: &result, path: "content", preservesOccurrences: preservesOccurrences)
@@ -151,7 +155,7 @@ enum MusicResponseParser {
             if isUnavailable(node) {
                 result.unavailableItemCount += 1
                 result.recognized = true
-            } else if let item = item(node) {
+            } else if let item = item(node, hasPlaylistContributorAttribution: result.hasPlaylistContributorAttribution) {
                 result.recognized = true
                 result.sections.append(MusicSection(id: path, title: "", items: [item]))
                 if case let .track(track) = item { recordLikeState(node, track: track, result: &result) }
@@ -202,7 +206,7 @@ enum MusicResponseParser {
                                          preservesOccurrences: Bool, browseReference: MusicBrowseReference? = nil) throws {
         let items = nodes.compactMap { node -> MusicItem? in
             if isUnavailable(node) { result.unavailableItemCount += 1; return nil }
-            guard let item = item(node) else {
+            guard let item = item(node, hasPlaylistContributorAttribution: result.hasPlaylistContributorAttribution) else {
                 if isUnreadableContent(node) { result.hasUnsupportedContent = true }
                 return nil
             }
@@ -251,12 +255,12 @@ enum MusicResponseParser {
         return editable["musicDetailHeaderRenderer"]["title"].text ?? editable["musicResponsiveHeaderRenderer"]["title"].text
     }
 
-    private static func item(_ node: JSONNode) -> MusicItem? {
+    private static func item(_ node: JSONNode, hasPlaylistContributorAttribution: Bool) -> MusicItem? {
         if let reference = MusicBrowseParser.navigationReference(node["musicNavigationButtonRenderer"]) {
             return .browse(reference)
         }
         for key in ["musicResponsiveListItemRenderer", "musicTwoRowItemRenderer", "musicMultiRowListItemRenderer"] {
-            if node[key].exists { return parseItem(node[key]) }
+            if node[key].exists { return parseItem(node[key], hasPlaylistContributorAttribution: hasPlaylistContributorAttribution) }
         }
         return nil
     }
@@ -365,7 +369,7 @@ enum MusicResponseParser {
         return nil
     }
 
-    private static func parseItem(_ node: JSONNode) -> MusicItem? {
+    private static func parseItem(_ node: JSONNode, hasPlaylistContributorAttribution: Bool) -> MusicItem? {
         guard node["musicItemRendererDisplayPolicy"].string != "MUSIC_ITEM_RENDERER_DISPLAY_POLICY_GREY_OUT" else { return nil }
         let columns = node["flexColumns"].array.map { $0["musicResponsiveListItemFlexColumnRenderer"]["text"] }
         let titleNode = columns.first ?? node["title"]
@@ -401,26 +405,43 @@ enum MusicResponseParser {
         }
         guard let videoID = node["playlistItemData"]["videoId"].string
                 ?? endpoints.compactMap({ $0["watchEndpoint"]["videoId"].string }).first else { return nil }
-        let artistReferences = metadataReferences(metadata, kind: .artist)
+        let songType = endpoints.contains {
+            ["MUSIC_VIDEO_TYPE_ATV", "MUSIC_VIDEO_TYPE_OMV"].contains(
+                $0["watchEndpoint"]["watchEndpointMusicSupportedConfigs"]["watchEndpointMusicConfig"]["musicVideoType"].string ?? "")
+        }
+        // Only a verified collaborative-playlist header changes the interpretation
+        // of user-channel runs. Ordinary uploader names and channel cards retain
+        // their existing meaning elsewhere.
+        let musicArtists = metadata.filter {
+            let browse = $0["navigationEndpoint"]["browseEndpoint"]
+            let type = browse["browseEndpointContextSupportedConfigs"]["browseEndpointContextMusicConfig"]["pageType"].string
+            return ["MUSIC_PAGE_TYPE_ARTIST", "MUSIC_PAGE_TYPE_LIBRARY_ARTIST"].contains(type ?? "")
+        }
+        let artistColumn = columns.dropFirst().first
+        let plainArtist: String?
+        if hasPlaylistContributorAttribution, musicArtists.isEmpty,
+           let column = artistColumn, !column["runs"].array.isEmpty,
+           column["runs"].array.allSatisfy({ !$0["navigationEndpoint"].exists }),
+           let text = column.text, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+           text.utf8.count <= 1_024, parseDuration(text) == nil { plainArtist = text }
+        else { plainArtist = nil }
+        let artistMetadata = hasPlaylistContributorAttribution ? musicArtists : metadata
+        let artistReferences = metadataReferences(artistMetadata, kind: .artist)
         let albumReference = metadataReferences(metadata, kind: .album).first
-        let artists = metadata.compactMap { run -> String? in
+        let artists = artistMetadata.compactMap { run -> String? in
             collectionKind(run["navigationEndpoint"]["browseEndpoint"]) == .artist ? run["text"].string : nil
         }
         let album = metadata.first { collectionKind($0["navigationEndpoint"]["browseEndpoint"]) == .album }?["text"].string
         let fixed = node["fixedColumns"].array.compactMap { $0["musicResponsiveListItemFixedColumnRenderer"]["text"].text }
         let duration = (fixed + metadata.compactMap { $0["text"].string }).compactMap(parseDuration).first
-        let fallback = metadata.compactMap { $0["text"].string?.trimmingCharacters(in: .whitespacesAndNewlines) }.first {
+        let fallback = artistMetadata.compactMap { $0["text"].string?.trimmingCharacters(in: .whitespacesAndNewlines) }.first {
             !$0.isEmpty && !["•", "·", "&", "Song", "Video", "Album", "Single", "EP"].contains($0) && parseDuration($0) == nil
         }
-        let artist = artists.isEmpty ? (fallback ?? ServiceLocalization.text("Unknown artist")) : artists.joined(separator: ", ")
+        let artist = plainArtist ?? (artists.isEmpty ? (fallback ?? ServiceLocalization.text("Unknown artist")) : artists.joined(separator: ", "))
         let isExplicit = ["badges", "subtitleBadges"].contains { key in
             node[key].array.contains { $0["musicInlineBadgeRenderer"]["icon"]["iconType"].string == "MUSIC_EXPLICIT_BADGE" }
         }
         let episode = MusicPodcastParser.metadata(node, videoID: videoID, endpoints: endpoints)
-        let songType = endpoints.contains {
-            ["MUSIC_VIDEO_TYPE_ATV", "MUSIC_VIDEO_TYPE_OMV"].contains(
-                $0["watchEndpoint"]["watchEndpointMusicSupportedConfigs"]["watchEndpointMusicConfig"]["musicVideoType"].string ?? "")
-        }
         return .track(Track(id: videoID, title: title, artist: episode.flatMap { _ in MusicPodcastParser.showTitle(node) } ?? artist,
                             album: album, artworkURL: artwork, duration: duration ?? episode?.durationText.flatMap(parseDuration),
                             albumReference: albumReference, artistReferences: artistReferences.isEmpty ? nil : artistReferences,

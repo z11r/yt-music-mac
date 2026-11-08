@@ -1057,3 +1057,9 @@
 "Confirmed Metadata Removals" = "Confirmed Metadata Removals";
 "Only validated app metadata is removed. Local audio files and bookmark targets remain untouched." = "Only validated app metadata is removed. Local audio files and bookmark targets remain untouched.";
 "Unrecognized, changed, or unresolved saved data is retained. Review the supported formats before trying cleanup again." = "Unrecognized, changed, or unresolved saved data is retained. Review the supported formats before trying cleanup again.";
+
+"Contributors…" = "Contributors…";
+
+"Playlist Contributors" = "Playlist Contributors";
+
+"Open this playlist again to view its contributors." = "Open this playlist again to view its contributors.";

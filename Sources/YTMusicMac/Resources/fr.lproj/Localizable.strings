@@ -1057,3 +1057,9 @@
 "Confirmed Metadata Removals" = "Suppressions de métadonnées confirmées";
 "Only validated app metadata is removed. Local audio files and bookmark targets remain untouched." = "Seules les métadonnées validées de l’app sont supprimées. Les fichiers audio locaux et les cibles des signets sont conservés.";
 "Unrecognized, changed, or unresolved saved data is retained. Review the supported formats before trying cleanup again." = "Les données enregistrées non reconnues, modifiées ou non résolues sont conservées. Consultez les formats pris en charge avant de réessayer le nettoyage.";
+
+"Contributors…" = "Contributeurs…";
+
+"Playlist Contributors" = "Contributeurs de la playlist";
+
+"Open this playlist again to view its contributors." = "Rouvrez cette playlist pour voir ses contributeurs.";

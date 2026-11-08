@@ -178,14 +178,17 @@ public struct MusicContinuation: Sendable, CustomStringConvertible, CustomDebugS
     let previousItems: Set<String>
     let contentOrigin: MusicContentOrigin?
     let librarySearch: MusicLibrarySearchContext?
+    /// Exact primary-header evidence, never contributor labels, channels, or images.
+    let hasPlaylistContributorAttribution: Bool
 
     init(token: String, endpoint: MusicEndpoint, scope: UUID, title: String, requiresAuthentication: Bool,
          preservesOccurrences: Bool, previousTokens: Set<String>, previousItems: Set<String>, contentOrigin: MusicContentOrigin? = nil,
-         librarySearch: MusicLibrarySearchContext? = nil) {
+         librarySearch: MusicLibrarySearchContext? = nil, hasPlaylistContributorAttribution: Bool = false) {
         self.token = token; self.endpoint = endpoint; self.scope = scope; self.title = title
         self.requiresAuthentication = requiresAuthentication; self.preservesOccurrences = preservesOccurrences
         self.previousTokens = previousTokens; self.previousItems = previousItems; self.contentOrigin = contentOrigin
         self.librarySearch = librarySearch
+        self.hasPlaylistContributorAttribution = hasPlaylistContributorAttribution
     }
     public var description: String { "MusicContinuation" }
     public var debugDescription: String { description }

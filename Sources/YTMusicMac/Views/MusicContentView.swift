@@ -318,6 +318,7 @@ private struct CollectionTracksView: View {
     let presentEditor: (LibraryEditorRequest) -> Void
     @State private var selection: Set<Int> = []
     @State private var showsDescription = false
+    @State private var showsContributors = false
 
     private typealias Row = CollectionDisplayRow
     private var allTracks: [Track] { CollectionPresentation.tracks(in: page) }
@@ -452,8 +453,9 @@ private struct CollectionTracksView: View {
             PaginationView(session: session).padding(12)
         }
         .onChange(of: session.collectionFilter) { selection.removeAll() }
-        .onChange(of: session.destination) { selection.removeAll(); showsDescription = false }
-        .onChange(of: session.accountGeneration) { showsDescription = false }
+        .onChange(of: session.destination) { selection.removeAll(); showsDescription = false; showsContributors = false }
+        .onChange(of: session.accountGeneration) { showsDescription = false; showsContributors = false }
+        .onChange(of: page.collectionHeader) { showsContributors = false }
         .onChange(of: session.collectionDisplayOrder) { selection.removeAll() }
     }
 
@@ -560,6 +562,23 @@ private struct CollectionTracksView: View {
             if let subtitle = collectionSubtitle {
                 Text(verbatim: subtitle).foregroundStyle(.secondary).lineLimit(2)
             }
+            if isPlaylist, let collaboration = page.collectionHeader?.collaboration {
+                let account = session.accountGeneration
+                let profile = session.playbackProfileGeneration
+                let destination = session.destination
+                Button("Contributors…", systemImage: "person.2.fill") {
+                    guard session.acceptsProfileActions, session.account.isSignedIn, !session.account.isWorking else { return }
+                    showsContributors = true
+                }
+                    .buttonStyle(.borderless)
+                    .popover(isPresented: $showsContributors) {
+                        PlaylistContributorsView(collaboration: collaboration, isCurrent: {
+                            session.acceptsProfileActions && session.account.isSignedIn && !session.account.isWorking &&
+                            session.accountGeneration == account && session.playbackProfileGeneration == profile &&
+                            session.destination == destination && session.page?.collectionHeader?.collaboration == collaboration
+                        })
+                    }
+            }
             if let summary = page.collectionHeader?.summary {
                 LabeledContent("Service summary") { Text(verbatim: summary).lineLimit(3).textSelection(.enabled).help(summary) }
                     .font(.subheadline).foregroundStyle(.secondary)
@@ -583,6 +602,14 @@ private struct CollectionTracksView: View {
                     }
             }
             UnavailableMusicNotice(page: page)
+        }
+    }
+
+    private var isPlaylist: Bool {
+        switch session.destination {
+        case let .collection(value): value.kind == .playlist && !value.isUploaded
+        case let .browse(reference): reference.kind == .playlist
+        default: false
         }
     }
 

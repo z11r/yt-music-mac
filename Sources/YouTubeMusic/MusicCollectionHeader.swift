@@ -6,11 +6,14 @@ public struct MusicCollectionHeader: Hashable, Sendable {
     public let subtitle: String?
     public let summary: String?
     public let description: String?
+    public let collaboration: MusicPlaylistCollaboration?
 
-    public init(subtitle: String? = nil, summary: String? = nil, description: String? = nil) {
+    public init(subtitle: String? = nil, summary: String? = nil, description: String? = nil,
+                collaboration: MusicPlaylistCollaboration? = nil) {
         self.subtitle = Self.bounded(subtitle, bytes: 4_096)
         self.summary = Self.bounded(summary, bytes: 4_096)
         self.description = Self.bounded(description, bytes: 16_384)
+        self.collaboration = collaboration
     }
 
     private static func bounded(_ value: String?, bytes: Int) -> String? {
@@ -24,9 +27,19 @@ public struct MusicCollectionHeader: Hashable, Sendable {
 enum MusicCollectionHeaderParser {
     private static let keys = ["musicDetailHeaderRenderer", "musicResponsiveHeaderRenderer", "musicImmersiveHeaderRenderer", "musicVisualHeaderRenderer"]
     static func parse(_ root: JSONNode) -> MusicCollectionHeader? {
+        guard let value = currentHeader(root) else { return nil }
+        let parsed = MusicCollectionHeader(subtitle: value["subtitle"].text,
+            summary: value["secondSubtitle"].text,
+            description: value["description"]["musicDescriptionShelfRenderer"]["description"].text ?? value["description"].text,
+            collaboration: MusicPlaylistCollaborationParser.parse(value))
+        return parsed.subtitle == nil && parsed.summary == nil && parsed.description == nil && parsed.collaboration == nil ? nil : parsed
+    }
+
+    /// The exact primary renderer, independent of whether its display fields validate.
+    static func currentHeader(_ root: JSONNode) -> JSONNode? {
         let top = root["header"]
         if top["musicEditablePlaylistDetailHeaderRenderer"].exists || keys.contains(where: { top[$0].exists }) {
-            return header(top)
+            return headerValue(top)
         }
         // The responsive header can be the first item of the collection's
         // selected primary tab. Related shelves and arbitrary menus are excluded.
@@ -41,16 +54,12 @@ enum MusicCollectionHeaderParser {
         else if selected.isEmpty && tabs.count == 1 && !tabs[0]["tabRenderer"]["selected"].exists { tab = tabs.first }
         else { tab = nil }
         guard let first = tab?["tabRenderer"]["content"]["sectionListRenderer"]["contents"].array.first else { return nil }
-        return header(first)
+        return headerValue(first)
     }
 
-    private static func header(_ node: JSONNode) -> MusicCollectionHeader? {
+    private static func headerValue(_ node: JSONNode) -> JSONNode? {
         let editable = node["musicEditablePlaylistDetailHeaderRenderer"]["header"]
         let candidates = keys.flatMap { key in [node[key], editable[key]].filter(\.exists) }
-        guard candidates.count == 1, let value = candidates.first else { return nil }
-        let parsed = MusicCollectionHeader(subtitle: value["subtitle"].text,
-            summary: value["secondSubtitle"].text,
-            description: value["description"]["musicDescriptionShelfRenderer"]["description"].text ?? value["description"].text)
-        return parsed.subtitle == nil && parsed.summary == nil && parsed.description == nil ? nil : parsed
+        return candidates.count == 1 ? candidates.first : nil
     }
 }

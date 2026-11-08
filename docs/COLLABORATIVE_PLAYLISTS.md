@@ -1,8 +1,9 @@
 # Collaborative playlists
 
-Native collaboration management is not implemented. Existing playlist reads
-and separately gated edits do not establish collaborator roles or permission
-to manage invitations. Production remote-edit gates remain off.
+The native playlist header can show the service's contributor label and
+portraits in an explicit Contributors popover. This read-only display does not
+establish collaborator roles or permission to manage invitations. Production
+remote-edit gates remain off.
 
 ## Current service workflow
 
@@ -58,19 +59,21 @@ roster or per-member authority. The pinned/current
 [Kaset client](https://github.com/sozercan/kaset/blob/6a20e60c5dfd552a22e84f36daeef53f94f1ee41/Sources/Kaset/Services/API/YTMusicClient.swift)
 does not establish a collaboration-management workflow.
 
-The native app currently has no collaboration model, invite handling, or
-per-contribution permission model. Ordinary playlist links retain navigation
-identity and discard invitation parameters; opening one does not join.
+The native app reads only the recognized collaboration header's supplied label
+and portrait sources. It has no invitation handling or per-contribution
+permission model. Ordinary playlist links retain navigation identity and
+discard invitation parameters; opening one does not join.
 Inspected sources do not establish complete membership, individual removal,
 leave, or invitation-revocation readback. The request shapes expose no
 compare-and-swap revision, leaving concurrent-write guarantees unverified.
 
 ## Implementation sequence
 
-1. Add bounded read-only header metadata from the recognized collaboration
-   renderer: at most 2 KiB of supplied plain text and 12 validated avatar sources.
-   Preserve unknown state, account/profile fences, and existing paging and
-   occurrence IDs. Labels and avatars must not grant edit authority.
+1. Verify the implemented read-only header display with signed-in playlists.
+   It accepts at most 1 KiB of supplied plain text and eight distinct HTTPS
+   portrait sources from the allowed Google image hosts. A malformed label is
+   unavailable. Profile, account, destination and header changes revoke the
+   display. Labels and portraits grant no edit authority.
 2. Establish fresh target-specific role and per-occurrence permissions before
    enabling edits. Test owner, collaborator, viewer, withdrawn membership,
    duplicate songs, voting order, missing controls, and account changes with
@@ -89,7 +92,22 @@ compare-and-swap revision, leaving concurrent-write guarantees unverified.
    review. Fresh reads cannot eliminate a later race; preserve other people's
    work and do not report atomic conflict protection without service evidence.
 
-This audit introduces no native action or service call. Signed-in permissions,
-invitation lifecycle, concurrent edits, keyboard access, and VoiceOver still
-need runtime acceptance. Shared playlist editing supplies no synchronized
-listening or shared playback-clock guarantee.
+Contributor metadata stays in the current page. Portraits load only when the
+popover is opened, using a private memory cache bounded to eight images and
+1 MiB; closing it clears that cache. The image pipeline uses ephemeral requests
+without cookies or a disk cache. No invite command, membership roster or role is
+inferred from the supplied text, and no contributor metadata is written to a
+local library, queue, export or external presence payload.
+
+In a playlist identified by the exact collaboration header marker, contributor
+channel links cannot become track artists. This parsing context follows
+continuation pages. Ordinary channel destinations and video creators retain
+their existing interpretation outside that context; missing artist data stays
+unknown.
+
+Deterministic fixtures cover the recognized header, malformed and unrelated
+renderers, bounded labels and image sources, and contributor/artist separation.
+Signed-in schema coverage, portrait delivery, invitation lifecycle, concurrent
+edits, keyboard access and VoiceOver still need runtime acceptance. Shared
+playlist editing supplies no synchronized listening or shared playback-clock
+guarantee.
