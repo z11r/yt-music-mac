@@ -55,7 +55,9 @@ The palette captures its account generation, optional confirmed profile, and
 startup/link intent when opened. It checks them again immediately before
 running, consumes a successful UI ticket once, and rejects old input or
 presentation tickets. Opening Account, account/session changes, and sign-out
-close the palette and clear its input. Commands are not queued for later execution.
+close the palette and clear its input. Local profile switching does the same;
+commands from an old activation remain invalid if switch preparation fails and
+the prior profile resumes paused. Commands are not queued for later execution.
 
 Public navigation/search and applicable local controls remain available while
 signed out through their existing native action boundaries. Playing the queue

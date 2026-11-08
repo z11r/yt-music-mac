@@ -95,7 +95,7 @@ and the correct song version must be established separately.
 
 | ID | Feature | State | Acceptance check |
 | --- | --- | --- | --- |
-| G08 | Playlist description/privacy editing, service reorder, and custom cover | Partial; edits implemented but disabled; custom cover missing | Implement each operation separately; retain service occurrence IDs and current edit permission. Confirm results after reload. |
+| G08 | Playlist description/privacy editing, service reorder, and custom cover | Partial; edits implemented but disabled; cover authentication path researched | Implement each operation separately; retain service occurrence IDs and current edit permission. Confirm results after reload. See [cover prerequisites](PLAYLIST_COVERS.md). |
 | G09 | Library tabs for Playlists, Songs, Albums, and Artists | Implemented; signed-in coverage pending | Add native destinations and paging; distinguish saved songs from liked songs and account uploads. |
 | G10 | Save/unsave albums and follow/unfollow artists | Implemented; disabled pending live checks | Read authoritative state and confirm approved edits; an artist page alone does not establish subscription. |
 | G11 | Recently played and listening history | Implemented; live checks pending | Separate service history from any local history; provide scope labels, account fences, and appropriate clearing controls. |
@@ -133,9 +133,9 @@ are a separate service library from files stored on the Mac.
 | G27 | Optional Spotlight library search | Implemented; default-off, installed checks pending | Opt-in indexing, bounded updates, and account-specific index deletion; older systems retain in-app search. |
 | G28 | Localization, including long text and right-to-left layouts | Partial; English/French resources and plural rules integrated | Externalize strings; verify keyboard behavior, pluralization, layout, and non-English service results. |
 | G29 | Cache limits, cache clearing, and read-only offline metadata | Implemented; storage/UI/resource checks pending | Show what is stored, bound disk/memory use, and clear caches without removing a valid session or saved queues. |
-| G30 | Explicit privacy controls and multiple account/profile workflows | In progress; existing session fences retained | Distinguish local history from service listening history; verify the service controls before offering private-listening claims. Isolate queues, caches, and indexes. |
+| G30 | Explicit privacy controls and multiple account/profile workflows | Implemented; live profile isolation and window checks pending | Distinguish local history from service listening history. Verify separate sign-ins, queues, caches, provider credentials and indexes; profile deletion remains unavailable. |
 | G31 | Optional Last.fm/ListenBrainz scrobbling | Implemented; default-off, provider acceptance pending | Opt in; prevent duplicate reports across seek, pause, retry, and restore; store tokens securely and support disconnection. |
-| G32 | Optional Discord presence and streaming metadata export | Partial; opt-in JSON/TXT export implemented; Discord in progress | Opt in; expose only selected public playback metadata, clear paused/stale presence, and keep background work bounded. |
+| G32 | Optional Discord presence and streaming metadata export | Implemented; default-off, native export and conditional Discord acceptance pending | Opt in; expose only selected public playback metadata, clear paused/stale presence, and keep background work bounded. |
 | G33 | Desktop widget | Missing | Read shared snapshots without launching another playback engine; route actions through the app. |
 | G34 | Browse/search/play uploaded music | Implemented; signed-in playback checks pending | Use the account's uploads scope; distinguish uploads from catalog results and verify permitted playback behavior. |
 | G35 | Upload management | Source path researched; native transfer/management missing | Establish the supported upload path first; show transfer/cancellation state and verify account restrictions. |
@@ -151,6 +151,10 @@ metadata and duplicate occurrences; see [local song rules](LOCAL_SONG_RULES.md).
 and does not replay it automatically. [Recommendation previews](QUEUE_RECOMMENDATIONS.md)
 append only the songs the user accepts and preserve the existing queue.
 [Chart country choices](CHARTS.md) use the service's offered tokens and label.
+[Local profiles](LOCAL_PROFILES.md) have separate website stores and app data;
+switching pauses playback and waits for accepted work before replacing its owner.
+[Streaming export](STREAMING_METADATA_EXPORT.md) and [Discord presence](DISCORD_PRESENCE.md)
+require separate, explicit consent for each listening session.
 
 [ListenBrainz](LISTENBRAINZ.md) and [Last.fm](LASTFM.md) have independent consent,
 credentials and delivery receipts. They require a provider connection; Last.fm
@@ -181,7 +185,7 @@ shipping these features; see [playback capabilities](PLAYBACK_CAPABILITIES.md).
 | G48 | Lossless/spatial audio | Require actual service content and a supported playback/output path. Converting a compressed stream cannot create a lossless source. |
 | G49 | Local-file playback | Decide whether this belongs in the product; it requires a separate file library, decoding/player path, permissions, and mixed-source queue design. |
 | G50 | Web extensions, SponsorBlock, and content-filtering options | Review service compatibility, permissions, account behavior, performance, and supported OS APIs before adopting an extension system. |
-| G51 | Natural-language commands and generated playlists | Establish actual user value, supported hardware, privacy, and measurable cost; keep ordinary controls complete on Intel and older systems. |
+| G51 | Natural-language commands and generated playlists | Partial: [typed Quick Commands](QUICK_COMMANDS.md) are implemented locally on the macOS 14/Intel target. Open-ended requests and generated playlists still need a supported implementation, privacy review and measurable cost. |
 | G52 | Custom themes, visualizers, and haptics | Keep optional; validate contrast and reduced-motion behavior and measure idle/animation cost. |
 
 ## Delivery sequence
