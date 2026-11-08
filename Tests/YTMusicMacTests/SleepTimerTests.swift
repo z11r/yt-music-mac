@@ -166,11 +166,14 @@ struct SleepTimerTests {
         session.sleepTimer.stopAtEnd(of: current)
         session.player.onEnded?(current)
         #expect(session.queue.currentIndex == 0)
-        #expect(session.queue.currentOccurrence == current)
+        #expect(session.queue.currentEntryID == current.entryID)
+        #expect(session.queue.currentOccurrence == nil)
         #expect(session.sleepTimer.blocksAutoplay)
         #expect(!session.wantsPlayback && !session.player.playbackIntent)
         #expect(session.radio.status == nil)
         #expect(await transport.attempts == 0)
+        let replay = session.queue.beginPlayback()
+        #expect(replay?.entryID == current.entryID && replay != current)
         await session.shutdown()
     }
 

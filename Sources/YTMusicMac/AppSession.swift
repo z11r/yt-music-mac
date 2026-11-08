@@ -167,7 +167,12 @@ final class AppSession {
             return self.resumeState.recover(occurrence, queue: self.queue, playerPosition: position)
         }
         player.onStateChanged = { [weak self] in
-            if let self { self.wantsPlayback = self.player.playbackIntent }
+            if let self {
+                if self.wantsPlayback && !self.player.playbackIntent {
+                    self.cancelPendingCollectionRadio()
+                }
+                self.wantsPlayback = self.player.playbackIntent
+            }
             self?.systemMedia?.refresh()
             self?.saveQueue()
         }
@@ -620,7 +625,15 @@ final class AppSession {
 
     private func ended(_ occurrence: PlaybackOccurrence) {
         guard queue.accepts(occurrence) else { return }
-        guard !sleepTimer.consumeEnd(occurrence) else { return }
+        if sleepTimer.consumeEnd(occurrence) {
+            // The bridge consumed this ending. A later Play needs a fresh occurrence,
+            // while the selection stays on the song the sleep timer finished.
+            queue.invalidatePlayback()
+            resumeState.clear()
+            saveQueue()
+            systemMedia?.refresh()
+            return
+        }
         continueQueue(after: occurrence)
         systemMedia?.refresh()
     }
