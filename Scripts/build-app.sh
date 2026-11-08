@@ -92,6 +92,19 @@ fi
 chmod 755 "$bundle/Contents/MacOS/YTMusicMac"
 [[ -d "$resource_source" ]] || { echo "The Swift package resource bundle is missing." >&2; exit 1; }
 /usr/bin/ditto "$resource_source" "$bundle/Contents/Resources/YTMusicMac_YTMusicMac.bundle"
+for module in MusicCore YouTubeMusic; do
+  module_bundle="$bin_path/YTMusicMac_$module.bundle"
+  [[ -d "$module_bundle" ]] || { echo "The $module localization bundle is missing." >&2; exit 1; }
+  /usr/bin/ditto "$module_bundle" "$bundle/Contents/Resources/YTMusicMac_$module.bundle"
+done
+# SwiftUI literals and App Intents use Bundle.main. Retain the package bundle
+# for explicit native lookups, and also place app localizations in the main bundle.
+localized_resources="$resource_source"
+[[ ! -d "$resource_source/Contents/Resources" ]] || localized_resources="$resource_source/Contents/Resources"
+for language in en fr; do
+  [[ -d "$localized_resources/$language.lproj" ]] || { echo "The $language app localization is missing." >&2; exit 1; }
+  /usr/bin/ditto "$localized_resources/$language.lproj" "$bundle/Contents/Resources/$language.lproj"
+done
 cp "$project_dir/Sources/YTMusicMac/Resources/YTMusicMac.sdef" "$bundle/Contents/Resources/YTMusicMac.sdef"
 cp "$project_dir/LICENSE" "$bundle/Contents/Resources/LICENSE"
 cp "$project_dir/THIRD_PARTY_NOTICES.md" "$bundle/Contents/Resources/THIRD_PARTY_NOTICES.md"
@@ -101,6 +114,7 @@ cat > "$bundle/Contents/Info.plist" <<PLIST
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
   <key>CFBundleDevelopmentRegion</key><string>en</string>
+  <key>CFBundleLocalizations</key><array><string>en</string><string>fr</string></array>
   <key>CFBundleDisplayName</key><string>$app_name</string>
   <key>CFBundleName</key><string>$app_name</string>
   <key>CFBundleExecutable</key><string>YTMusicMac</string>

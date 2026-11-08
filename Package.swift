@@ -3,14 +3,15 @@ import PackageDescription
 
 let package = Package(
     name: "YTMusicMac",
+    defaultLocalization: "en",
     platforms: [.macOS(.v14)],
     products: [
         .executable(name: "YTMusicMac", targets: ["YTMusicMac"]),
         .library(name: "MusicCore", targets: ["MusicCore"]),
     ],
     targets: [
-        .target(name: "MusicCore"),
-        .target(name: "YouTubeMusic", dependencies: ["MusicCore"]),
+        .target(name: "MusicCore", resources: [.process("Resources")]),
+        .target(name: "YouTubeMusic", dependencies: ["MusicCore"], resources: [.process("Resources")]),
         .executableTarget(
             name: "YTMusicMac",
             dependencies: ["MusicCore", "YouTubeMusic"],

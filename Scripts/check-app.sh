@@ -61,6 +61,23 @@ music_link_scheme="ytmusicmac"
 [[ -f "$resources/PlayerBridge.js" || -f "$resources/Contents/Resources/PlayerBridge.js" ]] || {
   echo "The packaged playback bridge is missing." >&2; exit 1;
 }
+python3 - "$bundle/Contents/Resources" <<'PY'
+from pathlib import Path
+import sys
+root = Path(sys.argv[1])
+for module in ['YTMusicMac', 'MusicCore', 'YouTubeMusic']:
+    package = root / f'YTMusicMac_{module}.bundle'
+    source = package / 'Contents/Resources' if (package / 'Contents/Resources').is_dir() else package
+    for language in ['en', 'fr']:
+        strings = source / f'{language}.lproj/Localizable.strings'
+        if not strings.is_file():
+            raise SystemExit(f'Missing {language} localization for {module}.')
+        if module == 'YTMusicMac':
+            for filename in ['Localizable.strings', 'Localizable.stringsdict']:
+                main = root / f'{language}.lproj' / filename
+                if not main.is_file() or main.read_bytes() != (source / f'{language}.lproj' / filename).read_bytes():
+                    raise SystemExit(f'Main-bundle {language} localization does not match package resources.')
+PY
 python3 - "$bundle/Contents/Resources/Metadata.appintents/extract.actionsdata" <<'PY'
 import json, sys
 with open(sys.argv[1]) as source:
