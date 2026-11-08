@@ -101,6 +101,7 @@ final class AppSession {
         didSet { if searchFilter != oldValue { searchFilterChanged() } }
     }
     let searchSuggestions: SearchSuggestions
+    let searchHistory = SearchHistory()
     var collectionFilter = ""
     var showsQueue = false
     var showsAccount = false
@@ -272,6 +273,7 @@ final class AppSession {
     func search() {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return }
+        searchHistory.record(query)
         navigate(to: .search(query))
     }
 
@@ -603,6 +605,8 @@ final class AppSession {
     func signOut() async {
         cancelMusicLink()
         accountGeneration = UUID()
+        searchSuggestions.close()
+        searchHistory.clear()
         resetLibraryEditing()
         pageGeneration = UUID()
         pageTask?.cancel()
@@ -627,6 +631,8 @@ final class AppSession {
     private func accountChanged(replacedAccount: Bool) {
         cancelMusicLink()
         accountGeneration = UUID()
+        searchSuggestions.close()
+        searchHistory.clear()
         resetLibraryEditing()
         pageTask?.cancel()
         if replacedAccount {

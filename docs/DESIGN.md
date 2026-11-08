@@ -34,6 +34,11 @@ a playlist filter must be labeled separately. Preserve the query while opening a
 result and returning. Cancel obsolete requests and keep existing results visible
 while updating them. [Searching](https://developer.apple.com/design/human-interface-guidelines/searching)
 
+The toolbar's Recent Searches menu recalls up to twelve queries from the current
+app session. Clear Recent Searches removes this list. Signing out, changing
+accounts, or ending the app session also clears it. It is separate from the
+music service's search history and is never saved to disk.
+
 While someone types, suggestions appear in a list under the search field. Down
 and Up Arrow move through them, Return searches for the highlighted suggestion
 or, with none highlighted, for the typed text, and Escape closes the list. All

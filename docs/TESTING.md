@@ -136,6 +136,11 @@ continuation tokens in these files are synthetic. Other tests hold a response
 until a newer search, filter, page, or suggestion request has finished, then
 check that the older response changes nothing.
 
+Local recent-search checks cover ordering, deduplication, bounds, clearing, and
+account changes. A delayed suggestion from the old account must not reappear
+after the account changes. Recent searches are kept only for the app session;
+these checks do not read or modify the service's search history.
+
 ## Manual playback
 
 Use the packaged app and record the commit, macOS build, processor, account

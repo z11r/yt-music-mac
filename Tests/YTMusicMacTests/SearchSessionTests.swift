@@ -173,6 +173,41 @@ struct SearchSessionTests {
         #expect(trackIDs(session) == ["picked"])
     }
 
+    @Test func submittedQueriesAreRememberedButFilterChangesDoNotAddEntries() async throws {
+        let transport = RoutedTransport()
+        await transport.respond(to: "search:example|", with: searchPage(["song"]))
+        await transport.respond(to: "search:example|\(Self.songs)", with: searchPage(["song"]))
+        let harness = SessionHarness(transport)
+        defer { harness.remove() }
+        let session = harness.session
+        session.searchText = " example "
+        session.submitSearch()
+        await session.pageTask?.value
+        session.searchFilter = .songs
+        await session.pageTask?.value
+        #expect(session.searchHistory.queries == ["example"])
+    }
+
+    @Test func anAccountBoundaryClearsLocalQueriesAndFencesOldSuggestions() async throws {
+        let transport = RoutedTransport()
+        await transport.respond(to: "suggest:old", with: suggestionPage(["private suggestion"]), hold: true)
+        let harness = SessionHarness(transport)
+        defer { harness.remove() }
+        let session = harness.session
+        session.searchHistory.record("private query")
+        session.searchText = "old"
+        session.searchTextChanged()
+        let older = session.searchSuggestions.task
+        await transport.waitForArrival("suggest:old")
+        session.account.onAccountChanged?(true)
+        await transport.release("suggest:old")
+        await older?.value
+        await session.pageTask?.value
+        #expect(session.searchHistory.queries.isEmpty)
+        #expect(session.searchSuggestions.items.isEmpty)
+        #expect(session.searchText.isEmpty)
+    }
+
     private func trackIDs(_ session: AppSession) -> [String] {
         session.page?.tracks.map(\.id) ?? []
     }

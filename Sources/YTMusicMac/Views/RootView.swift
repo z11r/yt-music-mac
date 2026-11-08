@@ -48,6 +48,7 @@ struct RootView: View {
                         .disabled(!session.canGoForward)
                 }
                 ToolbarItemGroup(placement: .primaryAction) {
+                    RecentSearchesMenu(session: session)
                     Button("Account", systemImage: session.account.isSignedIn ? "person.crop.circle.fill" : "person.crop.circle",
                            action: session.openAccount)
                         .help(session.account.isSignedIn ? "Your YouTube Music account" : "Sign in to YouTube Music")
