@@ -4,13 +4,31 @@ import SwiftUI
 struct QueueView: View {
     let session: AppSession
     @State private var selection: Set<UUID> = []
+    @State private var filter = ""
+
+    private var isFiltering: Bool { !filter.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    private var rows: [QueueDisplayRow] { QueuePresentation.rows(in: session.queue.entries, matching: filter) }
+    private var visibleIDs: Set<UUID> { Set(rows.map(\.id)) }
+
+    private var remainingDescription: String {
+        let duration = QueuePresentation.remaining(in: session.queue, position: Double(session.player.clock.elapsedSeconds),
+            confirmedCurrentDuration: session.player.hasConfirmedPosition ? session.player.clock.duration : nil)
+        guard duration.songCount > 0 else { return "" }
+        if duration.knownSeconds == 0, duration.unknownCount > 0 { return "Remaining duration unknown" }
+        let time: String
+        if duration.knownSeconds > 3_599_999 { time = "more than 999 hours" }
+        else if duration.knownSeconds >= 360_000 { time = "\(Int(duration.knownSeconds / 3_600)) hours" }
+        else { time = playbackTime(duration.knownSeconds) }
+        return duration.unknownCount == 0 ? "\(time) remaining" : "At least \(time) remaining · \(duration.unknownCount) unknown"
+    }
 
     var body: some View {
         VStack(spacing: 0) {
             HStack(alignment: .firstTextBaseline) {
                 Text("Queue").font(.title2.bold()).accessibilityAddTraits(.isHeader)
                 Spacer()
-                Text("\(session.queue.entries.count) songs").font(.subheadline).foregroundStyle(.secondary)
+                Text(isFiltering ? "\(rows.count) of \(session.queue.entries.count) songs" : "\(session.queue.entries.count) songs")
+                    .font(.subheadline).foregroundStyle(.secondary)
             }
             .padding(16)
             HStack(spacing: 16) {
@@ -36,12 +54,25 @@ struct QueueView: View {
                 .menuStyle(.borderlessButton).fixedSize().labelStyle(.iconOnly)
             }
             .padding(.horizontal, 16).padding(.bottom, 12)
+            VStack(alignment: .leading, spacing: 8) {
+                TextField("Filter queue", text: $filter)
+                    .textFieldStyle(.roundedBorder)
+                    .accessibilityLabel("Filter queue by song, artist, or album")
+                if !remainingDescription.isEmpty {
+                    Text(remainingDescription).font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            .padding(.horizontal, 16).padding(.bottom, 12)
             Divider()
             List(selection: $selection) {
-                ForEach(Array(session.queue.entries.enumerated()), id: \.element.id) { index, entry in
-                    queueRow(entry, index: index).tag(entry.id)
+                ForEach(rows) { row in
+                    queueRow(row.entry, index: row.index).tag(row.id)
+                        .moveDisabled(isFiltering)
                 }
-                .onMove(perform: session.moveQueueEntries)
+                .onMove { offsets, destination in
+                    guard !isFiltering else { return }
+                    session.moveQueueEntries(from: offsets, to: destination)
+                }
             }
             .listStyle(.inset)
             .accessibilityLabel("Playback queue")
@@ -59,6 +90,9 @@ struct QueueView: View {
                 if session.queue.isEmpty {
                     ContentUnavailableView("Your Queue Is Empty", systemImage: "music.note.list",
                                            description: Text("Play a song or add music to the queue."))
+                } else if rows.isEmpty {
+                    ContentUnavailableView("No Matching Songs", systemImage: "magnifyingglass",
+                                           description: Text("Try a different song, artist, or album."))
                 }
             }
             if let message = session.queueError {
@@ -66,7 +100,10 @@ struct QueueView: View {
             }
         }
         .onChange(of: session.queue.entries.map(\.id)) {
-            selection.formIntersection(Set(session.queue.entries.map(\.id)))
+            selection.formIntersection(visibleIDs)
+        }
+        .onChange(of: filter) {
+            selection.formIntersection(visibleIDs)
         }
     }
 
@@ -126,6 +163,7 @@ struct QueueView: View {
     }
 
     private func canMove(up: Bool) -> Bool {
+        guard !isFiltering else { return false }
         guard let first = offsets.first, let last = offsets.last else { return false }
         return up ? first > 0 : last < session.queue.entries.count - 1
     }
