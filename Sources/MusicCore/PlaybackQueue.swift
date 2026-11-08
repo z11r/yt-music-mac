@@ -65,9 +65,9 @@ public struct PlaybackQueue: Sendable {
 
     /// Passing a valid starting index requests playback. Omitting it only loads the queue.
     @discardableResult
-    public mutating func replace(with tracks: [Track], startAt: Int? = nil) -> PlaybackOccurrence? {
+    public mutating func replace(with tracks: [Track], startAt: Int? = nil, origin: QueueEntryOrigin = .manual) -> PlaybackOccurrence? {
         self.rememberEdit()
-        self.entries = tracks.filter { !$0.id.isEmpty }.map { QueueEntry(track: $0) }
+        self.entries = tracks.filter { !$0.id.isEmpty }.map { QueueEntry(track: $0, origin: origin) }
         self.unshuffledOrder = self.entries.map(\.id)
         self.currentEntryID = self.entries.first?.id
         self.currentOccurrence = nil
@@ -87,16 +87,17 @@ public struct PlaybackQueue: Sendable {
     /// Starts an entire collection in service order or with every entry shuffled,
     /// including the first one. Turning shuffle off restores the service order.
     @discardableResult
-    public mutating func replaceForPlayback(with tracks: [Track], shuffled: Bool) -> PlaybackOccurrence? {
+    public mutating func replaceForPlayback(with tracks: [Track], shuffled: Bool, origin: QueueEntryOrigin = .manual) -> PlaybackOccurrence? {
         var generator = SystemRandomNumberGenerator()
-        return self.replaceForPlayback(with: tracks, shuffled: shuffled, using: &generator)
+        return self.replaceForPlayback(with: tracks, shuffled: shuffled, origin: origin, using: &generator)
     }
 
     @discardableResult
     public mutating func replaceForPlayback<R: RandomNumberGenerator>(with tracks: [Track], shuffled: Bool,
+                                                                    origin: QueueEntryOrigin = .manual,
                                                                     using generator: inout R) -> PlaybackOccurrence? {
         self.rememberEdit()
-        self.entries = tracks.filter { !$0.id.isEmpty }.map { QueueEntry(track: $0) }
+        self.entries = tracks.filter { !$0.id.isEmpty }.map { QueueEntry(track: $0, origin: origin) }
         self.unshuffledOrder = self.entries.map(\.id)
         self.isShuffled = shuffled
         if shuffled { self.entries.shuffle(using: &generator) }
@@ -163,8 +164,8 @@ public struct PlaybackQueue: Sendable {
     }
 
     @discardableResult
-    public mutating func append(_ tracks: [Track]) -> [QueueEntry] {
-        let additions = tracks.filter { !$0.id.isEmpty }.map { QueueEntry(track: $0) }
+    public mutating func append(_ tracks: [Track], origin: QueueEntryOrigin = .manual) -> [QueueEntry] {
+        let additions = tracks.filter { !$0.id.isEmpty }.map { QueueEntry(track: $0, origin: origin) }
         guard !additions.isEmpty else { return [] }
         self.rememberEdit()
         self.entries.append(contentsOf: additions)

@@ -38,10 +38,19 @@ public struct Track: Identifiable, Codable, Hashable, Sendable {
 public struct QueueEntry: Identifiable, Codable, Hashable, Sendable {
     public let id: UUID
     public var track: Track
+    public let origin: QueueEntryOrigin
 
-    public init(id: UUID = UUID(), track: Track) {
+    public init(id: UUID = UUID(), track: Track, origin: QueueEntryOrigin = .manual) {
         self.id = id
         self.track = track
+        self.origin = origin
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        track = try container.decode(Track.self, forKey: .track)
+        origin = try container.decodeIfPresent(QueueEntryOrigin.self, forKey: .origin) ?? .unknown
     }
 }
 

@@ -7,6 +7,21 @@ struct QueueDisplayRow: Identifiable {
     var id: UUID { entry.id }
 }
 
+struct QueueDisplayGroup: Identifiable {
+    let id: UUID
+    let origin: QueueEntryOrigin
+    var rows: [QueueDisplayRow]
+
+    var title: String {
+        switch origin {
+        case .unknown: "Queue"
+        case .manual: "Added by You"
+        case .radio: "Radio"
+        case .autoplay: "Autoplay"
+        }
+    }
+}
+
 struct QueueRemainingDuration: Equatable {
     let knownSeconds: TimeInterval
     let unknownCount: Int
@@ -23,6 +38,28 @@ enum QueuePresentation {
                     entry.track.album?.localizedCaseInsensitiveContains(query) == true else { return nil }
             return QueueDisplayRow(index: index, entry: entry)
         }
+    }
+
+    /// Only adjacent occurrences are grouped. Sources never reorder playback.
+    static func groups(in rows: [QueueDisplayRow]) -> [QueueDisplayGroup] {
+        var groups: [QueueDisplayGroup] = []
+        for row in rows {
+            if groups.last?.origin == row.entry.origin {
+                groups[groups.count - 1].rows.append(row)
+            } else {
+                groups.append(QueueDisplayGroup(id: row.id, origin: row.entry.origin, rows: [row]))
+            }
+        }
+        return groups
+    }
+
+    static func move(in group: QueueDisplayGroup, offsets: IndexSet, destination: Int,
+                     isFiltering: Bool) -> (offsets: IndexSet, destination: Int)? {
+        guard !isFiltering, !offsets.isEmpty, (0...group.rows.count).contains(destination),
+              offsets.allSatisfy({ group.rows.indices.contains($0) }),
+              let first = group.rows.first,
+              group.rows.enumerated().allSatisfy({ $0.element.index == first.index + $0.offset }) else { return nil }
+        return (IndexSet(offsets.map { group.rows[$0].index }), first.index + destination)
     }
 
     /// Completed entries are excluded. An unknown duration is counted, never assumed to be zero.

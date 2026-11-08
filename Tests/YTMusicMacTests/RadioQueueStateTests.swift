@@ -62,6 +62,21 @@ private func isEmptyStop(_ outcome: Radio.Outcome) -> Bool { if case .stop(.noth
 
 @Suite("Radio and autoplay")
 struct RadioQueueStateTests {
+    @Test func explicitRadioAndAutoplayKeepDistinctQueueSources() throws {
+        let explicit = Harness()
+        try explicit.start(["seed"])
+        let startedRadio = explicit.radio.startSongRadio(in: explicit.queue, account: explicit.account)
+        let radio = try #require(startedRadio)
+        #expect(isAppended(explicit.finish(radio, ["radio-song"])))
+        #expect(explicit.queue.entries.map(\.origin) == [.manual, .radio])
+
+        let automatic = Harness()
+        let occurrence = try automatic.start(["seed"])
+        let autoplay = try #require(fetched(automatic.end(occurrence)))
+        #expect(played(automatic.finish(autoplay, ["automatic-song"])) != nil)
+        #expect(automatic.queue.entries.map(\.origin) == [.manual, .autoplay])
+    }
+
     @Test func theQueueContinuesPastItsEndWithPrefetchedSongs() throws {
         let test = Harness()
         let started = test.queue.replace(with: [song("a"), song("b")], startAt: 0)

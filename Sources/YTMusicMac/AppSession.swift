@@ -613,7 +613,7 @@ final class AppSession {
         clearLibraryEditFeedback()
     }
 
-    func playTracks(_ tracks: [Track], startingAt index: Int = 0) {
+    func playTracks(_ tracks: [Track], startingAt index: Int = 0, origin: QueueEntryOrigin = .manual) {
         collectionPlayback.cancel()
         scriptingPlayGeneration = UUID()
         guard !tracks.isEmpty, tracks.indices.contains(index) else { return }
@@ -621,7 +621,7 @@ final class AppSession {
         cancelPendingCollectionRadio()
         sleepTimer.allowPlayback()
         wantsPlayback = true
-        request(queue.replace(with: tracks, startAt: index))
+        request(queue.replace(with: tracks, startAt: index, origin: origin))
     }
 
     func togglePlayback() {

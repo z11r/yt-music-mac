@@ -5,6 +5,23 @@ import Testing
 
 @Suite("Queue presentation")
 struct QueuePresentationTests {
+    @Test func sourceSectionsKeepPlaybackOrderAndMapMovesToGlobalIndices() throws {
+        let track = Track(id: "same", title: "Song", artist: "Artist")
+        let entries = [QueueEntry(track: track), QueueEntry(track: track, origin: .radio),
+                       QueueEntry(track: track, origin: .radio), QueueEntry(track: track),
+                       QueueEntry(track: track, origin: .autoplay)]
+        let groups = QueuePresentation.groups(in: QueuePresentation.rows(in: entries, matching: ""))
+        #expect(groups.map(\.origin) == [.manual, .radio, .manual, .autoplay])
+        #expect(groups.flatMap(\.rows).map(\.id) == entries.map(\.id))
+        #expect(Set(groups.map(\.id)).count == groups.count)
+        let move = try #require(QueuePresentation.move(in: groups[1], offsets: IndexSet(integer: 0),
+            destination: 2, isFiltering: false))
+        #expect(move.offsets == IndexSet(integer: 1))
+        #expect(move.destination == 3)
+        #expect(QueuePresentation.move(in: groups[1], offsets: [0], destination: 2, isFiltering: true) == nil)
+        #expect(QueuePresentation.move(in: groups[1], offsets: [2], destination: 0, isFiltering: false) == nil)
+    }
+
     @Test func filteringPreservesOccurrenceIdentityAndUnderlyingOrder() {
         var queue = PlaybackQueue()
         queue.replace(with: [Track(id: "a", title: "Shared", artist: "First"),

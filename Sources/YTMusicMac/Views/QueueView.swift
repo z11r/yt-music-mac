@@ -68,13 +68,18 @@ struct QueueView: View {
             .padding(.horizontal, 16).padding(.bottom, 12)
             Divider()
             List(selection: $selection) {
-                ForEach(rows) { row in
-                    queueRow(row.entry, index: row.index).tag(row.id)
-                        .moveDisabled(isFiltering)
-                }
-                .onMove { offsets, destination in
-                    guard !isFiltering else { return }
-                    session.moveQueueEntries(from: offsets, to: destination)
+                ForEach(QueuePresentation.groups(in: rows)) { group in
+                    Section(group.title) {
+                        ForEach(group.rows) { row in
+                            queueRow(row.entry, index: row.index).tag(row.id)
+                                .moveDisabled(isFiltering)
+                        }
+                        .onMove { offsets, destination in
+                            guard let move = QueuePresentation.move(in: group, offsets: offsets,
+                                destination: destination, isFiltering: isFiltering) else { return }
+                            session.moveQueueEntries(from: move.offsets, to: move.destination)
+                        }
+                    }
                 }
             }
             .listStyle(.inset)

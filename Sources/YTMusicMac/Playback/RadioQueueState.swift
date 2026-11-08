@@ -153,11 +153,11 @@ struct RadioQueueState<Continuation: Sendable> {
             return .none
         case let (_, .success(batch)):
             if atEnd {
-                guard !append(batch, to: &queue).isEmpty else { return .stop(.nothingFound) }
+                guard !append(batch, to: &queue, origin: current.purpose == .autoplay ? .autoplay : .radio).isEmpty else { return .stop(.nothingFound) }
                 guard continuesPlayback, let next = queue.next() else { return .appended }
                 return .play(next)
             }
-            if current.purpose == .songRadio { return append(batch, to: &queue).isEmpty ? .none : .appended }
+            if current.purpose == .songRadio { return append(batch, to: &queue, origin: current.purpose == .autoplay ? .autoplay : .radio).isEmpty ? .none : .appended }
             prefetched = (current, batch)
             return .none
         }
@@ -200,7 +200,7 @@ struct RadioQueueState<Continuation: Sendable> {
               let last = queue.entries.last, queue.currentEntryID == last.id else { return .stop(nil) }
         if let stored = prefetched, isCurrent(stored.request, queue: queue, account: account) {
             prefetched = nil
-            guard !append(stored.batch, to: &queue).isEmpty, let next = queue.next() else { return .stop(.nothingFound) }
+            guard !append(stored.batch, to: &queue, origin: stored.request.purpose == .autoplay ? .autoplay : .radio).isEmpty, let next = queue.next() else { return .stop(.nothingFound) }
             return .play(next)
         }
         // A collection radio is about to replace this queue.
@@ -213,8 +213,8 @@ struct RadioQueueState<Continuation: Sendable> {
         return .wait(fetch: request)
     }
 
-    private mutating func append(_ batch: Batch, to queue: inout PlaybackQueue) -> [QueueEntry] {
-        let added = queue.append(Self.newTracks(batch.tracks, for: queue))
+    private mutating func append(_ batch: Batch, to queue: inout PlaybackQueue, origin: QueueEntryOrigin) -> [QueueEntry] {
+        let added = queue.append(Self.newTracks(batch.tracks, for: queue), origin: origin)
         if let last = added.last { tail = batch.continuation.map { (last.id, $0) } }
         return added
     }

@@ -182,7 +182,7 @@ extension AppSession {
             saveQueue()
         case let .replace(tracks, continuation):
             radio.startingCollection = nil
-            playTracks(tracks)
+            playTracks(tracks, origin: .radio)
             radio.state.didReplaceQueue(queue, continuation: continuation)
         case let .stop(reason):
             wantsPlayback = false
