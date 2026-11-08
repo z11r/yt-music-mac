@@ -72,7 +72,7 @@ struct LastFMSettings: View {
             }.disabled(!reporting.state.available || (!reporting.state.configured && reporting.state.username == nil))
             Text(LastFMText.text("Disconnect removes local app credentials, the saved session, pending listens, and receipts. It does not delete Last.fm history or revoke an already granted provider permission."))
                 .font(.caption).foregroundStyle(.secondary)
-        } header: { Text("Last.fm") }
+        } header: { Text(verbatim: "Last.fm") }
         .disabled(!session.account.isSignedIn)
         .onChange(of: reporting.scope) { apiKey = ""; sharedSecret = "" }
         .onDisappear { apiKey = ""; sharedSecret = "" }
