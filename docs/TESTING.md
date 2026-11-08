@@ -28,8 +28,11 @@ a real library. Playback script tests run in JavaScriptCore with controlled
 media events, including stale document navigation and repeated endings.
 Recovery tests save and reopen isolated queue files after failed loads, and check
 that retries, new occurrences, explicit seeks, and account changes handle saved
-positions correctly. On November 7, 2026, 207 deterministic tests passed locally
-on Apple silicon; the two opt-in network tests were skipped.
+positions correctly. Keyboard tests cover text and web focus, sheets, focused
+controls, shortcut routing, bounded seek steps, and volume/mute actions using
+isolated preferences without network requests. On November 7, 2026, 259
+deterministic tests passed locally on Apple silicon; the two opt-in network
+tests were skipped.
 
 Check scripts and workflow syntax separately:
 

@@ -84,6 +84,11 @@ context permits it; typing a space in a text field or activating a focused contr
 must still work. Do not install a global keyboard hook for ordinary app shortcuts.
 [Keyboards](https://developer.apple.com/design/human-interface-guidelines/keyboards)
 
+The [shortcut reference](KEYBOARD_SHORTCUTS.md) lists the implemented bindings.
+Playback commands follow the key window's first responder and yield to text
+editing, focused buttons, sheets, and web content. The same session actions serve
+the menus, player controls, and macOS media keys.
+
 Use native buttons, sliders, lists, and menus. Give icon buttons explicit labels
 and state, keep focus indicators visible, and expose track title and artist as one
 coherent row. Decorative artwork should not duplicate the spoken track name.

@@ -37,6 +37,11 @@ The parser regression tests reuse these sanitized fixtures from
 The playback bridge also uses Kaset's player identity and navigation approach
 as a reference. Changes in this project have not been reviewed by its authors.
 
+Keyboard bindings follow `docs/keyboard-shortcuts.md` at the same revision.
+Removing playback shortcuts while text input has focus is based on
+`Sources/Kaset/Utilities/TextInputFocusState.swift` and the playback commands
+in `Sources/Kaset/KasetApp.swift`.
+
 MIT License
 
 Copyright (c) 2025 sozercan

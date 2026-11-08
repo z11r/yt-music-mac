@@ -6,6 +6,7 @@ import SwiftUI
 struct YTMusicMacApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @State private var session: AppSession
+    @State private var keyboardFocus: KeyboardFocusMonitor
     private let sceneCheck: SceneCheckDriver?
     @AppStorage("appearance", store: AppIdentity.preferences) private var appearance = "system"
 
@@ -39,6 +40,9 @@ struct YTMusicMacApp: App {
         } else { session = AppSession() }
         sceneCheck?.record("sessionCreated")
         _session = State(initialValue: session)
+        let keyboardFocus = KeyboardFocusMonitor()
+        keyboardFocus.start()
+        _keyboardFocus = State(initialValue: keyboardFocus)
         AppScripting.session = sceneCheck == nil ? session : nil
     }
 
@@ -56,22 +60,8 @@ struct YTMusicMacApp: App {
         .commands {
             SidebarCommands()
             CommandGroup(replacing: .newItem) { }
-            CommandMenu("Playback") {
-                Button(session.player.isPlaying ? "Pause" : "Play") { session.togglePlayback() }
-                    .keyboardShortcut("p", modifiers: .command)
-                    .disabled(session.currentTrack == nil)
-                Button("Next Song") { session.next() }
-                    .keyboardShortcut("n", modifiers: [.command, .option])
-                    .disabled(!session.queue.hasNext)
-                Button("Previous Song") { session.previous() }
-                    .keyboardShortcut("p", modifiers: [.command, .option])
-                    .disabled(session.currentTrack == nil)
-                Divider()
-                Button(session.queue.isShuffled ? "Turn Shuffle Off" : "Turn Shuffle On") { session.toggleShuffle() }
-                Button("Repeat: \(session.queue.repeatMode.rawValue.capitalized)") { session.cycleRepeat() }
-                Divider()
-                Button("Undo Queue Edit") { session.undoQueueEdit() }.disabled(!session.queue.canUndo)
-            }
+            PlaybackCommands(session: session, keyboardFocus: keyboardFocus)
+            NavigationCommands(session: session)
             CommandGroup(after: .sidebar) {
                 Button(session.showsQueue ? "Hide Queue" : "Show Queue") { session.showsQueue.toggle() }
                     .keyboardShortcut("u", modifiers: [.command, .shift])
@@ -132,6 +122,7 @@ private struct PlayerWindowCommands: View {
     @Environment(\.openWindow) private var openWindow
     var body: some View {
         Button("Show Main Window") { openWindow(id: "main") }
+            .keyboardShortcut("0", modifiers: .command)
         Button("Show Mini Player") { openWindow(id: "mini-player") }
             .keyboardShortcut("m", modifiers: [.command, .shift])
     }
