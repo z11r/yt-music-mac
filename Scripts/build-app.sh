@@ -51,10 +51,13 @@ resource_source=""
 for architecture in "${architectures[@]}"; do
   scratch="$build_dir/work-$architecture"
   build_args=(--package-path "$project_dir" --scratch-path "$scratch" --configuration "$configuration"
-              --arch "$architecture" --product YTMusicMac --jobs 2 --disable-keychain --disable-netrc)
+              --arch "$architecture" --product YTMusicMac --jobs 1 --disable-keychain --disable-netrc)
   MACOSX_DEPLOYMENT_TARGET=14.0 "$script_dir/with-xcode.sh" xcrun swift build "${build_args[@]}" >&2
   bin_path="$(MACOSX_DEPLOYMENT_TARGET=14.0 "$script_dir/with-xcode.sh" xcrun swift build "${build_args[@]}" --show-bin-path)"
   [[ -x "$bin_path/YTMusicMac" ]] || { echo "Build did not produce YTMusicMac for $architecture." >&2; exit 1; }
+  # Metadata is independent of machine architecture; extracting each thin build
+  # also verifies that both slices expose the same installed app actions.
+  "$script_dir/extract-app-intents.sh" "$scratch" "$configuration" "$architecture" "$bundle/Contents/Resources" >&2
   "$script_dir/with-xcode.sh" xcrun lipo "$bin_path/YTMusicMac" -verify_arch "$architecture"
   # Rewrite only the packaging copy; retain SwiftPM's original build product.
   thin_executable="$build_dir/YTMusicMac-$architecture"

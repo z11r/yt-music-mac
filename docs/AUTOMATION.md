@@ -1,5 +1,45 @@
 # Native playback commands
 
+## Shortcuts
+
+The app defines eight native Shortcuts actions that use the same session as its
+windows and player. Building the app also extracts and validates their metadata
+inside the app bundle. Add actions under YT Music for Mac in Shortcuts after
+installing and opening the packaged app. Development bundles are separate apps.
+
+| Action | Behavior |
+| --- | --- |
+| Resume Music | Resume the current selection. |
+| Pause Music | Pause the existing player. |
+| Next Song | Select the next entry in the app's queue. |
+| Previous Song | Restart the song past three seconds, or select the previous entry. |
+| Set Music Volume | Set app volume from 0 to 100 percent. |
+| Play Song by Video ID | Resolve and request one exact 11-character video ID. |
+| Open Music Link | Open an album, artist, or playlist; a song link requests that exact recording. |
+| Search Music | Show the supplied catalog query without automatically playing a result. |
+
+Playback actions require sign-in in the app. An action reports an error when
+sign-in is needed; it does not open Account or accept credentials. Resume, song
+navigation, exact playback, links, and search bring the app forward. Pause and
+volume can run in the background. Transport adopts Apple's
+[app-process audio intent](https://developer.apple.com/documentation/widgetkit/adding-interactivity-to-widgets-and-live-activities)
+behavior. No helper process creates another player or account store.
+
+Actions run only when invoked. Listing actions does not search the catalog or
+read account history. Invalid input and unknown links fail before dispatch.
+Exact-song lookup never substitutes an unrelated result, and newer playback or
+account actions can cancel it. The existing queue is kept if lookup fails. A
+successful request does not establish that audio has started.
+
+A cold invocation can report that the app is still restoring its account; run
+the action again after startup finishes. Extracted metadata and isolated dispatch
+tests do not establish installed Shortcuts discovery, Siri invocation, background
+launch, playback, or macOS 14/Intel runtime support. Those checks remain required
+on the installed app. Older build toolchains that do not emit compiler constant
+values fail metadata packaging explicitly.
+
+## AppleScript
+
 The packaged app exposes AppleScript commands for playback. macOS may ask you
 to allow the calling application to control YT Music for Mac. Sign in through
 the app before starting a song; scripts cannot supply account credentials.

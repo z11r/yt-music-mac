@@ -48,6 +48,7 @@ struct YTMusicMacApp: App {
         if sceneCheck == nil { songNotifications.start() }
         _songNotifications = State(initialValue: songNotifications)
         AppScripting.session = sceneCheck == nil ? session : nil
+        if sceneCheck == nil { MusicShortcutRegistration.register() }
     }
 
     private var colorScheme: ColorScheme? {

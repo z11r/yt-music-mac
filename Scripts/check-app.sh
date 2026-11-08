@@ -61,6 +61,15 @@ music_link_scheme="ytmusicmac"
 [[ -f "$resources/PlayerBridge.js" || -f "$resources/Contents/Resources/PlayerBridge.js" ]] || {
   echo "The packaged playback bridge is missing." >&2; exit 1;
 }
+python3 - "$bundle/Contents/Resources/Metadata.appintents/extract.actionsdata" <<'PY'
+import json, sys
+with open(sys.argv[1]) as source:
+    metadata = json.load(source)
+expected = {'ResumeMusicIntent', 'PauseMusicIntent', 'NextSongIntent', 'PreviousSongIntent',
+            'SetMusicVolumeIntent', 'PlaySongByIDIntent', 'OpenMusicLinkIntent', 'SearchMusicIntent'}
+if set(metadata.get('actions', {})) != expected or len(metadata.get('autoShortcuts', [])) != 8:
+    raise SystemExit('The app is missing its complete shortcut metadata.')
+PY
 
 if [[ ${#architectures[@]} -eq 0 ]]; then
   read -r -a architectures <<< "$("$script_dir/with-xcode.sh" xcrun lipo -archs "$executable")"

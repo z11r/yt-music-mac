@@ -109,6 +109,8 @@ final class AppSession {
     private(set) var destination: MusicDestination = .home
     private(set) var page: MusicPage?
     private(set) var isLoading = false
+    private(set) var hasFinishedStartup = false
+    private(set) var isShuttingDown = false
     private(set) var isLoadingMore = false
     private(set) var pageError: String?
     private(set) var queueError: String?
@@ -214,6 +216,7 @@ final class AppSession {
         if configuration.installsSystemMedia { systemMedia = SystemMediaControls(session: self) }
         if isSceneCheck {
             started = true
+            hasFinishedStartup = true
             page = SceneCheckFixture.page
         }
     }
@@ -269,6 +272,7 @@ final class AppSession {
     func start() async {
         guard !started else { return }
         started = true
+        defer { hasFinishedStartup = true }
         let restoreGeneration = accountGeneration
         if let queueStore, !preferences.bool(forKey: "sessionRestoreBlocked") {
             do {
@@ -445,6 +449,8 @@ final class AppSession {
         scriptingPlayGeneration = UUID()
         return scriptingPlayGeneration
     }
+
+    func acceptsScriptedPlaybackRequest(_ request: UUID) -> Bool { scriptingPlayGeneration == request && !isShuttingDown }
 
     func playScriptedVideo(_ videoID: String, requestGeneration: UUID) async throws -> String {
         guard ScriptingInput.videoID(videoID) == videoID else { throw AppScriptingError.invalidVideoID }
@@ -916,6 +922,7 @@ final class AppSession {
     }
 
     func shutdown() async {
+        isShuttingDown = true
         cancelMusicLink()
         collectionPlayback.cancel()
         lyrics.clear()

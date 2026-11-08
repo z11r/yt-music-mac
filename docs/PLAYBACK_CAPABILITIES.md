@@ -19,7 +19,7 @@ in another service client is not automatically available inside this player.
 | Lossless or spatial audio | No source-format or spatial-content claim is established. Output sample rate, resampling, and EQ do not prove a lossless source. |
 | Local files | Not implemented. A native file player is a possible separate source, requiring file access, persistent identity, queue migration, and engine-switching behavior. |
 | Extensions and filtering | A general extension system and SponsorBlock integration are not implemented. Full WebKit extension hosting requires macOS 15.4 or later; native content rules are a narrower alternative. |
-| Language commands | Native controls and scripting remain the baseline. Structured Shortcuts actions and a bounded typed-command layer can reuse them; open-ended generation would be optional. |
+| Language commands | Eight structured Shortcuts actions use the shared session; installed discovery and invocation still need runtime checks. A typed-command layer or open-ended generation would be separate features. |
 | Appearance and feedback | Native system appearance and accessibility preferences are the baseline. Static themes and event-driven haptics can be explored independently; reactive visualization needs an actual audio source and a measured resource budget. |
 
 ## Supported next steps
