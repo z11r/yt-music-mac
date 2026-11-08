@@ -464,6 +464,7 @@ final class AppSession {
         scriptingPlayGeneration = UUID()
         guard !tracks.isEmpty, tracks.indices.contains(index) else { return }
         guard account.isSignedIn else { openAccount(); return }
+        cancelPendingCollectionRadio()
         wantsPlayback = true
         request(queue.replace(with: tracks, startAt: index))
     }
@@ -476,6 +477,7 @@ final class AppSession {
         scriptingPlayGeneration = UUID()
         guard !queue.isEmpty else { return }
         guard account.isSignedIn else { openAccount(); return }
+        cancelPendingCollectionRadio()
         wantsPlayback = true
         if queue.currentOccurrence == nil {
             let position = resumeState.position(for: queue, playerPosition: player.clock.position)
@@ -488,6 +490,7 @@ final class AppSession {
 
     func pause() {
         scriptingPlayGeneration = UUID()
+        cancelPendingCollectionRadio()
         wantsPlayback = false
         player.pause()
         saveQueue()
@@ -496,17 +499,20 @@ final class AppSession {
 
     func next() {
         scriptingPlayGeneration = UUID()
+        cancelPendingCollectionRadio()
         request(queue.next())
     }
 
     func previous() {
         scriptingPlayGeneration = UUID()
+        cancelPendingCollectionRadio()
         if player.clock.position > 3 { seek(to: 0) }
         else { request(queue.previous()) }
     }
 
     func seek(to value: TimeInterval) {
         guard value.isFinite, value >= 0 else { return }
+        cancelPendingCollectionRadio()
         resumeState.clear()
         player.seek(to: value)
         saveQueue()
@@ -522,6 +528,7 @@ final class AppSession {
     func retryPlayback() {
         scriptingPlayGeneration = UUID()
         guard account.isSignedIn else { openAccount(); return }
+        cancelPendingCollectionRadio()
         let position = resumeState.position(for: queue, playerPosition: player.clock.position)
         wantsPlayback = true
         request(queue.beginPlayback(), resumingAt: position)
@@ -530,6 +537,7 @@ final class AppSession {
     func selectQueueEntry(_ id: UUID) {
         scriptingPlayGeneration = UUID()
         guard account.isSignedIn else { openAccount(); return }
+        cancelPendingCollectionRadio()
         wantsPlayback = true
         request(queue.select(entryID: id))
     }
@@ -680,6 +688,7 @@ final class AppSession {
     func shutdown() async {
         cancelMusicLink()
         scriptingPlayGeneration = UUID()
+        cancelRadio()
         wantsPlayback = false
         player.pause()
         saveQueue()

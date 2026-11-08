@@ -322,4 +322,26 @@ struct RadioQueueStateTests {
         #expect(isNone(test.finish(request, ["x"])))
         #expect(test.ids == ["a"])
     }
+
+    @Test func anExplicitTransportChoiceCancelsAPendingCollectionReplacement() throws {
+        let test = Harness()
+        let original = try test.start(["a", "b"])
+        let request = test.radio.startCollectionRadio(playlistID: "RDEMexample", queue: test.queue, account: test.account)
+        let cancelled = test.radio.cancelCollectionRadio()
+        #expect(cancelled)
+        #expect(!test.radio.isStartingCollectionRadio)
+        #expect(isNone(test.finish(request, ["new-radio"], playing: false)))
+        #expect(test.ids == ["a", "b"])
+        #expect(test.queue.currentOccurrence == original)
+    }
+
+    @Test func cancellingACollectionReplacementDoesNotCancelAutoplayPrefetch() throws {
+        let test = Harness()
+        let original = try test.start(["a"])
+        let request = try #require(test.prefetch())
+        let cancelled = test.radio.cancelCollectionRadio()
+        #expect(!cancelled)
+        #expect(isNone(test.finish(request, ["b"])))
+        #expect(played(test.end(original))?.trackID == "b")
+    }
 }

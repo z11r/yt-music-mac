@@ -128,6 +128,15 @@ extension AppSession {
         radio.show(nil)
     }
 
+    /// A radio requested for a collection must not replace a later transport choice.
+    func cancelPendingCollectionRadio() {
+        guard radio.state.cancelCollectionRadio() else { return }
+        radio.task?.cancel()
+        radio.task = nil
+        radio.startingCollection = nil
+        radio.show(nil)
+    }
+
     // MARK: Requests
 
     private var autoplayAllowed: Bool { radio.autoplayEnabled && account.isSignedIn && !isSceneCheck }

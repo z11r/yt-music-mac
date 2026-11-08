@@ -178,6 +178,15 @@ struct RadioQueueState<Continuation: Sendable> {
         return wasWaiting
     }
 
+    /// An explicit transport action supersedes a pending collection replacement.
+    /// Prefetched autoplay songs remain available for the queue they belong to.
+    mutating func cancelCollectionRadio() -> Bool {
+        guard inFlight?.purpose == .collectionRadio else { return false }
+        inFlight = nil
+        waiting = false
+        return true
+    }
+
     mutating func reset() { self = Self() }
 
     /// Songs not among the queue's recent entries, without repeats.
