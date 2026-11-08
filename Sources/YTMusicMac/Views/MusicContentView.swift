@@ -250,6 +250,8 @@ private struct MusicCard: View {
                     .allowsHitTesting(false).accessibilityHidden(true)
             }
         }
+        .modifier(SongDragSource(tracks: { if case let .track(track) = item { [track] } else { [] } }(),
+                                 scope: session.libraryEditingScope))
         .onHover { isHovered = $0 }
         .help([item.title, item.subtitle].compactMap { $0 }.joined(separator: " — "))
         .accessibilityLabel([item.title, item.subtitle, explicitLabel].compactMap { $0 }.joined(separator: ", "))
@@ -386,6 +388,8 @@ private struct CollectionTracksView: View {
                         Spacer(minLength: 0)
                     }
                     .padding(.vertical, 4)
+                    .modifier(SongDragSource(tracks: selection.contains(row.id) ? selectedTracks : [row.track],
+                                             scope: session.libraryEditingScope))
                     .accessibilityElement(children: .combine)
                     .help("\(row.track.title) — \(row.track.artist)")
                     .accessibilityActions {

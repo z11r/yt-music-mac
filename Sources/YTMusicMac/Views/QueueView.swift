@@ -111,6 +111,7 @@ struct QueueView: View {
                 InlineMessage(message: message)
             }
         }
+        .modifier(QueueSongDropTarget(session: session))
         .onChange(of: session.queue.entries.map(\.id)) {
             selection.formIntersection(visibleIDs)
         }
