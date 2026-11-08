@@ -15,11 +15,20 @@ struct VideoPresentationMenu: View {
                    action: presentation.togglePictureInPicture)
                 .disabled(!presentation.canRequestPictureInPicture)
             Divider()
-            Text("Audio/video switching is unavailable. Open an exact video from search to choose a different recording.")
+            let counterpartTarget = session.recordingCounterpartTarget
+            Button(RecordingCounterpartText.text("Other Recording…")) {
+                if let counterpartTarget { _ = session.openRecordingCounterpart(counterpartTarget) }
+            }.disabled(counterpartTarget == nil || session.recordingCounterpart.isBusy)
+                .help(RecordingCounterpartText.text("Review a paired recording from YouTube Music. Playback starts at the beginning."))
         } label: { Label("Video", systemImage: "play.rectangle") }
         .menuStyle(.borderlessButton).fixedSize().labelStyle(.iconOnly)
         .help("Video presentation options")
         .disabled(session.currentTrack?.isServiceTrack != true || session.player.activeKind != .web)
+        .sheet(isPresented: Binding(get: { session.recordingCounterpart.isPresented }, set: { if !$0 { session.recordingCounterpart.clear() } })) {
+            RecordingCounterpartPanel(session: session.recordingCounterpart)
+        }
+        .onChange(of: session.recordingCounterpartTarget) { _, _ in session.recordingCounterpart.discardIfStale() }
+        .onDisappear { session.recordingCounterpart.clear() }
     }
 }
 

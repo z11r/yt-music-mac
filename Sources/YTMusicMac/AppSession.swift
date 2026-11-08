@@ -132,7 +132,7 @@ final class AppSession {
     let songRules: LocalSongRuleLibrary
     let queuePlaylistSave: QueuePlaylistSave
     let recommendations: QueueRecommendations
-    var queue = PlaybackQueue() { didSet { recommendations.discardIfStale() } }
+    var queue = PlaybackQueue() { didSet { recommendations.discardIfStale(); recordingCounterpart.discardIfStale() } }
     let collectionPlayback: CollectionPlayback
     let songRatings = SongRatings()
     let episodePlayback: EpisodePlaybackSession
@@ -183,6 +183,7 @@ final class AppSession {
     let lyrics: LyricsSession
     let credits: SongCreditsSession
     let episodeDetails: EpisodeDetailsSession
+    let recordingCounterpart: RecordingCounterpartSession
     var libraryDisplayOrder: LibraryDisplayOrder = .serviceOrder
     var collectionFilter = ""
     var libraryFilter = ""
@@ -214,7 +215,7 @@ final class AppSession {
     @ObservationIgnored private var saveTask: Task<Void, Never>?
     @ObservationIgnored private var pageGeneration = UUID()
     @ObservationIgnored var accountGeneration = UUID() { didSet {
-        recommendations.cancel(); credits.clear(); episodeDetails.clear(); commandReview.invalidate(); revokeSearchContext()
+        recommendations.cancel(); credits.clear(); episodeDetails.clear(); recordingCounterpart.clear(); commandReview.invalidate(); revokeSearchContext()
         localAudioLibrary?.quiesce()
         preserveTransportPosition()
         player.invalidateOwner()
@@ -228,7 +229,7 @@ final class AppSession {
     @ObservationIgnored private var retainedQueueReviewID: UUID?
     @ObservationIgnored private var volumeState = VolumeState()
     @ObservationIgnored private var systemMedia: SystemMediaControls?
-    @ObservationIgnored private let sessionOperations = ProfileOperationFence()
+    @ObservationIgnored private let sessionOperations: ProfileOperationFence
     @ObservationIgnored private var libraryEditWaiters: [CheckedContinuation<Void, Never>] = []
     @ObservationIgnored private var didShutdown = false
     @ObservationIgnored private var scriptingPlayGeneration = UUID() { didSet { recommendations.discardIfStale() } }
@@ -242,6 +243,8 @@ final class AppSession {
     @ObservationIgnored private var songRulePageSource: LocalSongSourceIdentity?
 
     init(configuration: AppSessionConfiguration = .live()) {
+        let operations = ProfileOperationFence()
+        sessionOperations = operations
         signOutWebAccount = configuration.signOutWebAccount ?? { await $0.signOut() }
         synchronizeAccountPage = configuration.synchronizeAccountPage ?? { await $0.synchronize(from: $1) }
         restoresWebAccount = configuration.restoresWebAccount
@@ -305,6 +308,11 @@ final class AppSession {
         }, fetch: { [client = configuration.client] reference, scope in
             try await client.episodeDetails(reference, expectedScope: scope)
         })
+        recordingCounterpart = RecordingCounterpartSession(operations: operations,
+            snapshot: { [credentials = configuration.credentials] in await credentials.snapshot() },
+            fetch: { [client = configuration.client] videoID, scope in
+                try await client.recordingCounterpart(videoID: videoID, expectedScope: scope)
+            })
         player = PlaybackController(dataStore: configuration.dataStore,
             admission: configuration.playbackOutputAdmission ?? PlaybackOutputAdmission(),
             outputIsEnabled: configuration.enablesPlaybackOutput, local: configuration.localAudioResources?.playback)
@@ -1277,7 +1285,7 @@ final class AppSession {
     func request(_ occurrence: PlaybackOccurrence?, resumingAt position: TimeInterval = 0,
                          listeningIntent: ListeningStartIntent = .newListen) {
         guard acceptsProfileActions else { return }
-        episodeDetails.clear()
+        episodeDetails.clear(); recordingCounterpart.clear()
         guard !isSceneCheck else { return }
         streamingExport?.interrupt()
         episodeStartTask?.cancel(); episodeStartTask = nil; pendingEpisodeOccurrence = nil
@@ -1340,6 +1348,7 @@ final class AppSession {
 
     func openAccount() {
         guard acceptsProfileActions else { return }
+        recordingCounterpart.clear()
         quickCommands.invalidate()
         commandReview.invalidate()
         guard !isSceneCheck else { return }
@@ -1437,6 +1446,7 @@ final class AppSession {
     func signOut() async {
         guard acceptsProfileActions, sessionOperations.begin() else { return }
         isSigningOut = true
+        recordingCounterpart.clear()
         defer { isSigningOut = false; sessionOperations.end() }
         quickCommands.invalidate(); quickCommandProfile = nil
         chartCountries = []; chartCountryLabel = nil
@@ -1628,7 +1638,7 @@ final class AppSession {
         isProfileSuspended = true
         commandReview.invalidate()
         localAudioLibrary?.quiesce()
-        credits.clear(); episodeDetails.clear()
+        credits.clear(); episodeDetails.clear(); recordingCounterpart.clear()
         quickCommands.invalidate(); quickCommandProfile = nil
         streamingExport?.quiesce(); discordPresence?.quiesce(); sponsorBlock?.quiesce()
         player.invalidateEpisodeRateControl()
@@ -1654,6 +1664,7 @@ final class AppSession {
 
     @discardableResult func settleForProfileSwitch() async -> PlaybackOutputSettlement {
         await localAudioLibrary?.waitForIdle()
+        await recordingCounterpart.waitForIdle()
         await commandReview.waitForIdle()
         await sessionOperations.waitForIdle()
         await pageTask?.value
