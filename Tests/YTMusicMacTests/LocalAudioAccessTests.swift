@@ -40,7 +40,8 @@ struct LocalAudioAccessTests {
     }
 
     @Test func staleBookmarksWrongLibrariesAndRemoteURLsNeverBeginFileAccess() async {
-        for fixture in [AccessFixture(stale: true), AccessFixture(url: URL(string: "https://example.test/audio.mp3")!),
+        for fixture in [AccessFixture(stale: true), AccessFixture(url: URL(string: "file:///fixture/name%00suffix.wav")!),
+                        AccessFixture(url: URL(string: "https://example.test/audio.mp3")!),
                         AccessFixture(url: URL(string: "file://remote.test/audio.mp3")!)] {
             await #expect(throws: (any Error).self) {
                 try await fixture.controller().acquire(fixture.record.reference, expectedLibraryID: fixture.library.libraryID)

@@ -1,7 +1,7 @@
 import Foundation
 
 public enum LocalAudioLibraryError: Error, Equatable, Sendable {
-    case invalidReference, invalidLibrary, wrongProfile, wrongLibrary, missingFile, staleRevision
+    case invalidReference, invalidLibrary, wrongProfile, wrongLibrary, missingFile, staleRevision, busy
     case invalidMetadata, invalidBookmark, capacityReached, fileTooLarge, invalidStorageURL
     case unsupportedVersion(Int), unsupportedReferenceVersion(Int)
 }

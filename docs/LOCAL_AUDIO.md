@@ -32,7 +32,9 @@ Tracks and queues carry neither file locations nor grants. The library permits
 up to 2,000 records, 64 KiB per bookmark and 16 MiB per archive. Metadata fields,
 duration and file size are validated. Writes compare the previous revision and
 commit a private staging file atomically; malformed, future and foreign-profile
-archives remain untouched.
+archives remain untouched. A stable private lock file coordinates writers across
+app processes. Its exclusive OS lock is nonblocking and stays held from the
+current archive read through replacement. Lock files remain in place on release.
 
 The current unsandboxed build uses an explicit ordinary-bookmark mode. This mode
 does not bypass file permissions. A separate read-only security-scoped mode is
@@ -40,11 +42,14 @@ available to a future entitled sandboxed build; a failed scoped grant never fall
 back to ordinary access. No sandbox entitlements change in this implementation.
 [Apple documents the sandbox boundary and required entitlements](https://developer.apple.com/documentation/professional-video-applications/enabling-security-scoped-bookmark-and-url-access).
 
-Resolution requests no dialogs or volume mounting. The access adapter rejects
+Resolution requests no dialogs, volume mounting or implicit security access;
+the resource lease owns each explicit access interval. The access adapter rejects
 remote URLs, nonlocal volumes, aliases, symlinks, packages, unavailable cloud
 files, unreadable files and changed file identities. Stale grants need an explicit
 future Locate or Reauthorize action. No directory scanning, audio copying,
-automatic downloads, file deletion or alternate-path search is provided.
+automatic downloads, file deletion or alternate-path search is provided. Encoded
+NUL bytes are refused before file inspection; a literal percent filename remains
+valid.
 
 A resource lease remains with the prepared asset and eventual player item until
 all native users retire. Releasing it balances a successful scoped access exactly
@@ -64,7 +69,9 @@ A local origin, any local reference or the reserved `local:` identifier namespac
 excludes service playback, ratings,
 radio, service playlist creation, song credits, lyrics requests, canonical links,
 scrobbling, streaming metadata and public presence. This also applies to
-inconsistent in-memory tracks with service-looking identifiers. Native drag and
+inconsistent in-memory tracks with service-looking identifiers. Automation status
+omits the service identifier for local sources while keeping transport state and
+queue counts. Native drag and
 portable service-link export refuse local tracks. Local artwork uses the native
 placeholder, without a remote URL or YouTube thumbnail fallback.
 

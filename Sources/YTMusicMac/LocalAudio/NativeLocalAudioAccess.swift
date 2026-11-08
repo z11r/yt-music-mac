@@ -5,6 +5,11 @@ import MusicCore
 /// Construction is inert. Production callers choose a mode explicitly; this adapter never opens a chooser.
 struct NativeLocalAudioBookmarkAccess: LocalAudioBookmarkAccessing {
     let mode: LocalAudioBookmarkMode
+    var resolutionOptions: URL.BookmarkResolutionOptions {
+        var options: URL.BookmarkResolutionOptions = [.withoutUI, .withoutMounting, .withoutImplicitStartAccessing]
+        if mode == .securityScopedReadOnly { options.insert(.withSecurityScope) }
+        return options
+    }
 
     func create(for url: URL, mode: LocalAudioBookmarkMode) throws -> LocalAudioBookmark {
         try LocalAudioFilePolicy.validateURL(url)
@@ -19,10 +24,8 @@ struct NativeLocalAudioBookmarkAccess: LocalAudioBookmarkAccessing {
     func resolve(_ bookmark: LocalAudioBookmark) throws -> LocalAudioResolvedBookmark {
         try bookmark.validate()
         guard bookmark.mode == mode else { throw LocalAudioAccessError.unsupportedAccessMode }
-        var options: URL.BookmarkResolutionOptions = [.withoutUI, .withoutMounting]
-        if mode == .securityScopedReadOnly { options.insert(.withSecurityScope) }
         var stale = false
-        let url = try URL(resolvingBookmarkData: bookmark.data, options: options, relativeTo: nil, bookmarkDataIsStale: &stale)
+        let url = try URL(resolvingBookmarkData: bookmark.data, options: resolutionOptions, relativeTo: nil, bookmarkDataIsStale: &stale)
         return LocalAudioResolvedBookmark(url: url, isStale: stale)
     }
     func beginAccess(to url: URL) -> Bool { url.startAccessingSecurityScopedResource() }

@@ -163,7 +163,7 @@ struct LocalAudioLibraryStoreTests {
         let mode = try FileManager.default.attributesOfItem(atPath: fixture.file.path)[.posixPermissions] as? NSNumber
         #expect(mode?.intValue == 0o600)
         let children = try FileManager.default.contentsOfDirectory(at: fixture.directory, includingPropertiesForKeys: nil)
-        #expect(children.map(\.lastPathComponent) == ["library.json"])
+        #expect(Set(children.map(\.lastPathComponent)) == ["library.json", "library.json.lock"])
     }
 
     @Test func revokedWriteAndBadArchiveNeverReplaceExistingBytes() async throws {

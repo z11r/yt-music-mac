@@ -37,6 +37,7 @@ enum LocalAudioFilePolicy {
     static func validateURL(_ url: URL) throws {
         guard url.isFileURL, url.host == nil || url.host == "", url.user == nil, url.password == nil,
               url.port == nil, url.query == nil, url.fragment == nil, url.path.hasPrefix("/"),
+              !url.absoluteString.lowercased().contains("%00"),
               !url.path.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains) else {
             throw LocalAudioAccessError.invalidURL
         }

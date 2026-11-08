@@ -97,7 +97,7 @@ struct ScriptingPlayerInfo: Encodable {
         self.playing = playing
         self.buffering = buffering
         self.signedIn = signedIn
-        self.currentTrackID = currentTrackID
+        self.currentTrackID = currentTrackID.flatMap { LocalAudioReference.isReservedTrackID($0) ? nil : $0 }
         self.position = position.isFinite ? max(0, position) : 0
         self.duration = duration.isFinite ? max(0, duration) : 0
         self.volume = volume.isFinite ? min(1, max(0, volume)) : 0
@@ -107,10 +107,19 @@ struct ScriptingPlayerInfo: Encodable {
 
     @MainActor init(session: AppSession) {
         self.init(playing: session.player.isPlaying, buffering: session.player.isBuffering,
-                  signedIn: session.account.isSignedIn, currentTrackID: session.currentTrack?.id,
+                  signedIn: session.account.isSignedIn, currentTrack: session.currentTrack,
                   position: session.player.clock.position, duration: session.player.clock.duration,
                   volume: session.player.volume, queueCount: session.queue.entries.count,
                   hasError: session.player.errorMessage != nil, failureReason: session.player.failureReason)
+    }
+
+    init(playing: Bool, buffering: Bool, signedIn: Bool, currentTrack: Track?,
+         position: Double, duration: Double, volume: Double, queueCount: Int, hasError: Bool,
+         failureReason: PlaybackFailureReason? = nil) {
+        self.init(playing: playing, buffering: buffering, signedIn: signedIn,
+                  currentTrackID: currentTrack?.isServiceTrack == true ? currentTrack?.id : nil,
+                  position: position, duration: duration, volume: volume, queueCount: queueCount,
+                  hasError: hasError, failureReason: failureReason)
     }
 
     func json() throws -> String {
