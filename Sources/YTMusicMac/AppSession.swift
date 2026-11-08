@@ -121,6 +121,7 @@ final class AppSession {
     let localCollections: LocalCollectionsLibrary
     let storage: StorageController
     let spotlight: SpotlightLibraryController
+    let songRules: LocalSongRuleLibrary
     var queue = PlaybackQueue()
     let collectionPlayback: CollectionPlayback
     let songRatings = SongRatings()
@@ -153,6 +154,7 @@ final class AppSession {
     var showsQueue = false
     var showsAccount = false
     var showsLocalFolders = false
+    var showsSongRules = false
     var showsWebPlayer = false {
         didSet { player.isPresented = showsWebPlayer }
     }
@@ -184,6 +186,7 @@ final class AppSession {
     @ObservationIgnored private var episodeStartTask: Task<Void, Never>?
     @ObservationIgnored private var pendingEpisodeOccurrence: PlaybackOccurrence?
     @ObservationIgnored private var episodeContinuation: EpisodePlaybackSession.Continuation?
+    @ObservationIgnored private var songRulePageSource: LocalSongSourceIdentity?
 
     init(configuration: AppSessionConfiguration = .live()) {
         preferences = configuration.preferences
@@ -195,6 +198,7 @@ final class AppSession {
                                     sessions: configuration.credentials, preferences: configuration.preferences)
         spotlight = SpotlightLibraryController(index: configuration.spotlightIndex, sessions: configuration.credentials,
             preferences: configuration.preferences, namespace: AppIdentity.identifier)
+        songRules = LocalSongRuleLibrary(store: configuration.localSongRuleStore, sessions: configuration.credentials)
         isSceneCheck = configuration.isSceneCheck
         account = WebSession(dataStore: configuration.dataStore, credentials: configuration.credentials,
                              preferences: configuration.preferences)
@@ -347,6 +351,7 @@ final class AppSession {
         collectionDisplayOrder = .serviceOrder
         page = nil
         spotlightPageSource = nil
+        songRulePageSource = nil
         pageError = nil
         isLoading = true
         isLoadingMore = false
@@ -357,6 +362,7 @@ final class AppSession {
         let ratingsRead = songRatings.beginRead()
         pageTask = Task { [weak self, client] in
             do {
+                let songRuleSource = await self?.songRules.beginSource()
                 let metadataContext: LibraryMetadataCaptureContext?
                 let spotlightSource: SpotlightLibrarySource?
                 if target == .library { metadataContext = await self?.storage.beginCapture() }
@@ -389,6 +395,7 @@ final class AppSession {
                 }
                 guard let self, !Task.isCancelled, self.pageGeneration == generation else { return }
                 self.page = result
+                self.songRulePageSource = songRuleSource
                 self.songRatings.observe(result.ratings, from: ratingsRead)
                 self.spotlightPageSource = spotlightSource
                 self.isLoading = false
@@ -467,6 +474,7 @@ final class AppSession {
         let cachesLibrary = destination == .library
         pageTask = Task { [weak self, client] in
             do {
+                let songRuleSource = await self?.songRules.beginSource()
                 let metadataContext: LibraryMetadataCaptureContext?
                 let spotlightSource: SpotlightLibrarySource?
                 if cachesLibrary { metadataContext = await self?.storage.beginCapture() }
@@ -488,6 +496,7 @@ final class AppSession {
                 self.songRatings.observe(next.ratings, from: ratingsRead)
                 self.page = combined
                 self.spotlightPageSource = spotlightSource
+                self.songRulePageSource = songRuleSource
                 self.isLoadingMore = false
                 if let metadataContext { await self.storage.capture(combined, context: metadataContext) }
                 if let spotlightSource { await self.spotlight.capture(combined, source: spotlightSource) }
@@ -984,6 +993,29 @@ final class AppSession {
         showsAccount = false
     }
 
+    func captureLoadedSongsForRules(expectedScope: UUID) async {
+        guard let page, let source = songRulePageSource, !isShuttingDown else {
+            songRules.reportSourceUnavailable(expectedScope: expectedScope); return
+        }
+        await songRules.capture(tracks: CollectionPresentation.tracks(in: page), sourceName: String(destination.title.prefix(200)),
+            hasMorePages: page.continuation != nil, wasLoading: isLoading || isLoadingMore, unavailableCount: page.unavailableItemCount,
+            hasUnsupportedContent: page.hasUnsupportedContent, source: source, expectedScope: expectedScope)
+    }
+
+    func performSongRuleAction(play: Bool, selectedIDs: Set<UUID>?, expectedScope: UUID, expectedRevision: UUID) async {
+        guard account.isSignedIn, !isShuttingDown else { return }
+        let accountScope = accountGeneration
+        let queueRevision = queue.revision
+        scriptingPlayGeneration = UUID()
+        let request = scriptingPlayGeneration
+        guard let tracks = await songRules.actionTracks(selectedIDs: selectedIDs, expectedScope: expectedScope, expectedRevision: expectedRevision),
+              !tracks.isEmpty, !Task.isCancelled, !isShuttingDown, account.isSignedIn, accountGeneration == accountScope,
+              scriptingPlayGeneration == request, queue.revision == queueRevision,
+              songRules.scope == expectedScope, songRules.revision == expectedRevision else { return }
+        if play { playTracks(tracks) }
+        else { addToQueue(tracks) }
+    }
+
     func signOut() async {
         episodeContinuation = nil
         cancelMusicLink()
@@ -1000,6 +1032,9 @@ final class AppSession {
         savedQueues.invalidate()
         localCollections.invalidate()
         storage.invalidate()
+        songRules.invalidate()
+        songRulePageSource = nil
+        showsSongRules = false
         showsLocalFolders = false
         sleepTimer.cancel()
         cancelRadio()
@@ -1050,11 +1085,17 @@ final class AppSession {
         savedQueues.invalidate()
         localCollections.invalidate()
         storage.invalidate()
+        songRules.invalidate()
+        songRulePageSource = nil
+        showsSongRules = false
         showsLocalFolders = false
         if account.isSignedIn {
             let library = localCollections
             let scope = library.scope
             Task { await library.refresh(expectedScope: scope) }
+            let rules = songRules
+            let ruleScope = rules.scope
+            Task { await rules.refresh(expectedScope: ruleScope) }
         }
         sleepTimer.cancel()
         episodeStartTask?.cancel(); episodeStartTask = nil; pendingEpisodeOccurrence = nil

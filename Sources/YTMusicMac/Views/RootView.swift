@@ -32,6 +32,7 @@ struct RootView: View {
                         Label("Saved Episodes", systemImage: "bookmark").tag(MusicDestination.savedEpisodes)
                     }
                     LocalCollectionsSidebar(session: session)
+                    LocalSongRulesSidebar(session: session)
                 }
                 .listStyle(.sidebar)
                 .accessibilityLabel("Music navigation")
@@ -89,6 +90,7 @@ struct RootView: View {
             LibraryEditorView(session: session, request: request)
         }
         .sheet(isPresented: $session.showsLocalFolders) { LocalFoldersView(session: session) }
+        .sheet(isPresented: $session.showsSongRules) { LocalSongRulesView(session: session) }
         .onChange(of: session.remoteLibraryEditingEnabled) {
             if !session.remoteLibraryEditingEnabled { libraryEditor = nil }
         }
