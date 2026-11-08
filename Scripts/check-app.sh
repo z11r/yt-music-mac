@@ -100,6 +100,7 @@ for architecture in "${architectures[@]}"; do
   [[ "$minimum" == 14.0 || "$minimum" == 14.0.0 ]] || {
     echo "The $architecture executable minimum is $minimum; expected macOS 14.0." >&2; exit 1;
   }
+  python3 "$script_dir/check-optional-frameworks.py" "$executable" "$architecture"
 done
 while IFS= read -r -d '' library; do
   for architecture in "${architectures[@]}"; do

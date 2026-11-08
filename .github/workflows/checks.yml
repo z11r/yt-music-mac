@@ -18,6 +18,8 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - name: Check shell scripts
         run: shellcheck Scripts/*.sh
+      - name: Test packaging metadata checks
+        run: python3 -B -m unittest discover -s Scripts/tests
       - name: Check workflow
         run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12 .github/workflows/checks.yml
   build:

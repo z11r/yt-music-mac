@@ -64,6 +64,7 @@ for architecture in "${architectures[@]}"; do
   # also verifies that both slices expose the same installed app actions.
   "$script_dir/extract-app-intents.sh" "$scratch" "$configuration" "$architecture" "$bundle/Contents/Resources" >&2
   "$script_dir/with-xcode.sh" xcrun lipo "$bin_path/YTMusicMac" -verify_arch "$architecture"
+  python3 "$script_dir/check-optional-frameworks.py" "$bin_path/YTMusicMac" "$architecture" >&2
   # Rewrite only the packaging copy; retain SwiftPM's original build product.
   thin_executable="$build_dir/YTMusicMac-$architecture"
   cp "$bin_path/YTMusicMac" "$thin_executable"
