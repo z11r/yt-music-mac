@@ -119,6 +119,10 @@ struct YTMusicMacApp: App {
             surface { QueueView(session: session).frame(minWidth: 300, minHeight: 360) }
         }
         .defaultSize(width: 380, height: 640)
+        Window("Build a Queue", id: "catalog-queue-builder") {
+            surface { CatalogQueueBuilderView(session: session) }
+        }
+        .defaultSize(width: 740, height: 740)
         MenuBarExtra("YT Music for Mac", systemImage: "music.note") {
             surface { MenuBarPlayerView(session: session) }
         }.menuBarExtraStyle(.window)
@@ -224,6 +228,9 @@ private struct PlayerWindowCommands: View {
             SongCreditsAction(track: track, session: session)
         }
         Button("Open Queue Window") { openWindow(id: "queue") }
+        Button("Build a Queue from Searches…") {
+            if session.acceptsProfileActions { openWindow(id: "catalog-queue-builder") }
+        }
         KeepMiniPlayerOnTopToggle(preferences: session.preferences)
     }
 }

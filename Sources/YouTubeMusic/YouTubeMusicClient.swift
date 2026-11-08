@@ -69,12 +69,13 @@ public actor YouTubeMusicClient {
                                    requiresAuthentication: false, preservesOccurrences: reference.kind == .playlist,
                                    expectedScope: reference.scope)
     }
-    public func search(query: String, filter: MusicSearchFilter = .all) async throws -> MusicPage {
+    public func search(query: String, filter: MusicSearchFilter = .all, expectedScope: UUID? = nil) async throws -> MusicPage {
         let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty, query.count <= 500 else { throw MusicServiceError.invalidInput }
         var body = ["query": query]
         if let params = filter.params { body["params"] = params }
-        return try await firstPage(endpoint: .search, body: body, title: ServiceLocalization.text("Search"), requiresAuthentication: false, preservesOccurrences: false)
+        return try await firstPage(endpoint: .search, body: body, title: ServiceLocalization.text("Search"), requiresAuthentication: false, preservesOccurrences: false,
+                                   expectedScope: expectedScope)
     }
     public func library(category: LibraryCategory = .all) async throws -> MusicPage {
         var body = ["browseId": category.browseID]

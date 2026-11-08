@@ -5,6 +5,17 @@ import XCTest
 /// Fixtures are trimmed anonymous responses with synthetic names, identifiers and tokens.
 @MainActor
 final class MusicSearchTests: XCTestCase {
+    func testScopedSearchRejectsOldOwnerBeforeAnyRequest() async throws {
+        let transport = RecordingTransport([])
+        let client = client(transport)
+        do {
+            _ = try await client.search(query: "private phrase", filter: .songs, expectedScope: UUID())
+            XCTFail("Expected stale scope rejection")
+        } catch let error as MusicServiceError { XCTAssertEqual(error, .sessionChanged) }
+        let requests = await transport.requests
+        XCTAssertTrue(requests.isEmpty)
+    }
+
     func testEachFilterSendsItsParamsAndTheUnfilteredSearchSendsNone() async throws {
         let transport = RecordingTransport(Array(repeating: try fixtureResponse("search_filter_songs"),
                                                  count: MusicSearchFilter.allCases.count))

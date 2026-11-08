@@ -3,6 +3,11 @@ import MusicCore
 import Observation
 import YouTubeMusic
 
+struct NamedQueueSaveIdentity: Sendable {
+    let scope: UUID
+    let account: String
+}
+
 /// Account-bound local saved queues. The verified WebSession account hash is
 /// used as-is; a credentials scope or a display name is never used as identity.
 @MainActor @Observable
@@ -33,10 +38,12 @@ final class NamedQueueLibrary {
         catch { report(error, request: request) }
     }
 
-    func save(name: String, snapshot: QueueSnapshot, expectedScope: UUID? = nil) async -> Bool {
+    func save(name: String, snapshot: QueueSnapshot, expectedScope: UUID? = nil,
+              expectedSession: NamedQueueSaveIdentity? = nil,
+              isCurrent: @MainActor () -> Bool = { true }) async -> Bool {
         let request = expectedScope ?? scope
         do {
-            queues = try await perform(expectedScope: expectedScope) { store, account in
+            queues = try await perform(expectedScope: expectedScope, expectedSession: expectedSession, isCurrent: isCurrent) { store, account in
                 try await store.save(name: name, snapshot: snapshot, accountKey: account)
                 return try await store.list(accountKey: account)
             }
@@ -94,11 +101,14 @@ final class NamedQueueLibrary {
 
     private func perform<Value: Sendable>(
         expectedScope: UUID? = nil,
+        expectedSession: NamedQueueSaveIdentity? = nil,
+        isCurrent: @MainActor () -> Bool = { true },
         _ operation: @Sendable (NamedQueueStore, String) async throws -> Value
     ) async throws -> Value {
         guard profileOperations.begin() else { throw SavedQueueAccessError.accountChanged }
         defer { profileOperations.end() }
         guard expectedScope == nil || expectedScope == scope else { throw SavedQueueAccessError.accountChanged }
+        guard isCurrent() else { throw SavedQueueAccessError.accountChanged }
         guard !isWorking else { throw SavedQueueAccessError.inProgress }
         guard let store else { throw SavedQueueAccessError.unavailable }
         let request = scope
@@ -109,6 +119,11 @@ final class NamedQueueLibrary {
         try Task.checkCancellation()
         guard scope == request, session.isAuthenticated, let key = session.accountID,
               NamedQueueStore.acceptsAccountKey(key) else { throw SavedQueueAccessError.signInRequired }
+        guard isCurrent(), expectedSession.map({ $0.scope == session.scope && $0.account == key }) ?? true else {
+            throw SavedQueueAccessError.accountChanged
+        }
+        // Admission captures this account's destination before hopping into the
+        // store. Profile switching waits for accepted writes to finish here.
         let result = try await operation(store, key)
         try Task.checkCancellation()
         let current = await sessions.snapshot()

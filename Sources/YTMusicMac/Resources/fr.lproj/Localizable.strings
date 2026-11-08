@@ -929,3 +929,5 @@
 "Checking file details" = "Vérification des informations du fichier";
 "Extension matches; service checks are still required" = "L’extension correspond ; les vérifications du service restent nécessaires";
 "Close" = "Fermer";
+"Build a Queue" = "Créer une file";
+"Build a Queue from Searches…" = "Créer une file à partir de recherches…";
