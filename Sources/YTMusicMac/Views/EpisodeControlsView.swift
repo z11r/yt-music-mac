@@ -14,6 +14,9 @@ struct EpisodeControlsView: View {
                     Button("Resume at \(playbackTime(session.episodePlayback.resumePosition(for: track)))", action: session.resumeEpisode)
                 }
                 Menu("Episode Options") {
+                    EpisodeLocalStatusActions(track: track, session: session)
+                    Text("Local status does not change YouTube Music history or measured listening.")
+                    Divider()
                     Button("Start Episode Over", action: session.startEpisodeOver)
                         .disabled(session.episodePlayback.isLoading)
                     Menu("Skip Backward") {

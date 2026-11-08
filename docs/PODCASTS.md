@@ -32,7 +32,9 @@ separate from service history and subscription state.
 Confirmed episode playback records a local position for the selected account
 and canonical episode identity. Ads, loading zeros, paused placeholders,
 stale queue occurrences, and service progress percentages cannot create or
-replace a bookmark. Completion requires a confirmed episode-end event.
+replace a bookmark. Automatic completion requires a confirmed episode-end event.
+Separate [local episode status controls](LOCAL_EPISODE_STATUS.md) allow explicit
+manual completion or clearing progress without claiming measured listening.
 Selecting an episode waits for its local account data, then resumes a known
 unfinished position. Resume and Start Episode Over are explicit player actions.
 

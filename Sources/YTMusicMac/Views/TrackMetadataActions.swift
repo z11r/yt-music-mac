@@ -9,6 +9,7 @@ struct TrackMetadataActions: View {
     let session: AppSession
 
     var body: some View {
+        EpisodeLocalStatusActions(track: track, session: session)
         SongCreditsAction(track: track, session: session)
         if let album = track.albumReference {
             Button("Go to Album: \(album.title)") {
@@ -29,7 +30,7 @@ struct TrackMetadataMenu: View {
 
     var body: some View {
         let hasCredits = track.creditsReference != nil && track.origin != .upload && track.contentKind != .podcastEpisode && track.episode == nil
-        if hasCredits || track.albumReference != nil || !(track.artistReferences ?? []).isEmpty {
+        if track.contentKind == .podcastEpisode || hasCredits || track.albumReference != nil || !(track.artistReferences ?? []).isEmpty {
             Menu {
                 TrackMetadataActions(track: track, session: session)
             } label: {

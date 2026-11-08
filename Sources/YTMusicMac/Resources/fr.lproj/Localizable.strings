@@ -997,3 +997,10 @@
 "Stop After Current Step" = "Arrêter après l’étape actuelle";
 "Delete Local Profile" = "Supprimer le profil local";
 "Stage Deletion" = "Préparer la suppression";
+/* Local episode status */
+"Completed Locally" = "Terminé localement";
+"Mark Completed Locally" = "Marquer comme terminé localement";
+"Clear Local Progress" = "Effacer la progression locale";
+"Local status does not change YouTube Music history or measured listening." = "L’état local ne modifie ni l’historique YouTube Music ni l’écoute mesurée.";
+"Playback continues. Local progress tracking resumes after an explicit seek or new playback." = "La lecture continue. Le suivi local reprend après un déplacement explicite dans l’épisode ou une nouvelle lecture.";
+"Local episode changes have reached their limit. Save the pending changes before clearing more progress." = "Les modifications locales des épisodes ont atteint leur limite. Enregistrez les modifications en attente avant d’effacer davantage de progression.";

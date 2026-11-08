@@ -997,3 +997,10 @@
 "Stop After Current Step" = "Stop After Current Step";
 "Delete Local Profile" = "Delete Local Profile";
 "Stage Deletion" = "Stage Deletion";
+/* Local episode status */
+"Completed Locally" = "Completed Locally";
+"Mark Completed Locally" = "Mark Completed Locally";
+"Clear Local Progress" = "Clear Local Progress";
+"Local status does not change YouTube Music history or measured listening." = "Local status does not change YouTube Music history or measured listening.";
+"Playback continues. Local progress tracking resumes after an explicit seek or new playback." = "Playback continues. Local progress tracking resumes after an explicit seek or new playback.";
+"Local episode changes have reached their limit. Save the pending changes before clearing more progress." = "Local episode changes have reached their limit. Save the pending changes before clearing more progress.";

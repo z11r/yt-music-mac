@@ -973,7 +973,7 @@ final class AppSession {
     func startEpisodeOver() {
         guard acceptsProfileActions else { return }
         guard let track = currentTrack, track.contentKind == .podcastEpisode, account.isSignedIn else { return }
-        episodePlayback.startOver(track)
+        guard episodePlayback.startOver(track) else { return }
         collectionPlayback.cancel(); scriptingPlayGeneration = UUID()
         cancelPendingCollectionRadio(); sleepTimer.allowPlayback(); wantsPlayback = true
         request(queue.beginPlayback())

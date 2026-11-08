@@ -1,13 +1,19 @@
 import Foundation
 
+public enum EpisodeCompletionSource: String, Codable, Equatable, Sendable { case manual }
+
 public struct EpisodeProgressRecord: Codable, Equatable, Sendable {
     public let episode: EpisodeIdentity
     public let position: TimeInterval
     public let duration: TimeInterval
     public let completed: Bool
     public let updatedAt: Date
-    public init(episode: EpisodeIdentity, position: TimeInterval, duration: TimeInterval, completed: Bool, updatedAt: Date) {
+    /// A manual completion is a local status choice, not measured listening.
+    public let completionSource: EpisodeCompletionSource?
+    public init(episode: EpisodeIdentity, position: TimeInterval, duration: TimeInterval, completed: Bool, updatedAt: Date,
+                completionSource: EpisodeCompletionSource? = nil) {
         self.episode = episode; self.position = position; self.duration = duration; self.completed = completed; self.updatedAt = updatedAt
+        self.completionSource = completionSource
     }
 }
 
@@ -34,7 +40,9 @@ public struct EpisodeProgressSnapshot: Codable, Equatable, Sendable {
               Set(records.map { $0.episode.key }).count == records.count,
               [settings.skipBackward, settings.skipForward].allSatisfy({ $0.isFinite && (5...120).contains($0) }),
               records.allSatisfy({ record in
-                Self.validEpisode(record.episode) && record.position.isFinite && record.position > 0 &&
+                Self.validEpisode(record.episode) && record.position.isFinite &&
+                (record.position > 0 || record.position == 0 && record.completed && record.completionSource == .manual) &&
+                (record.completionSource != .manual || record.completed) &&
                 record.duration.isFinite && record.duration > 0 && record.position <= record.duration + 2 &&
                 record.updatedAt.timeIntervalSince1970.isFinite
               }) else { throw EpisodeProgressError.invalidSnapshot }
