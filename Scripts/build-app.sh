@@ -50,8 +50,13 @@ executables=()
 resource_source=""
 for architecture in "${architectures[@]}"; do
   scratch="$build_dir/work-$architecture"
+  # Older SwiftPM versions do not enable App Intents constant extraction themselves.
+  # Name the protocols used by this app and request the sidecars with both engines.
   build_args=(--package-path "$project_dir" --scratch-path "$scratch" --configuration "$configuration"
-              --arch "$architecture" --product YTMusicMac --jobs 1 --disable-keychain --disable-netrc)
+              --arch "$architecture" --product YTMusicMac --jobs 1 --disable-keychain --disable-netrc
+              -Xswiftc -emit-const-values
+              -Xswiftc -Xfrontend -Xswiftc -const-gather-protocols-file
+              -Xswiftc -Xfrontend -Xswiftc "$script_dir/app-intent-protocols.json")
   MACOSX_DEPLOYMENT_TARGET=14.0 "$script_dir/with-xcode.sh" xcrun swift build "${build_args[@]}" >&2
   bin_path="$(MACOSX_DEPLOYMENT_TARGET=14.0 "$script_dir/with-xcode.sh" xcrun swift build "${build_args[@]}" --show-bin-path)"
   [[ -x "$bin_path/YTMusicMac" ]] || { echo "Build did not produce YTMusicMac for $architecture." >&2; exit 1; }
