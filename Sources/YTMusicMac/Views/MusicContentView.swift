@@ -216,7 +216,7 @@ private struct MusicCard: View {
     var body: some View {
         Button { session.activate(item) } label: {
             VStack(alignment: .leading, spacing: 9) {
-                ArtworkView(url: item.artworkURL, isArtist: isArtist, videoID: trackID)
+                ArtworkView(url: artworkURL, isArtist: isArtist, videoID: trackID)
                     .overlay(alignment: .bottomTrailing) {
                         if isHovered || isFocused {
                             Image(systemName: isTrack ? "play.fill" : "arrow.up.forward")
@@ -267,7 +267,7 @@ private struct MusicCard: View {
             if case let .track(track) = item {
                 Button("Play Next") { session.playNext([track]) }
                 Button("Add to Queue") { session.addToQueue([track]) }
-                if track.origin != .upload && track.contentKind != .podcastEpisode { Button("Start Radio") { session.startRadio(from: track) } }
+                if track.isCatalogSong { Button("Start Radio") { session.startRadio(from: track) } }
                 LibraryTrackActions(session: session, tracks: [track], presentEditor: presentEditor,
                                     showsSeparator: false)
                 TrackMetadataActions(track: track, session: session)
@@ -285,7 +285,7 @@ private struct MusicCard: View {
             if case let .track(track) = item {
                 Button("Play Next") { session.playNext([track]) }
                 Button("Add to Queue") { session.addToQueue([track]) }
-                if track.origin != .upload && track.contentKind != .podcastEpisode { Button("Start Radio") { session.startRadio(from: track) } }
+                if track.isCatalogSong { Button("Start Radio") { session.startRadio(from: track) } }
                 LibraryTrackActions(session: session, tracks: [track], presentEditor: presentEditor)
                 TrackMetadataActions(track: track, session: session)
             } else if case let .collection(collection) = item {
@@ -305,7 +305,8 @@ private struct MusicCard: View {
         case .browse: false
         }
     }
-    private var trackID: String? { if case let .track(track) = item { track.id } else { nil } }
+    private var trackID: String? { if case let .track(track) = item { track.remoteArtworkVideoID } else { nil } }
+    private var artworkURL: URL? { if case let .track(track) = item { track.remoteArtworkURL } else { item.artworkURL } }
     private var explicitLabel: String? {
         if case let .track(track) = item, track.isExplicit == true { AppLocalization.text("Explicit content") } else { nil }
     }
@@ -384,7 +385,7 @@ private struct CollectionTracksView: View {
             Table(rows, selection: $selection) {
                 TableColumn("Title") { row in
                     HStack(spacing: 10) {
-                        ArtworkView(url: row.track.artworkURL, size: 36, videoID: row.track.id)
+                        ArtworkView(url: row.track.remoteArtworkURL, size: 36, videoID: row.track.remoteArtworkVideoID)
                         VStack(alignment: .leading, spacing: 3) {
                             HStack(spacing: 5) {
                                 Text(row.track.title).fontWeight(.medium).lineLimit(1)
@@ -407,7 +408,7 @@ private struct CollectionTracksView: View {
                         Button("Play") { session.play(row.track) }
                         Button("Play Next") { session.playNext([row.track]) }
                         Button("Add to Queue") { session.addToQueue([row.track]) }
-                        if row.track.origin != .upload && row.track.contentKind != .podcastEpisode { Button("Start Radio") { session.startRadio(from: row.track) } }
+                        if row.track.isCatalogSong { Button("Start Radio") { session.startRadio(from: row.track) } }
                         TrackRatingActions(session: session, track: row.track)
                         TrackMetadataActions(track: row.track, session: session)
                         reorderActions(for: [row.id])
@@ -427,7 +428,7 @@ private struct CollectionTracksView: View {
                     Button("Add to Queue") { session.addToQueue(tracks) }
                     if tracks.count == 1, let track = tracks.first { MusicLinkActions(track: track) }
                     if tracks.count == 1, let track = tracks.first {
-                        if track.origin != .upload && track.contentKind != .podcastEpisode { Button("Start Radio") { session.startRadio(from: track) } }
+                        if track.isCatalogSong { Button("Start Radio") { session.startRadio(from: track) } }
                     }
                     LibraryTrackActions(session: session, tracks: tracks, presentEditor: presentEditor)
                     if tracks.count == 1, let track = tracks.first {

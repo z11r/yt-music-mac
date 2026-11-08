@@ -65,3 +65,5 @@
 "selection is missing from the queue" = "selection is missing from the queue";
 "shuffle order does not match the queue" = "shuffle order does not match the queue";
 "unshuffled entries are out of order" = "unshuffled entries are out of order";
+"Local audio files cannot be exported as service links. Save this queue locally instead." = "Local audio files cannot be exported as service links. Save this queue locally instead.";
+"Local audio files cannot be added to a service playlist. Save this queue locally instead." = "Local audio files cannot be added to a service playlist. Save this queue locally instead.";

@@ -9,7 +9,7 @@ public struct ListenMetadata: Codable, Equatable, Sendable {
     public let album: String?
     public var isValid: Bool {
         func valid(_ value: String) -> Bool { !value.isEmpty && value.utf8.count <= 256 && !value.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains) }
-        return !trackID.isEmpty && trackID.utf8.count <= 256 && valid(title) && valid(artist) &&
+        return !LocalAudioReference.isReservedTrackID(trackID) && !trackID.isEmpty && trackID.utf8.count <= 256 && valid(title) && valid(artist) &&
             !Self.isUnknownArtist(artist) && (album.map(valid) ?? true)
     }
 
@@ -23,7 +23,7 @@ public struct ListenMetadata: Codable, Equatable, Sendable {
             let value = value.trimmingCharacters(in: .whitespacesAndNewlines)
             return !value.isEmpty && value.utf8.count <= 256 && !value.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains) ? value : nil
         }
-        guard track.origin != .upload, track.contentKind == .song, track.episode == nil,
+        guard track.isExplicitCatalogSong,
               !track.id.isEmpty, track.id.utf8.count <= 256,
               let title = field(track.title), let artist = field(track.artist), !Self.isUnknownArtist(artist) else { return nil }
         self.trackID = track.id; self.title = title; self.artist = artist; self.album = track.album.flatMap(field)
@@ -66,7 +66,7 @@ public struct ListeningLedgerState: Codable, Equatable, Sendable {
 
     public func validate() -> Bool {
         guard receipts.count <= 400, Set(receipts.map(\.entryID)).count == receipts.count,
-              receipts.allSatisfy({ !$0.trackID.isEmpty && $0.trackID.utf8.count <= 256 }) else { return false }
+              receipts.allSatisfy({ !LocalAudioReference.isReservedTrackID($0.trackID) && !$0.trackID.isEmpty && $0.trackID.utf8.count <= 256 }) else { return false }
         guard let current else { return true }
         return current.metadata.isValid && current.heardSeconds.isFinite && current.heardSeconds >= 0 && current.heardSeconds <= 2_073_600 &&
             current.duration.isFinite && (0...2_073_600).contains(current.duration) &&

@@ -223,7 +223,7 @@ final class EpisodePlaybackSession {
 
     func localStatusTarget(for track: Track) -> LocalStatusTarget? {
         guard !isProfileSuspended, !isLoading, writable, let accountHash,
-              track.origin != .upload, track.contentKind == .podcastEpisode, let episode = track.episode?.identity,
+              track.isCatalogTrack, track.contentKind == .podcastEpisode, let episode = track.episode?.identity,
               EpisodeProgressSnapshot.validEpisode(episode) else { return nil }
         let prior = records[episode.key]
         let duration = (prior?.duration ?? track.duration).flatMap { $0.isFinite && $0 > 0 ? $0 : nil }
@@ -280,7 +280,7 @@ final class EpisodePlaybackSession {
 
     func allowExplicitSeek() { active?.protectsBookmark = false; active?.manualStatusHold = false; statusScope = UUID() }
     @discardableResult func startOver(_ track: Track) -> Bool {
-        guard !isProfileSuspended, writable, track.origin != .upload, track.contentKind == .podcastEpisode,
+        guard !isProfileSuspended, writable, track.isCatalogTrack, track.contentKind == .podcastEpisode,
               let episode = track.episode?.identity, EpisodeProgressSnapshot.validEpisode(episode) else { return false }
         guard rememberClear(episode.key, evenWithoutRecord: true) else { return false }
         records[episode.key] = nil; confirmedMemoryKeys.remove(episode.key)

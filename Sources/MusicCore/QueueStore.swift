@@ -30,7 +30,7 @@ public enum QueuePersistenceError: Error, Equatable, LocalizedError, Sendable {
 }
 
 public struct QueueSnapshot: Codable, Equatable, Sendable {
-    public static let currentVersion = 1
+    public static let currentVersion = 2
 
     public let version: Int
     public let entries: [QueueEntry]
@@ -58,6 +58,41 @@ public struct QueueSnapshot: Codable, Equatable, Sendable {
         self.resumePosition = resumePosition
     }
 
+    private enum CodingKeys: String, CodingKey {
+        case version, entries, currentEntryID, repeatMode, isShuffled, unshuffledOrder, resumePosition
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        let storedVersion = try values.decode(Int.self, forKey: .version)
+        guard (1...Self.currentVersion).contains(storedVersion) else {
+            throw QueuePersistenceError.unsupportedVersion(storedVersion)
+        }
+        version = Self.currentVersion
+        entries = try values.decode([QueueEntry].self, forKey: .entries)
+        guard storedVersion != 1 || !entries.contains(where: { $0.track.hasLocalAudioSource }) else {
+            throw LocalAudioLibraryError.invalidReference
+        }
+        currentEntryID = try values.decodeIfPresent(UUID.self, forKey: .currentEntryID)
+        repeatMode = try values.decode(RepeatMode.self, forKey: .repeatMode)
+        isShuffled = try values.decode(Bool.self, forKey: .isShuffled)
+        unshuffledOrder = try values.decode([UUID].self, forKey: .unshuffledOrder)
+        resumePosition = try values.decode(TimeInterval.self, forKey: .resumePosition)
+        try validate()
+    }
+
+    /// Auth-blocked startup may restore a wholly local snapshot only after this same-profile check.
+    public func isWhollyLocal(in library: LocalAudioLibraryDocument, expectedProfileID: UUID) throws -> Bool {
+        try validate(); try library.validate()
+        guard library.profileID == expectedProfileID else { throw LocalAudioLibraryError.wrongProfile }
+        guard !entries.isEmpty, entries.allSatisfy({ $0.track.hasLocalAudioSource }) else { return false }
+        for entry in entries {
+            guard let reference = entry.track.localAudioReference else { return false }
+            _ = try library.record(for: reference)
+        }
+        return true
+    }
+
     public func validate() throws {
         guard self.version == Self.currentVersion else {
             throw QueuePersistenceError.unsupportedVersion(self.version)
@@ -69,6 +104,7 @@ public struct QueueSnapshot: Codable, Equatable, Sendable {
         guard self.entries.allSatisfy({ !$0.track.id.isEmpty }) else {
             throw QueuePersistenceError.invalidQueue("missing track identifier")
         }
+        for entry in entries { try entry.track.validateLocalAudioSource() }
         if let currentEntryID, !ids.contains(currentEntryID) {
             throw QueuePersistenceError.invalidQueue("selection is missing from the queue")
         }
@@ -120,6 +156,8 @@ public actor QueueStore {
         guard permitted() else { throw CancellationError() }
         try self.checkURL()
         try snapshot.validate()
+        // A malformed or future archive requires explicit recovery, never an automatic replacement.
+        _ = try load()
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
         let data = try encoder.encode(snapshot)

@@ -6,7 +6,7 @@ import YouTubeMusic
 struct MusicLinkActions: View {
     let link: MusicLink?
     init(link: MusicLink) { self.link = link }
-    init(track: Track) { link = track.origin == .upload ? nil : .track(track.id) }
+    init(track: Track) { link = track.isCatalogTrack ? .track(track.id) : nil }
     init(collection: MusicCollection) { link = collection.isUploaded ? nil : MusicLink.collection(collection) }
     var body: some View {
         if let url = link?.url {

@@ -9,7 +9,7 @@ struct PublicPlaybackMetadata: Encodable, Equatable, Sendable {
     init?(track: Track) {
         let title = track.title.trimmingCharacters(in: .whitespacesAndNewlines)
         let artist = track.artist.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard track.origin != .upload, track.contentKind == .song, track.episode == nil,
+        guard track.isExplicitCatalogSong,
               track.id.utf8.count == 11, track.id.utf8.allSatisfy({
                   (65...90).contains($0) || (97...122).contains($0) || (48...57).contains($0) || $0 == 45 || $0 == 95
               }), title != track.id, !["unknown artist", "artiste inconnu"].contains(artist.lowercased()),

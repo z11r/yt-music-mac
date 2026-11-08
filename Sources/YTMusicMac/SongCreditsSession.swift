@@ -28,8 +28,7 @@ final class SongCreditsSession {
 
     @discardableResult
     func open(track: Track, isCurrent: @escaping @MainActor () -> Bool) -> Bool {
-        guard isCurrent(), track.origin != .upload, track.contentKind != .podcastEpisode,
-              track.episode == nil, let reference = track.creditsReference else { return false }
+        guard isCurrent(), track.isCatalogSong, let reference = track.creditsReference else { return false }
         clear()
         self.track = track
         ownerIsCurrent = isCurrent

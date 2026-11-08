@@ -73,7 +73,7 @@ struct TrackIdentityView: View {
 
     var body: some View {
         HStack(spacing: 11) {
-            ArtworkView(url: session.currentTrack?.artworkURL, size: artworkSize, videoID: session.currentTrack?.id)
+            ArtworkView(url: session.currentTrack?.remoteArtworkURL, size: artworkSize, videoID: session.currentTrack?.remoteArtworkVideoID)
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 5) {
                     Text(session.currentTrack?.title ?? AppLocalization.text("Choose a song"))

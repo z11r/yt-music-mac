@@ -98,7 +98,7 @@ struct QueueView: View {
                 if !ids.isEmpty {
                     Button("Play") { playSelection(ids) }
                     if ids.count == 1, let entry = session.queue.entries.first(where: { ids.contains($0.id) }) {
-                        if entry.track.origin != .upload && entry.track.contentKind != .podcastEpisode { Button("Start Radio") { session.startRadio(from: entry.track) } }
+                        if entry.track.isCatalogSong { Button("Start Radio") { session.startRadio(from: entry.track) } }
                     }
                     Button("Remove from Queue") { session.removeQueueEntries(ids) }
                     if ids.count == 1, let entry = session.queue.entries.first(where: { ids.contains($0.id) }) {
@@ -138,7 +138,7 @@ struct QueueView: View {
     private func queueRow(_ entry: QueueEntry, index: Int) -> some View {
         let hapticTarget = session.nativeQueueInteractionTarget
         return HStack(spacing: 10) {
-            ArtworkView(url: entry.track.artworkURL, size: 40, videoID: entry.track.id)
+            ArtworkView(url: entry.track.remoteArtworkURL, size: 40, videoID: entry.track.remoteArtworkVideoID)
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 5) {
                     Text(entry.track.title).fontWeight(entry.id == session.queue.currentEntryID ? .semibold : .regular)
@@ -166,7 +166,7 @@ struct QueueView: View {
         .help("\(entry.track.title) — \(entry.track.artist)")
         .accessibilityActions {
             Button("Play") { session.selectQueueEntry(entry.id) }
-            if entry.track.origin != .upload && entry.track.contentKind != .podcastEpisode { Button("Start Radio") { session.startRadio(from: entry.track) } }
+            if entry.track.isCatalogSong { Button("Start Radio") { session.startRadio(from: entry.track) } }
             if !isFiltering && index > 0 {
                 Button("Move Up") { moveEntry(entry.id, up: true, target: hapticTarget) }
             }

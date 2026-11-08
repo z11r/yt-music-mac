@@ -13,7 +13,8 @@ enum LibraryEditorRequest: Identifiable {
     case removeItems(playlist: MusicCollection, tracks: [Track], references: [PlaylistItemReference])
 
     func isEnabled(by capabilities: MusicLibraryEditCapabilities) -> Bool {
-        switch self {
+        guard tracks.allSatisfy(\.isCatalogSong) else { return false }
+        return switch self {
         case .editDescription: capabilities.playlistDescription
         case .editPrivacy: capabilities.playlistPrivacy
         default: capabilities.playlists
@@ -258,6 +259,7 @@ struct LibraryEditorView: View {
     }
 
     private var action: MusicLibraryEditAction? {
+        guard request.tracks.allSatisfy(\.isCatalogSong) else { return nil }
         switch request {
         case let .createPlaylist(tracks):
             guard !cleanedTitle.isEmpty else { return nil }
@@ -320,7 +322,7 @@ struct LibraryTrackActions: View {
     var showsSeparator = true
 
     var body: some View {
-        if !tracks.isEmpty && !tracks.contains(where: { $0.origin == .upload || $0.contentKind == .podcastEpisode }) &&
+        if !tracks.isEmpty && tracks.allSatisfy(\.isCatalogSong) &&
             (session.remoteLibraryEditingEnabled || (tracks.count == 1 && session.hasRatingControls)) {
             if showsSeparator { Divider() }
             if tracks.count == 1, let track = tracks.first {

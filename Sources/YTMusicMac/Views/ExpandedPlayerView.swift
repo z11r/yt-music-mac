@@ -8,8 +8,8 @@ struct ExpandedPlayerView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
-                ArtworkView(url: session.currentTrack?.artworkURL, size: 280,
-                            videoID: session.currentTrack?.id)
+                ArtworkView(url: session.currentTrack?.remoteArtworkURL, size: 280,
+                            videoID: session.currentTrack?.remoteArtworkVideoID)
                     .accessibilityHidden(true)
                 VStack(spacing: 8) {
                     Text(session.currentTrack?.title ?? AppLocalization.text("Choose a Song"))

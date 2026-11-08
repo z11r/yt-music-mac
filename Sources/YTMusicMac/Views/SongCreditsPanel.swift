@@ -8,7 +8,7 @@ struct SongCreditsAction: View {
 
     var body: some View {
         let generation = session.accountGeneration
-        if track.creditsReference != nil, track.origin != .upload, track.contentKind != .podcastEpisode, track.episode == nil {
+        if track.creditsReference != nil, track.isCatalogSong {
             Button("Song Credits") {
                 if session.openSongCredits(track: track, expectedAccountGeneration: generation) {
                     openWindow(id: "song-credits")

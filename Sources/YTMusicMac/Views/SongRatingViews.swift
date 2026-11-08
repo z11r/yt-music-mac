@@ -9,12 +9,12 @@ struct TrackRatingActions: View {
     var body: some View {
         let current = session.rating(for: track)
         let scope = session.libraryEditingScope
-        if track.origin != .upload && track.contentKind != .podcastEpisode && session.canEditRating(.liked) {
+        if track.isCatalogSong && session.canEditRating(.liked) {
             ratingButton(current == .liked ? AppLocalization.text("Remove Like") : AppLocalization.text("Like"),
                          symbol: current == .liked ? "hand.thumbsup.fill" : "hand.thumbsup",
                          target: current == .liked ? .neutral : .liked, scope: scope)
         }
-        if track.origin != .upload && track.contentKind != .podcastEpisode && session.canEditRating(.disliked) {
+        if track.isCatalogSong && session.canEditRating(.disliked) {
             ratingButton(current == .disliked ? AppLocalization.text("Remove Dislike") : AppLocalization.text("Dislike"),
                          symbol: current == .disliked ? "hand.thumbsdown.fill" : "hand.thumbsdown",
                          target: current == .disliked ? .neutral : .disliked, scope: scope)
@@ -24,7 +24,7 @@ struct TrackRatingActions: View {
     private func ratingButton(_ title: String, symbol: String, target: MusicRating, scope: UUID) -> some View {
         Button(title, systemImage: symbol) {
             Task {
-                guard session.libraryEditingScope == scope else { return }
+                guard track.isCatalogSong, session.libraryEditingScope == scope else { return }
                 _ = await session.performLibraryEdit(.setRating(videoID: track.id, rating: target))
             }
         }
@@ -38,7 +38,7 @@ struct TrackRatingMenu: View {
     let track: Track
 
     var body: some View {
-        if track.origin != .upload && track.contentKind != .podcastEpisode && session.hasRatingControls {
+        if track.isCatalogSong && session.hasRatingControls {
             let rating = session.rating(for: track)
             Menu { TrackRatingActions(session: session, track: track) } label: {
                 Label("Song Rating", systemImage: symbol(rating))

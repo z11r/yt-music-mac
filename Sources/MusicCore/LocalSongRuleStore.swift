@@ -108,7 +108,7 @@ public actor LocalSongRuleStore {
         var songs: [LocalSongRuleSong] = []
         var skipped = 0
         for track in tracks.prefix(maximumSongs) {
-            if Self.validVideoID(track.id), track.contentKind != .podcastEpisode && track.episode == nil { songs.append(LocalSongRuleSong(track: track)) }
+            if track.isServiceTrack, Self.validVideoID(track.id), track.contentKind != .podcastEpisode && track.episode == nil { songs.append(LocalSongRuleSong(track: track)) }
             else { skipped += 1 }
         }
         archive.snapshot = LocalSongRuleSnapshot(capturedAt: now(), sourceName: sourceName, songs: songs,

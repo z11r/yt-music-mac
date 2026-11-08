@@ -57,7 +57,7 @@ struct SongTransfer: Transferable, Sendable {
     private static func validated(_ tracks: [Track]) throws -> [Track] {
         guard !tracks.isEmpty, tracks.count <= maximumSongs else { throw TransferError.invalidPayload }
         return try tracks.map { original in
-            guard ScriptingInput.videoID(original.id) == original.id,
+            guard original.isServiceTrack, ScriptingInput.videoID(original.id) == original.id,
                   original.title.utf8.count <= 4_096, original.artist.utf8.count <= 4_096,
                   (original.album?.utf8.count ?? 0) <= 4_096,
                   original.duration.map({ $0.isFinite && (0...604_800).contains($0) }) ?? true,

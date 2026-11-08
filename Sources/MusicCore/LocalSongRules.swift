@@ -132,7 +132,7 @@ public struct LocalSongRuleSong: Identifiable, Codable, Equatable, Sendable {
         album = Self.knownText(track.album)
         duration = track.duration.flatMap { $0.isFinite && (0...604_800).contains($0) ? $0 : nil }
         isExplicit = track.isExplicit
-        origin = track.origin
+        origin = track.hasLocalAudioSource ? .localFile : track.origin
         contentKind = track.contentKind
     }
     private enum CodingKeys: String, CodingKey, CaseIterable { case id, videoID, title, artist, album, duration, isExplicit, origin, contentKind }

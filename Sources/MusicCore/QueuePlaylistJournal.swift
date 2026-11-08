@@ -2,12 +2,13 @@ import Darwin
 import Foundation
 
 public enum QueuePlaylistJournalError: Error, Equatable, LocalizedError, Sendable {
-    case invalidQueue, uploadedMusicUnsupported, podcastUnsupported, invalidTitle, invalidJournal, tooLarge, pendingExists, busy, stale, noPending
+    case invalidQueue, uploadedMusicUnsupported, localAudioUnsupported, podcastUnsupported, invalidTitle, invalidJournal, tooLarge, pendingExists, busy, stale, noPending
     case unsupportedVersion(Int)
     public var errorDescription: String? {
         switch self {
         case .invalidQueue: CoreLocalization.text("Review a queue of 1–10,000 songs with valid, distinct queue entries.")
         case .uploadedMusicUnsupported: CoreLocalization.text("Saving uploaded music to a service playlist is not verified. Save this queue locally instead.")
+        case .localAudioUnsupported: CoreLocalization.text("Local audio files cannot be added to a service playlist. Save this queue locally instead.")
         case .podcastUnsupported: CoreLocalization.text("Saving podcast episodes to a music playlist is not verified. Save this queue locally instead.")
         case .invalidTitle: CoreLocalization.text("Use a playlist title of 1–150 characters without angle brackets or control characters.")
         case .invalidJournal: CoreLocalization.text("The pending playlist-save record could not be read. Its file has been kept.")
@@ -62,6 +63,7 @@ public struct QueuePlaylistPlan: Codable, Equatable, Identifiable, Sendable {
         do { try snapshot.validate() } catch { throw QueuePlaylistJournalError.invalidQueue }
         guard (1...10_000).contains(snapshot.entries.count) else { throw QueuePlaylistJournalError.invalidQueue }
         return try snapshot.entries.map { entry in
+            guard !entry.track.hasLocalAudioSource else { throw QueuePlaylistJournalError.localAudioUnsupported }
             guard entry.track.origin != .upload else { throw QueuePlaylistJournalError.uploadedMusicUnsupported }
             guard entry.track.contentKind != .podcastEpisode, entry.track.episode == nil else { throw QueuePlaylistJournalError.podcastUnsupported }
             guard validVideoID(entry.track.id) else { throw QueuePlaylistJournalError.invalidQueue }

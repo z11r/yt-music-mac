@@ -34,7 +34,7 @@ enum ScriptedQueueResolver {
                     try Task.checkCancellation()
                     let page = try await search(id)
                     try Task.checkCancellation()
-                    guard let track = page.tracks.first(where: { $0.id == id }) else {
+                    guard let track = page.tracks.first(where: { $0.id == id && $0.isServiceTrack }) else {
                         throw AppScriptingError.trackNotFound
                     }
                     resolved[id] = track

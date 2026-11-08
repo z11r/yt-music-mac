@@ -11,12 +11,12 @@ struct TrackMetadataActions: View {
     var body: some View {
         EpisodeLocalStatusActions(track: track, session: session)
         SongCreditsAction(track: track, session: session)
-        if let album = track.albumReference {
+        if track.isServiceTrack, let album = track.albumReference {
             Button("Go to Album: \(album.title)") {
                 session.navigate(to: .collection(MusicCollection(id: album.id, kind: .album, title: album.title)))
             }
         }
-        ForEach(track.artistReferences ?? []) { artist in
+        ForEach(track.isServiceTrack ? (track.artistReferences ?? []) : []) { artist in
             Button("Go to Artist: \(artist.title)") {
                 session.navigate(to: .collection(MusicCollection(id: artist.id, kind: .artist, title: artist.title)))
             }
@@ -29,8 +29,8 @@ struct TrackMetadataMenu: View {
     let session: AppSession
 
     var body: some View {
-        let hasCredits = track.creditsReference != nil && track.origin != .upload && track.contentKind != .podcastEpisode && track.episode == nil
-        if track.contentKind == .podcastEpisode || hasCredits || track.albumReference != nil || !(track.artistReferences ?? []).isEmpty {
+        let hasCredits = track.creditsReference != nil && track.isCatalogSong
+        if track.isServiceTrack && (track.contentKind == .podcastEpisode || hasCredits || track.albumReference != nil || !(track.artistReferences ?? []).isEmpty) {
             Menu {
                 TrackMetadataActions(track: track, session: session)
             } label: {

@@ -202,6 +202,7 @@ final class WebPlayer: NSObject {
     }
 
     func load(track: Track, occurrence: PlaybackOccurrence, autoplay: Bool = true) {
+        guard track.isServiceTrack else { self.stop(); return }
         guard occurrence.trackID == track.id else {
             self.fail(AppLocalization.text("The selected song no longer matches the playback request."), reason: .selectionMismatch)
             return

@@ -1,7 +1,7 @@
 import Foundation
 
 /// Content provenance, separate from a playback video ID or queue occurrence.
-public enum MusicContentOrigin: String, Codable, Hashable, Sendable { case catalog, upload }
+public enum MusicContentOrigin: String, Codable, Hashable, Sendable { case catalog, upload, localFile }
 
 public struct Track: Identifiable, Codable, Hashable, Sendable {
     public let id: String
@@ -18,6 +18,8 @@ public struct Track: Identifiable, Codable, Hashable, Sendable {
     public var contentKind: MusicContentKind?
     public var episode: EpisodeMetadata?
     public var creditsReference: SongCreditsReference?
+    /// Opaque profile-library identity only. File locations and grants live in the local library.
+    public var localAudioReference: LocalAudioReference?
 
     public init(
         id: String,
@@ -32,7 +34,8 @@ public struct Track: Identifiable, Codable, Hashable, Sendable {
         origin: MusicContentOrigin? = nil,
         contentKind: MusicContentKind? = nil,
         episode: EpisodeMetadata? = nil,
-        creditsReference: SongCreditsReference? = nil
+        creditsReference: SongCreditsReference? = nil,
+        localAudioReference: LocalAudioReference? = nil
     ) {
         self.id = id
         self.title = title
@@ -47,6 +50,31 @@ public struct Track: Identifiable, Codable, Hashable, Sendable {
         self.contentKind = contentKind
         self.episode = episode
         self.creditsReference = creditsReference
+        self.localAudioReference = localAudioReference
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, title, artist, album, artworkURL, duration, albumReference, artistReferences, isExplicit
+        case origin, contentKind, episode, creditsReference, localAudioReference
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        id = try values.decode(String.self, forKey: .id)
+        title = try values.decode(String.self, forKey: .title)
+        artist = try values.decode(String.self, forKey: .artist)
+        album = try values.decodeIfPresent(String.self, forKey: .album)
+        artworkURL = try values.decodeIfPresent(URL.self, forKey: .artworkURL)
+        duration = try values.decodeIfPresent(TimeInterval.self, forKey: .duration)
+        albumReference = try values.decodeIfPresent(TrackMetadataReference.self, forKey: .albumReference)
+        artistReferences = try values.decodeIfPresent([TrackMetadataReference].self, forKey: .artistReferences)
+        isExplicit = try values.decodeIfPresent(Bool.self, forKey: .isExplicit)
+        origin = try values.decodeIfPresent(MusicContentOrigin.self, forKey: .origin)
+        contentKind = try values.decodeIfPresent(MusicContentKind.self, forKey: .contentKind)
+        episode = try values.decodeIfPresent(EpisodeMetadata.self, forKey: .episode)
+        creditsReference = try values.decodeIfPresent(SongCreditsReference.self, forKey: .creditsReference)
+        localAudioReference = try values.decodeIfPresent(LocalAudioReference.self, forKey: .localAudioReference)
+        try validateLocalAudioSource()
     }
 }
 

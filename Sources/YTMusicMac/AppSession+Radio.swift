@@ -55,7 +55,7 @@ extension AppSession {
     /// Replaces the queue with the song and plays it, then appends its radio when it arrives.
     func startRadio(from track: Track) {
         guard acceptsProfileActions else { return }
-        guard track.origin != .upload, track.contentKind != .podcastEpisode else { return }
+        guard track.isCatalogSong else { return }
         guard account.isSignedIn else { openAccount(); return }
         playTracks([track])
         guard queue.currentTrack?.id == track.id,
@@ -151,7 +151,7 @@ extension AppSession {
     // MARK: Requests
 
     private var autoplayAllowed: Bool {
-        currentTrack?.origin != .upload && currentTrack?.contentKind != .podcastEpisode && radio.autoplayEnabled && wantsPlayback && account.isSignedIn && !isSceneCheck &&
+        currentTrack?.isCatalogSong == true && radio.autoplayEnabled && wantsPlayback && account.isSignedIn && !isSceneCheck &&
             !sleepTimer.blocksAutoplay && !collectionPlayback.isLoading && !collectionPlayback.canRetry
     }
 

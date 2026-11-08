@@ -83,7 +83,7 @@ struct RadioQueueState<Continuation: Sendable> {
     mutating func prefetch(for queue: PlaybackQueue, account: UUID, autoplay: Bool) -> Request? {
         if waiting, queue.currentOccurrence != nil { waiting = false }
         guard autoplay, queue.repeatMode == .off, queue.currentOccurrence != nil,
-              let last = queue.entries.last, queue.currentEntryID == last.id else { return nil }
+              let last = queue.entries.last, last.track.isCatalogSong, queue.currentEntryID == last.id else { return nil }
         if let inFlight, inFlight.purpose == .collectionRadio || isCurrent(inFlight, queue: queue, account: account) { return nil }
         if let prefetched, isCurrent(prefetched.request, queue: queue, account: account) { return nil }
         if let failedPrefetch, isCurrent(failedPrefetch, queue: queue, account: account) { return nil }
@@ -109,7 +109,7 @@ struct RadioQueueState<Continuation: Sendable> {
 
     /// Start Radio from the song the queue now plays. Reuses a matching request already loading.
     mutating func startSongRadio(in queue: PlaybackQueue, account: UUID) -> Request? {
-        guard queue.currentOccurrence != nil, let seed = queue.currentEntry else { return nil }
+        guard queue.currentOccurrence != nil, let seed = queue.currentEntry, seed.track.isCatalogSong else { return nil }
         if var pending = inFlight, isCurrent(pending, queue: queue, account: account), pending.seedEntryID == seed.id,
            case let .related(track) = pending.source, track.id == seed.track.id {
             pending.purpose = .songRadio
@@ -192,12 +192,12 @@ struct RadioQueueState<Continuation: Sendable> {
     /// Songs not among the queue's recent entries, without repeats.
     static func newTracks(_ tracks: [Track], for queue: PlaybackQueue) -> [Track] {
         var seen = Set(queue.entries.suffix(recentLimit).map(\.track.id))
-        return tracks.filter { !$0.id.isEmpty && seen.insert($0.id).inserted }
+        return tracks.filter { $0.isCatalogSong && !$0.id.isEmpty && seen.insert($0.id).inserted }
     }
 
     private mutating func continueAtEnd(of queue: inout PlaybackQueue, account: UUID, autoplay: Bool) -> Outcome {
         guard autoplay, queue.repeatMode == .off, queue.currentOccurrence == nil,
-              let last = queue.entries.last, queue.currentEntryID == last.id else { return .stop(nil) }
+              let last = queue.entries.last, last.track.isCatalogSong, queue.currentEntryID == last.id else { return .stop(nil) }
         if let stored = prefetched, isCurrent(stored.request, queue: queue, account: account) {
             prefetched = nil
             guard !append(stored.batch, to: &queue, origin: stored.request.purpose == .autoplay ? .autoplay : .radio).isEmpty, let next = queue.next() else { return .stop(.nothingFound) }

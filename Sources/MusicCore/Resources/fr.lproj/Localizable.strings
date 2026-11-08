@@ -65,3 +65,5 @@
 "selection is missing from the queue" = "sélection absente de la file d’attente";
 "shuffle order does not match the queue" = "ordre aléatoire différent de la file d’attente";
 "unshuffled entries are out of order" = "éléments non mélangés dans un ordre incorrect";
+"Local audio files cannot be exported as service links. Save this queue locally instead." = "Les fichiers audio locaux ne peuvent pas être exportés sous forme de liens vers le service. Enregistrez plutôt cette file localement.";
+"Local audio files cannot be added to a service playlist. Save this queue locally instead." = "Les fichiers audio locaux ne peuvent pas être ajoutés à une playlist du service. Enregistrez plutôt cette file localement.";

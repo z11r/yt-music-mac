@@ -264,6 +264,12 @@ public struct PlaybackQueue: Sendable {
     public mutating func updateTrack(_ track: Track) {
         for index in self.entries.indices where self.entries[index].track.id == track.id {
             let prior = self.entries[index].track
+            // Service enrichment cannot erase a local source marker or change its library identity.
+            if prior.hasLocalAudioSource || track.hasLocalAudioSource {
+                guard prior.localAudioReference == track.localAudioReference,
+                      prior.origin == track.origin else { continue }
+                guard (try? track.validateLocalAudioSource()) != nil else { continue }
+            }
             if let old = prior.contentKind, let new = track.contentKind, old != new { continue }
             if let old = prior.episode?.identity.key, let new = track.episode?.identity.key, old != new { continue }
             var updated = track

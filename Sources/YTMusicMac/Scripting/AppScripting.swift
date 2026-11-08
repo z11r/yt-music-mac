@@ -65,7 +65,7 @@ enum ScriptedTrackResolver {
             group.addTask {
                 let page = try await search(videoID)
                 try Task.checkCancellation()
-                guard let track = page.tracks.first(where: { $0.id == videoID }) else { throw AppScriptingError.trackNotFound }
+                guard let track = page.tracks.first(where: { $0.id == videoID && $0.isServiceTrack }) else { throw AppScriptingError.trackNotFound }
                 return track
             }
             group.addTask {

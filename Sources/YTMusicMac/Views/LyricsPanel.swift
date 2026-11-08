@@ -11,6 +11,7 @@ struct LyricsPanel: View {
     }
 
     private var visibleState: LyricsSession.State {
+        if session.currentTrack?.hasLocalAudioSource == true { return .unavailable }
         guard session.lyrics.videoID == session.currentTrack?.id else {
             return session.currentTrack == nil ? .idle : .loading
         }
@@ -35,8 +36,9 @@ struct LyricsPanel: View {
             content.frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(minWidth: 430, idealWidth: 560, minHeight: 400, idealHeight: 620)
-        .task(id: Target(videoID: session.currentTrack?.id, accountScope: session.libraryEditingScope)) {
-            session.lyrics.load(videoID: session.currentTrack?.id)
+        .task(id: Target(videoID: session.currentTrack?.isServiceTrack == true ? session.currentTrack?.id : nil,
+                         accountScope: session.libraryEditingScope)) {
+            session.lyrics.load(track: session.currentTrack)
         }
         .onDisappear { session.lyrics.clear() }
     }

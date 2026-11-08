@@ -63,7 +63,7 @@ final class QueueRecommendations {
     static func supports(_ track: Track) -> Bool {
         let artist = track.artist.trimmingCharacters(in: .whitespacesAndNewlines)
         let title = track.title.trimmingCharacters(in: .whitespacesAndNewlines)
-        return track.contentKind == .song && track.episode == nil && track.origin != .upload &&
+        return track.isExplicitCatalogSong &&
             track.id.utf8.count == 11 && track.id.utf8.allSatisfy {
                 (65...90).contains($0) || (97...122).contains($0) || (48...57).contains($0) || $0 == 45 || $0 == 95
             } && !title.isEmpty && title != track.id && !artist.isEmpty &&

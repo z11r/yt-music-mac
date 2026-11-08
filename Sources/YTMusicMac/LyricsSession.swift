@@ -1,4 +1,5 @@
 import Foundation
+import MusicCore
 import Observation
 import YouTubeMusic
 
@@ -20,9 +21,16 @@ final class LyricsSession {
 
     init(fetch: @escaping @Sendable (String) async throws -> MusicLyrics) { self.fetch = fetch }
 
+    func load(track: Track?) {
+        guard let track else { clear(); return }
+        guard track.isServiceTrack else { clear(); state = .unavailable; return }
+        load(videoID: track.id)
+    }
+
     func load(videoID: String?) {
         clear()
         guard let videoID else { return }
+        guard !LocalAudioReference.isReservedTrackID(videoID) else { state = .unavailable; return }
         self.videoID = videoID
         state = .loading
         let request = generation

@@ -11,7 +11,7 @@ extension AppSession {
     func changeEpisodeLocalStatus(_ action: EpisodePlaybackSession.LocalStatusAction, track: Track,
                                   target: EpisodePlaybackSession.LocalStatusTarget, expectedAccountGeneration: UUID) -> Bool {
         guard acceptsProfileActions, account.isSignedIn, !account.isWorking, accountGeneration == expectedAccountGeneration,
-              track.contentKind == .podcastEpisode, track.origin != .upload, track.episode?.identity == target.episode else { return false }
+              track.contentKind == .podcastEpisode, track.isCatalogTrack, track.episode?.identity == target.episode else { return false }
         return episodePlayback.changeLocalStatus(action, target: target)
     }
 }
