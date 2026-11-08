@@ -86,7 +86,7 @@ struct MusicContentView: View {
 
     private var showsDiscoveryCategories: Bool {
         switch session.destination {
-        case .explore, .discovery: true
+        case .explore, .discovery, .chartCountry: true
         default: false
         }
     }

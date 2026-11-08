@@ -767,3 +767,7 @@
 "Open a new preview after changing accounts, playback, or queue entries." = "Ouvrez un nouvel aperçu après avoir changé de compte, de lecture ou d’éléments dans la file.";
 "Up to 20 songs from one radio page. Uploads, episodes, unknown music types, and songs already in this queue are excluded. Nothing is added until you choose Add Selected." = "Jusqu’à 20 titres d’une seule page de radio. La musique importée, les épisodes, les types inconnus et les titres déjà dans cette file sont exclus. Aucun ajout n’a lieu avant votre confirmation.";
 "Recommendations could not be loaded. Retry reads the same song's radio; your queue is unchanged." = "Impossible de charger les recommandations. Réessayer recharge la radio du même titre ; votre file est conservée.";
+"Chart country" = "Pays du classement";
+"Countries offered by YouTube Music for this chart page" = "Pays proposés par YouTube Music pour ce classement";
+"Global" = "Monde";
+"Charts" = "Classements";

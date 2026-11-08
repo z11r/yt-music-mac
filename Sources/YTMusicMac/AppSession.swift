@@ -10,10 +10,15 @@ enum MusicDestination: Hashable {
     case search(String)
     case collection(MusicCollection)
     case discovery(MusicDiscoveryCategory)
+    case chartCountry(MusicChartCountry)
     case browse(MusicBrowseReference)
     case uploads(MusicUploadCategory)
     case uploadSearch(String)
     case podcasts, podcastLibrary, savedEpisodes
+
+    var isChartDestination: Bool {
+        switch self { case .discovery(.charts), .chartCountry: true; default: false }
+    }
 
     var isUploadDestination: Bool {
         switch self {
@@ -39,6 +44,7 @@ enum MusicDestination: Hashable {
         case .savedEpisodes: AppLocalization.text("Saved Episodes")
         case let .collection(value): value.title
         case let .discovery(category): category.title
+        case .chartCountry: AppLocalization.text("Charts")
         case let .browse(reference): reference.title
         }
     }
@@ -132,6 +138,8 @@ final class AppSession {
     let lastFM: LastFMSession
     private(set) var destination: MusicDestination = .home
     private(set) var page: MusicPage?
+    private(set) var chartCountries: [MusicChartCountry] = []
+    private(set) var chartCountryLabel: String?
     private(set) var isLoading = false
     private(set) var hasFinishedStartup = false
     private(set) var isShuttingDown = false
@@ -377,6 +385,7 @@ final class AppSession {
             forwardHistory.removeAll()
         }
         destination = target
+        if !target.isChartDestination { chartCountries = []; chartCountryLabel = nil }
         canGoBack = !backHistory.isEmpty
         canGoForward = !forwardHistory.isEmpty
         collectionFilter = ""
@@ -403,9 +412,14 @@ final class AppSession {
                 if target == .library { spotlightSource = await self?.spotlight.beginSource() }
                 else { spotlightSource = nil }
                 let result: MusicPage
+                var chartResult: MusicChartsPage?
                 switch target {
                 case .home: result = try await client.home()
                 case .explore: result = try await client.explore()
+                case .discovery(.charts):
+                    let value = try await client.charts(); chartResult = value; result = value.page
+                case let .chartCountry(country):
+                    let value = try await client.charts(country: country); chartResult = value; result = value.page
                 case let .discovery(category): result = try await client.discovery(category)
                 case let .browse(reference): result = try await client.browse(reference)
                 case .library: result = try await client.library()
@@ -428,6 +442,10 @@ final class AppSession {
                 }
                 guard let self, !Task.isCancelled, self.pageGeneration == generation else { return }
                 self.page = result
+                if let chartResult {
+                    self.chartCountries = chartResult.countries
+                    self.chartCountryLabel = chartResult.selectedCountryLabel
+                }
                 self.songRulePageSource = songRuleSource
                 self.songRatings.observe(result.ratings, from: ratingsRead)
                 self.spotlightPageSource = spotlightSource
@@ -1070,6 +1088,7 @@ final class AppSession {
     }
 
     func signOut() async {
+        chartCountries = []; chartCountryLabel = nil
         episodeContinuation = nil
         cancelMusicLink()
         listenBrainz.bindAccount(nil)
@@ -1134,6 +1153,8 @@ final class AppSession {
     }
 
     private func accountChanged(replacedAccount: Bool) {
+        chartCountries = []; chartCountryLabel = nil
+        if case .chartCountry = destination { destination = .discovery(.charts) }
         episodeContinuation = replacedAccount ? nil : episodePlayback.continuationForRebind()
         cancelMusicLink(keepingPending: !links.isReady && !replacedAccount)
         spotlightPageSource = nil

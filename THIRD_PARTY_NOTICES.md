@@ -82,8 +82,8 @@ SOFTWARE.
 
 ## ytmusicapi
 
-Playlist description, privacy, occurrence reordering, album library status, and
-artist subscription request and response paths follow
+Playlist description, privacy, occurrence reordering, album library status,
+artist subscription, and chart country request and response paths follow
 [ytmusicapi](https://github.com/sigma67/ytmusicapi/tree/206d470bd857dde9e4c588170a23188037e03ad5)
 at commit `206d470bd857dde9e4c588170a23188037e03ad5` (version 1.12.3):
 
@@ -97,6 +97,7 @@ at commit `206d470bd857dde9e4c588170a23188037e03ad5` (version 1.12.3):
 - `ytmusicapi/parsers/uploads.py`
 - `ytmusicapi/parsers/search.py`
 - `ytmusicapi/parsers/library.py`
+- `ytmusicapi/mixins/charts.py`
 - `ytmusicapi/mixins/podcasts.py`
 - `ytmusicapi/parsers/podcasts.py`
 
