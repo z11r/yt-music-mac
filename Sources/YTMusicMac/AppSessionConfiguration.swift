@@ -32,6 +32,12 @@ struct AppSessionConfiguration {
     var commandGenerationGate: CommandGenerationGate? = nil
     var sponsorBlockClient: (any SponsorBlockProviding)? = nil
     var nativeHapticPerformer: (any NativeHapticPerforming)? = nil
+    var playbackOutputAdmission: PlaybackOutputAdmission? = nil
+    var enablesPlaybackOutput = false
+    var restoresWebAccount = false
+    var signOutWebAccount: ((WebSession) async -> Void)? = nil
+    var synchronizeAccountPage: ((WebSession, WKWebView) async -> Bool)? = nil
+    var localAudioResources: LocalAudioSessionResources? = nil
     var nativeHapticClock: @Sendable () -> TimeInterval = PlaybackOutputTime.monotonic
 
     static func withoutSystemMedia(_ source: Self) -> Self {
@@ -50,7 +56,7 @@ struct AppSessionConfiguration {
         let queueStore = directory.map {
             QueueStore(fileURL: $0.appendingPathComponent("queue.json"))
         }
-        return Self(preferences: preferences,
+        var result = Self(preferences: preferences,
                     dataStore: dataStore,
                     credentials: credentials, client: YouTubeMusicClient(sessions: credentials),
                     queueStore: queueStore,
@@ -74,6 +80,9 @@ struct AppSessionConfiguration {
                         api: LastFMAPI(transport: LastFMHTTPTransport())) },
                     streamingMetadataWriter: StreamingExportFile(), discordPresenceClient: DiscordPresenceClient(),
                     sponsorBlockClient: SponsorBlockClient(), nativeHapticPerformer: AppKitHapticPerformer())
+        result.enablesPlaybackOutput = true
+        result.restoresWebAccount = true
+        return result
     }
 
     static func sceneCheck(preferences: UserDefaults, transport: SceneCheckTransport) -> Self {

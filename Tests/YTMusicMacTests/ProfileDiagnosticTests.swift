@@ -150,7 +150,7 @@ struct ProfileDiagnosticTests {
         while !started { await Task.yield() }
         #expect(!settled)
         await transport.releaseCreate()
-        let report = try await checking.value; await settling.value
+        let report = try await checking.value; _ = await settling.value
         #expect(settled && report.status == .accessDenied && report.cleanup == .deleted)
         #expect(!report.cleanupNeeded)
         let requests = await transport.requests
@@ -169,7 +169,7 @@ struct ProfileDiagnosticTests {
         await transport.waitForCreate(); session.quiesceForProfileSwitch()
         let settling = Task { await session.settleForProfileSwitch() }
         await transport.releaseCreate()
-        let report = try await checking.value; await settling.value
+        let report = try await checking.value; _ = await settling.value
         #expect(report.status == .unconfirmed && report.cleanup == .unavailable && report.cleanupNeeded && report.uncertainOutcome)
         #expect(await session.playlistVerificationClient.hasPendingPlaylistEditCleanup())
         #expect(await transport.requests.count == 1)
@@ -189,7 +189,7 @@ struct ProfileDiagnosticTests {
         while !started { await Task.yield() }
         #expect(!settled)
         await transport.releaseSecondDelete()
-        #expect(try await recovery.value == .deleted); await settling.value
+        #expect(try await recovery.value == .deleted); _ = await settling.value
         let cleanupPending = await session.playlistVerificationClient.hasPendingPlaylistEditCleanup()
         #expect(settled && !cleanupPending)
         let requests = await transport.requests
@@ -210,7 +210,7 @@ struct ProfileDiagnosticTests {
         let settling = Task { await session.settleForProfileSwitch() }
         await gate.release()
         await #expect(throws: AppScriptingError.superseded) { try await checking.value }
-        await settling.value
+        _ = await settling.value
         #expect(await transport.requests.isEmpty)
         await session.shutdown()
     }

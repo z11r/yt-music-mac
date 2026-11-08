@@ -100,6 +100,28 @@ struct AppProfileRegistryTests {
 
 @MainActor @Suite("Local app profile ownership")
 struct AppProfileOwnerTests {
+    @Test func unconfirmedOutputNeverPreparesPersistsOrActivatesAnotherProfile() async throws {
+        let f = try ProfileOwnerFixture()
+        await f.owner.start(); f.events.clear()
+        let bytes = f.io.data, writes = f.io.writeCount
+        f.initial.settlement = .blocked(.unconfirmed)
+        await f.owner.switchTo(f.additional.id)
+        #expect(f.owner.current === f.initial && !f.initial.didShutdown && !f.initial.playing)
+        #expect(f.io.data == bytes && f.io.writeCount == writes)
+        #expect(f.owner.savedSelectionID == AppProfile.defaultID && f.owner.errorMessage != nil)
+        #expect(!f.owner.isSwitching)
+        #expect(f.events.values == ["unbind", "default.quiesce", "default.settle", "default.resumePaused", "bind", "default.startPaused"])
+    }
+
+    @Test func quitFinishesAfterABoundedBlockedOutputReceiptWithoutActivatingAnything() async throws {
+        let f = try ProfileOwnerFixture()
+        await f.owner.start(); f.events.clear()
+        f.initial.settlement = .blocked(.timedOut)
+        await f.owner.shutdown()
+        #expect(f.initial.didShutdown && !f.initial.playing)
+        #expect(!f.events.values.contains("activate") && !f.events.values.contains("default.resumePaused"))
+    }
+
     @Test func startupWaitsForSavedSelectionAndNeverStartsTheFallbackProfileFirst() async throws {
         let f = try ProfileOwnerFixture(selectedAdditional: true)
         #expect(f.owner.isLoading && !f.owner.accepts(f.owner.activationID))
@@ -278,12 +300,13 @@ private final class ProfileMemoryIO: AppProfileRegistryIO, @unchecked Sendable {
     var profile: AppProfile
     var playing = false, didShutdown = false
     let events: ProfileEvents
+    var settlement: PlaybackOutputSettlement = .quiet
     var onSettle: (() async -> Void)?
     var onStartPaused: (() async -> Void)?
     var label: String { profile.isDefault ? "default" : "A" }
     init(_ profile: AppProfile, events: ProfileEvents) { self.profile = profile; self.events = events }
     func quiesce() { playing = false; events.add(label + ".quiesce") }
-    func settle() async { events.add(label + ".settle"); await onSettle?() }
+    func settle() async -> PlaybackOutputSettlement { events.add(label + ".settle"); await onSettle?(); return settlement }
     func resumePausedOwnership() { precondition(!didShutdown); playing = false; events.add(label + ".resumePaused") }
     func shutdown() async { didShutdown = true; events.add(label + ".shutdown") }
     func startPaused() async { precondition(!didShutdown); playing = false; events.add(label + ".startPaused"); await onStartPaused?() }

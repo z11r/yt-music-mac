@@ -19,7 +19,7 @@ struct VideoPresentationMenu: View {
         } label: { Label("Video", systemImage: "play.rectangle") }
         .menuStyle(.borderlessButton).fixedSize().labelStyle(.iconOnly)
         .help("Video presentation options")
-        .disabled(session.currentTrack == nil)
+        .disabled(session.currentTrack?.isServiceTrack != true || session.player.activeKind != .web)
     }
 }
 

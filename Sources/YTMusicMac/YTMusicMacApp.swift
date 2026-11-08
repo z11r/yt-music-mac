@@ -38,6 +38,12 @@ struct YTMusicMacApp: App {
         }
         let sceneCheck = SceneCheckLaunch.isRequested ? SceneCheckDriver() : nil
         self.sceneCheck = sceneCheck
+        let directory = sceneCheck == nil ? try? AppIdentity.applicationSupportDirectory() : nil
+        let registry: any AppProfileRegistry = directory.map {
+            AppProfileRegistryStore(io: FileAppProfileRegistryIO(file: $0.appendingPathComponent("app-profiles.json")))
+        } ?? InitialOnlyAppProfileRegistry()
+        let outputAdmission = PlaybackOutputAdmission()
+        let localAudioReferences = LocalAudioReferenceUseRegistryPool()
         let initialConfiguration: AppSessionConfiguration
         if let sceneCheck {
             initialConfiguration = .sceneCheck(preferences: SceneCheckPreferences.current.defaults,
@@ -46,16 +52,21 @@ struct YTMusicMacApp: App {
             var configuration = AppSessionConfiguration.live()
             // Ownership is installed only after the registry has been read.
             configuration = AppSessionConfiguration.withoutSystemMedia(configuration)
+            configuration.playbackOutputAdmission = outputAdmission
+            if let directory,
+               let context = try? AppProfileContext(profile: .original, appIdentifier: AppIdentity.identifier,
+                   legacyDirectory: directory, legacyWebsiteDataIdentifier: AppIdentity.websiteDataIdentifier),
+               let references = try? localAudioReferences.registry(for: context) {
+                configuration.localAudioResources = LocalAudioSessionResources(context: context, registry: registry,
+                    root: directory, references: references)
+            }
             initialConfiguration = configuration
         }
         let initial = NativeAppProfileRuntime(profile: .original, configuration: initialConfiguration)
-        let directory = sceneCheck == nil ? try? AppIdentity.applicationSupportDirectory() : nil
-        let registry: any AppProfileRegistry = directory.map {
-            AppProfileRegistryStore(io: FileAppProfileRegistryIO(file: $0.appendingPathComponent("app-profiles.json")))
-        } ?? InitialOnlyAppProfileRegistry()
         let owner = AppProfileOwner(initial: initial, registry: registry, prepare: { profile, allowCreation in
             guard let directory, sceneCheck == nil else { throw AppProfileError.unavailable }
-            return try await NativeAppProfileFactory(legacyDirectory: directory, registry: registry).prepare(profile, allowCreation: allowCreation)
+            return try await NativeAppProfileFactory(legacyDirectory: directory, registry: registry, outputAdmission: outputAdmission,
+                localAudioReferences: localAudioReferences).prepare(profile, allowCreation: allowCreation)
         }, bind: { runtime, _ in
             AppScripting.session = sceneCheck == nil ? runtime?.session : nil
         })
@@ -120,6 +131,19 @@ struct YTMusicMacApp: App {
             surface { QueueView(session: session).frame(minWidth: 300, minHeight: 360) }
         }
         .defaultSize(width: 380, height: 640)
+        Window("Local Audio", id: "local-audio-library") {
+            surface {
+                if profiles.isLoading || profiles.isSwitching {
+                    ProgressView("Loading profile…")
+                } else if profiles.accepts(profiles.activationID), let library = session.localAudioLibrary {
+                    LocalAudioLibraryWindowContent(controller: library)
+                } else {
+                    ContentUnavailableView("Local audio is unavailable", systemImage: "music.note.house",
+                        description: Text("Local audio requires available storage for this profile."))
+                }
+            }
+        }
+        .defaultSize(width: 820, height: 660)
         Window("Build a Queue", id: "catalog-queue-builder") {
             surface { CatalogQueueBuilderView(session: session) }
         }
@@ -229,6 +253,9 @@ private struct PlayerWindowCommands: View {
             SongCreditsAction(track: track, session: session)
         }
         Button("Open Queue Window") { openWindow(id: "queue") }
+        Button("Open Local Audio…") {
+            if session.acceptsProfileActions { openWindow(id: "local-audio-library") }
+        }.disabled(session.localAudioLibrary == nil || !session.acceptsProfileActions)
         Button("Build a Queue from Searches…") {
             if session.acceptsProfileActions { openWindow(id: "catalog-queue-builder") }
         }

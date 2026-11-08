@@ -145,7 +145,7 @@ struct LibraryMetadataCacheTests {
     @Test func clearingMetadataPreservesProtectedDataAndMeasuresOnlyTheChosenAccount() async throws {
         let fixture = MetadataCacheFixture()
         defer { fixture.remove() }
-        let protected: [(String, Int)] = [("queue.json", 21), ("SavedQueues/\(fixture.first)/queues.json", 33),
+        let protected: [(String, Int)] = [("LocalAudio/library.json", 101), ("queue.json", 21), ("SavedQueues/\(fixture.first)/queues.json", 33),
             ("LocalCollections/\(fixture.first)/organization.json", 45),
             ("LocalSongRules/\(fixture.first)/song-rules.json", 51), ("episode-progress/\(fixture.first).json", 61),
             ("listenbrainz/\(fixture.first).json", 71), ("lastfm/\(fixture.first).json", 81),
@@ -160,6 +160,7 @@ struct LibraryMetadataCacheTests {
         try await cache.save(collections: fixture.collections, accountKey: fixture.first)
         let inventory = ProtectedStorageInventory(directoryURL: fixture.directory)
         let before = try await inventory.measure(accountKey: fixture.first)
+        #expect(before.localAudioBytes == 101)
         #expect(before.currentQueueBytes == 21 && before.namedQueueBytes == 33 && before.organizationBytes == 45)
         #expect(before.songRuleBytes == 51 && before.episodeProgressBytes == 61)
         #expect(before.listenBrainzBytes == 71 && before.lastFMBytes == 81 && before.pendingPlaylistBytes == 91)

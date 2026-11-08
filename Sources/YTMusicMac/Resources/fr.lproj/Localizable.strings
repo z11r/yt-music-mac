@@ -1023,3 +1023,31 @@
 "Your library matching “%@”" = "Votre bibliothèque correspondant à « %@ »";
 "Catalog · %@" = "Catalogue · %@";
 "Your Library · %@" = "Votre bibliothèque · %@";
+
+"Local Audio" = "Audio local";
+
+"Local audio is unavailable" = "L’audio local est indisponible";
+
+"Local audio requires available storage for this profile." = "L’audio local nécessite un espace de stockage disponible pour ce profil.";
+
+"Open Local Audio…" = "Ouvrir les fichiers audio locaux…";
+
+"Local audio library metadata" = "Métadonnées de la bibliothèque audio locale";
+
+"Playback could not confirm that the previous player stopped. Try again after playback stops." = "L’arrêt du lecteur précédent n’a pas pu être confirmé. Réessayez après l’arrêt de la lecture.";
+
+"The previous player has not confirmed that playback stopped. The profile has not changed." = "Le lecteur précédent n’a pas confirmé l’arrêt de la lecture. Le profil n’a pas changé.";
+
+"Sign in to play this service item, or select another queue entry." = "Connectez-vous pour lire cet élément du service, ou sélectionnez un autre élément dans la file.";
+
+"A saved queue is waiting for review." = "Une file enregistrée attend votre vérification.";
+
+"Review Saved Queue…" = "Vérifier la file enregistrée…";
+
+"Open the saved queue?" = "Ouvrir la file enregistrée ?";
+
+"Open Saved Queue" = "Ouvrir la file enregistrée";
+
+"The account that saved this queue could not be verified. Opening it replaces the current queue and keeps playback paused. Service entries may belong to another account." = "Le compte ayant enregistré cette file n’a pas pu être vérifié. Son ouverture remplace la file actuelle sans lancer la lecture. Les éléments du service peuvent appartenir à un autre compte.";
+
+"Loading profile…" = "Chargement du profil…";

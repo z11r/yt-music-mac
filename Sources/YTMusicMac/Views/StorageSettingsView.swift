@@ -61,6 +61,7 @@ struct StorageSettingsView: View {
                 }
                 if session.account.isSignedIn, let usage = session.storage.protectedUsage {
                     Section("Saved Data") {
+                        LabeledContent("Local audio library metadata", value: bytes(usage.localAudioBytes))
                         LabeledContent("Current queue", value: bytes(usage.currentQueueBytes))
                         LabeledContent("Named queues for this account", value: bytes(usage.namedQueueBytes))
                         LabeledContent("Local collection organization", value: bytes(usage.organizationBytes))

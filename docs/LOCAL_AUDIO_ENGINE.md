@@ -1,7 +1,7 @@
 # Local audio engine and resource ownership
 
 The local engine adapter owns one lazy AVPlayer and one current item. It has no
-queue, app session, service client or window. The app facade must supply an exact
+queue, app session, service client or window. The app facade supplies an exact
 bound output permit and a separately prepared local source before activation.
 Native playback, decoding and permission behavior still need runtime verification.
 

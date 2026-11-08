@@ -398,7 +398,7 @@ private final class DeletionMemoryIO: AppProfileRegistryIO, @unchecked Sendable 
     var profile: AppProfile = .original
     var quiesced = false, shutDown = false
     func quiesce() { quiesced = true }
-    func settle() async {}
+    func settle() async -> PlaybackOutputSettlement { .quiet }
     func resumePausedOwnership() {}
     func shutdown() async { shutDown = true }
     func startPaused() async {}

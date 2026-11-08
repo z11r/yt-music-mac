@@ -5,7 +5,7 @@ import Observation
 protocol AppProfileRuntime: AnyObject {
     var profile: AppProfile { get set }
     func quiesce()
-    func settle() async
+    func settle() async -> PlaybackOutputSettlement
     func resumePausedOwnership()
     func shutdown() async
     func startPaused() async
@@ -134,7 +134,7 @@ final class AppProfileOwner<Runtime: AppProfileRuntime> {
         await transition?.value
         if current !== initial { current.quiesce() }
         await deletion?.stopAndWait()
-        await current.settle()
+        _ = await current.settle()
         await current.shutdown()
     }
 
@@ -154,7 +154,17 @@ final class AppProfileOwner<Runtime: AppProfileRuntime> {
         let previous = current
         activationID = identifier(); bind(nil, activationID)
         previous.quiesce()
-        await previous.settle()
+        let output = await previous.settle()
+        guard output == .quiet else {
+            errorMessage = AppLocalization.text("The previous player has not confirmed that playback stopped. The profile has not changed.")
+            if !quitting {
+                previous.resumePausedOwnership()
+                bind(previous, activationID)
+                await previous.startPaused()
+            }
+            isSwitching = false
+            return
+        }
         do {
             var working = snapshot
             if persistPending { working = try await registry.save(staged, replacing: working.revision); install(working) }

@@ -8,6 +8,7 @@ struct QueueView: View {
     @State private var showsSavedQueues = false
     @State private var playlistReview: QueuePlaylistReviewRequest?
     @State private var showsRecommendations = false
+    @State private var retainedQueueReview: AppSession.RetainedQueueReview?
 
     private var isFiltering: Bool { !filter.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
     private var rows: [QueueDisplayRow] { QueuePresentation.rows(in: session.queue.entries, matching: filter) }
@@ -117,6 +118,14 @@ struct QueueView: View {
                                            description: Text("Try a different song, artist, or album."))
                 }
             }
+            if session.hasRetainedStartupQueue {
+                HStack {
+                    Text("A saved queue is waiting for review.").font(.caption).foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Review Saved Queue…") { retainedQueueReview = session.reviewRetainedStartupQueue() }
+                        .disabled(!session.account.isSignedIn || !session.acceptsProfileActions)
+                }.padding(8)
+            }
             if let message = session.queueError {
                 InlineMessage(message: message)
             }
@@ -127,6 +136,16 @@ struct QueueView: View {
         }
         .onChange(of: filter) {
             selection.formIntersection(visibleIDs)
+        }
+        .confirmationDialog("Open the saved queue?", isPresented: Binding(
+            get: { retainedQueueReview != nil }, set: { if !$0 { retainedQueueReview = nil } }), titleVisibility: .visible) {
+            Button("Open Saved Queue") {
+                if let review = retainedQueueReview { _ = session.openRetainedStartupQueue(review) }
+                retainedQueueReview = nil
+            }
+            Button("Cancel", role: .cancel) { retainedQueueReview = nil }
+        } message: {
+            Text("The account that saved this queue could not be verified. Opening it replaces the current queue and keeps playback paused. Service entries may belong to another account.")
         }
         .sheet(isPresented: $showsSavedQueues) { SavedQueuesView(session: session) }
         .sheet(item: $playlistReview) { QueuePlaylistSaveView(session: session, request: $0) }

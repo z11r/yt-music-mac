@@ -21,7 +21,12 @@ final class NativeAppProfileRuntime: AppProfileRuntime {
         notifications = SongChangeNotifier(session: session, preferences: configuration.preferences)
     }
     func quiesce() { notifications.stop(); session.quiesceForProfileSwitch() }
-    func settle() async { await notifications.waitForIdle(); await session.settleForProfileSwitch(); await ArtworkCache.shared.clearForProfileSwitch() }
+    func settle() async -> PlaybackOutputSettlement {
+        await notifications.waitForIdle()
+        let output = await session.settleForProfileSwitch()
+        await ArtworkCache.shared.clearForProfileSwitch()
+        return output
+    }
     func resumePausedOwnership() { session.resumePausedProfileOwnership() }
     func shutdown() async { notifications.stop(); await session.shutdown() }
     func startPaused() async {
@@ -34,6 +39,8 @@ final class NativeAppProfileRuntime: AppProfileRuntime {
 struct NativeAppProfileFactory {
     let legacyDirectory: URL
     let registry: any AppProfileRegistry
+    let outputAdmission: PlaybackOutputAdmission
+    let localAudioReferences: LocalAudioReferenceUseRegistryPool
     func prepare(_ profile: AppProfile, allowCreation: Bool) async throws -> PreparedAppProfile<NativeAppProfileRuntime> {
         let lease = try profile.isDefault ? nil : ProfileLifecycleLease(root: legacyDirectory, profileID: profile.id, exclusive: false)
         let latest = try await registry.load()
@@ -64,9 +71,12 @@ struct NativeAppProfileFactory {
         }
         let store = WKWebsiteDataStore(forIdentifier: context.websiteDataIdentifier)
         if let lease { ProfileStoreLeaseRetention.attach(lease, to: store) }
-        let configuration = AppSessionConfiguration.live(preferences: preferences,
+        var configuration = AppSessionConfiguration.live(preferences: preferences,
             dataStore: store,
             directory: context.dataDirectory, namespace: context.namespace, installsSystemMedia: false)
+        configuration.playbackOutputAdmission = outputAdmission
+        configuration.localAudioResources = LocalAudioSessionResources(context: context, registry: registry, root: legacyDirectory,
+            references: try localAudioReferences.registry(for: context))
         return PreparedAppProfile { NativeAppProfileRuntime(profile: profile, configuration: configuration) }
     }
 }

@@ -6,6 +6,7 @@ public enum ProtectedStorageInventoryError: Error, LocalizedError, Sendable {
 }
 
 public struct ProtectedStorageUsage: Equatable, Sendable {
+    public let localAudioBytes: Int
     public let currentQueueBytes: Int
     public let namedQueueBytes: Int
     public let organizationBytes: Int
@@ -23,7 +24,8 @@ public actor ProtectedStorageInventory {
     public func measure(accountKey: String) throws -> ProtectedStorageUsage {
         guard directoryURL.isFileURL else { throw QueuePersistenceError.invalidStorageURL }
         guard NamedQueueStore.acceptsAccountKey(accountKey) else { throw NamedQueueError.invalidAccount }
-        return try ProtectedStorageUsage(currentQueueBytes: size(["queue.json"]),
+        return try ProtectedStorageUsage(localAudioBytes: size(["LocalAudio", "library.json"]),
+            currentQueueBytes: size(["queue.json"]),
             namedQueueBytes: size(["SavedQueues", accountKey, "queues.json"]),
             organizationBytes: size(["LocalCollections", accountKey, "organization.json"]),
             songRuleBytes: size(["LocalSongRules", accountKey, "song-rules.json"]),

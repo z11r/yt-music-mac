@@ -1,10 +1,16 @@
-# Local audio foundation
+# Local audio files
 
-Local-file playback is incomplete. The source model, private library store,
-access contracts and service exclusions are implemented. A separate
-[engine adapter](LOCAL_AUDIO_ENGINE.md) adds native output and lifetime contracts,
-tested with fakes. The app facade, library screen and file chooser are separate
-integration work; no native playback success is established by these tests.
+Open **View → Open Local Audio…** to choose audio files, review their metadata,
+and save their locations in the current local profile. Select saved files and
+choose **Add to Queue** or **Play Selection**. Local files do not require a YouTube
+account. The existing app queue and transport own playback for both local files
+and service entries.
+
+The library, native AVFoundation adapter and app integration are implemented.
+Deterministic checks use fake output and file-access adapters; actual decoding,
+permissions and audible playback remain packaged-app acceptance checks.
+See the [library controls](LOCAL_AUDIO_LIBRARY.md) and
+[engine ownership](LOCAL_AUDIO_ENGINE.md) for their contracts.
 
 ## Source and queue identity
 
@@ -21,9 +27,12 @@ read format 2.
 
 The `isWhollyLocal` validation entry point requires the expected profile, a valid
 library and every referenced file record. It does not resolve files or change the
-snapshot. Startup integration must preserve mixed queues on disk while service
-session restoration is blocked. It must not silently filter service entries or
-clear the sign-out fence to restore local files.
+snapshot. While service session restoration is blocked, startup restores only a
+validated, wholly local queue and leaves it paused. Mixed or service queues stay
+unexposed on disk. After signing in, **Review Saved Queue…** offers an explicit,
+paused restore: the account that saved an older archive cannot be verified.
+Confirming replaces the current queue. Adding a new queue intentionally replaces
+the retained archive; startup never silently filters service entries.
 
 ## Private library and file access
 
@@ -47,7 +56,7 @@ Resolution requests no dialogs, volume mounting or implicit security access;
 the resource lease owns each explicit access interval. The access adapter rejects
 remote URLs, nonlocal volumes, aliases, symlinks, packages, unavailable cloud
 files, unreadable files and changed file identities. Stale grants need an explicit
-future Locate or Reauthorize action. No directory scanning, audio copying,
+Locate or Reauthorize action. No directory scanning, audio copying,
 automatic downloads, file deletion or alternate-path search is provided. Encoded
 NUL bytes are refused before file inspection; a literal percent filename remains
 valid.
@@ -76,17 +85,40 @@ queue counts. Native drag and
 portable service-link export refuse local tracks. Local artwork uses the native
 placeholder, without a remote URL or YouTube thumbnail fallback.
 
-## Remaining verification
+## Transport and profile changes
 
-Deterministic tests use temporary stores and fake bookmark, file and preparation
-adapters. They establish migration, bounds, privacy exclusions, revision checks,
-balanced leases and cancellation admission. They do not establish decoding,
-audible playback, file grants or permission persistence.
+Each session owns one source-neutral transport. Starting another source first
+revokes the old engine's controls, closes media presentations and awaits a bounded
+native quiet receipt. Uncertain output blocks the replacement and profile
+activation. A late quiet receipt releases admission; it never restarts an old
+request. Web playback uses a fresh engine after permanent retirement.
 
-The remaining implementation needs one shared transport owner with an awaited
-WebKit retirement barrier, local engine integration, signed-out source handling,
-native selection/recovery UI and profile shutdown wiring. Apple supports
-[local media in AVPlayer](https://developer.apple.com/documentation/avfoundation/avplayer),
-but actual format decoding, chooser permissions, relaunch access, seek/end/repeat,
-device interruptions and service-to-local handoff still require synthetic asset
-checks and packaged-app verification on Intel/macOS 14 and Apple silicon.
+Pause, volume, seek, queue navigation, repeat and sleep timers use the same queue
+occurrences. Local preparation installs paused and checks the latest user intent
+before starting. Canceled file or asset work retains its actual resource leases,
+with bounded operation counts; it cannot hold Web output after the old engine is
+confirmed quiet. Local metadata and bookmarks survive sign-out. Explicit sign-out
+still clears the current queue and rejects new actions until cleanup completes.
+An automatic transition to an unavailable service entry stops and offers sign-in
+or another queue selection.
+
+Account pages remain media-suspended. Authentication reads require the exact
+current source and view. Profile changes revoke old window actions immediately,
+drain accepted library writes and check output quiet before activation. Actual
+file grants and shared profile ownership remain retained through readers, assets
+and detached native items. An inactive profile containing local-library data
+remains subject to the existing conservative profile-cleanup limits.
+
+## Verification
+
+Deterministic tests use temporary metadata stores, fake file access and native
+output drivers, and controlled Web acknowledgments. They cover migration, bounds,
+service exclusions, revision conflicts, retained grants, stale events,
+cancellation, preparation-time controls, output handoff, sign-out and paused
+startup restoration. Controlled hosts remain empty and nonpersistent; these
+checks do not play media or establish native decoding or file permissions.
+
+Apple supports [local media in AVPlayer](https://developer.apple.com/documentation/avfoundation/avplayer).
+Actual supported formats, chooser permissions, relaunch access, seek/end/repeat,
+device interruptions, accessibility, long playback and service-to-local handoff
+still require packaged-app verification on Intel/macOS 14 and Apple silicon.

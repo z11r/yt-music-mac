@@ -1023,3 +1023,31 @@
 "Your library matching “%@”" = "Your library matching “%@”";
 "Catalog · %@" = "Catalog · %@";
 "Your Library · %@" = "Your Library · %@";
+
+"Local Audio" = "Local Audio";
+
+"Local audio is unavailable" = "Local audio is unavailable";
+
+"Local audio requires available storage for this profile." = "Local audio requires available storage for this profile.";
+
+"Open Local Audio…" = "Open Local Audio…";
+
+"Local audio library metadata" = "Local audio library metadata";
+
+"Playback could not confirm that the previous player stopped. Try again after playback stops." = "Playback could not confirm that the previous player stopped. Try again after playback stops.";
+
+"The previous player has not confirmed that playback stopped. The profile has not changed." = "The previous player has not confirmed that playback stopped. The profile has not changed.";
+
+"Sign in to play this service item, or select another queue entry." = "Sign in to play this service item, or select another queue entry.";
+
+"A saved queue is waiting for review." = "A saved queue is waiting for review.";
+
+"Review Saved Queue…" = "Review Saved Queue…";
+
+"Open the saved queue?" = "Open the saved queue?";
+
+"Open Saved Queue" = "Open Saved Queue";
+
+"The account that saved this queue could not be verified. Opening it replaces the current queue and keeps playback paused. Service entries may belong to another account." = "The account that saved this queue could not be verified. Opening it replaces the current queue and keeps playback paused. Service entries may belong to another account.";
+
+"Loading profile…" = "Loading profile…";

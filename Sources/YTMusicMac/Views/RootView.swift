@@ -233,6 +233,7 @@ private struct EmbeddedPlayerPanel: View {
             let embedded = session.showsWebPlayer && !player.videoPresentation.isWindowPresented
             PlaybackWebViewAnchor(presentation: player.videoPresentation,
                                   generation: player.webViewGeneration, visible: session.showsWebPlayer)
+                .id(player.webHostIdentity)
                 .frame(width: embedded ? nil : 1, height: embedded ? 320 : 1)
                 .opacity(embedded ? 1 : 0)
                 .allowsHitTesting(embedded)

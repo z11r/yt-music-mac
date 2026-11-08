@@ -121,7 +121,7 @@ struct PlaybackResumeState {
 final class AppSession {
     let links = MusicLinkState()
     let account: WebSession
-    let player: WebPlayer
+    let player: PlaybackController
     /// Radio requests and how the queue continues past its end. See AppSession+Radio.swift.
     let radio: RadioSession
     let sleepTimer = SleepTimer()
@@ -145,6 +145,8 @@ final class AppSession {
     let discordPresence: DiscordPresenceSession?
     let sponsorBlock: SponsorBlockSession?
     let nativeHaptics: NativeHaptics
+    private(set) var localAudioLibrary: LocalAudioLibraryController<LocalAudioQueueTarget>?
+    @ObservationIgnored let localAudioResources: LocalAudioSessionResources?
     private(set) var destination: MusicDestination = .home
     private(set) var page: MusicPage?
     private(set) var chartCountries: [MusicChartCountry] = []
@@ -152,9 +154,10 @@ final class AppSession {
     private(set) var isLoading = false
     private(set) var hasFinishedStartup = false
     private(set) var isShuttingDown = false
+    private(set) var isSigningOut = false
     private(set) var isProfileSuspended = false
     private(set) var persistsLocalQueue = true
-    var acceptsProfileActions: Bool { !isProfileSuspended && !isShuttingDown }
+    var acceptsProfileActions: Bool { !isProfileSuspended && !isShuttingDown && !isSigningOut }
     private(set) var isLoadingMore = false
     private(set) var pageError: String?
     private(set) var queueError: String?
@@ -195,18 +198,30 @@ final class AppSession {
     /// Separate, retained client for explicitly requested disposable checks only.
     @ObservationIgnored let playlistVerificationClient: YouTubeMusicClient
     @ObservationIgnored private let queueStore: QueueStore?
+    @ObservationIgnored private let restoresWebAccount: Bool
+    @ObservationIgnored private let signOutWebAccount: (WebSession) async -> Void
+    @ObservationIgnored private let synchronizeAccountPage: (WebSession, WKWebView) async -> Bool
     @ObservationIgnored let preferences: UserDefaults
     @ObservationIgnored let isSceneCheck: Bool
+    @ObservationIgnored let playbackProfileGeneration = UUID()
     @ObservationIgnored private var started = false
     @ObservationIgnored var wantsPlayback = false { didSet { recommendations.discardIfStale() } }
     @ObservationIgnored private(set) var pageTask: Task<Void, Never>?
     @ObservationIgnored private let queuePersistenceGate = LocalPersistenceGate()
     @ObservationIgnored private var saveTask: Task<Void, Never>?
     @ObservationIgnored private var pageGeneration = UUID()
-    @ObservationIgnored var accountGeneration = UUID() { didSet { recommendations.cancel(); credits.clear(); commandReview.invalidate(); revokeSearchContext() } }
+    @ObservationIgnored var accountGeneration = UUID() { didSet {
+        recommendations.cancel(); credits.clear(); commandReview.invalidate(); revokeSearchContext()
+        localAudioLibrary?.quiesce()
+        preserveTransportPosition()
+        player.invalidateOwner()
+        renewLocalAudioLibraryOwnership()
+    } }
     @ObservationIgnored private var backHistory: [MusicDestination] = []
     @ObservationIgnored private var forwardHistory: [MusicDestination] = []
     @ObservationIgnored private var resumeState = PlaybackResumeState()
+    private var retainedStartupQueue: QueueSnapshot?
+    @ObservationIgnored private var retainedQueueReviewID: UUID?
     @ObservationIgnored private var volumeState = VolumeState()
     @ObservationIgnored private var systemMedia: SystemMediaControls?
     @ObservationIgnored private let sessionOperations = ProfileOperationFence()
@@ -223,6 +238,10 @@ final class AppSession {
     @ObservationIgnored private var songRulePageSource: LocalSongSourceIdentity?
 
     init(configuration: AppSessionConfiguration = .live()) {
+        signOutWebAccount = configuration.signOutWebAccount ?? { await $0.signOut() }
+        synchronizeAccountPage = configuration.synchronizeAccountPage ?? { await $0.synchronize(from: $1) }
+        restoresWebAccount = configuration.restoresWebAccount
+        localAudioResources = configuration.localAudioResources
         preferences = configuration.preferences
         nativeHaptics = NativeHaptics(preferences: configuration.preferences, performer: configuration.nativeHapticPerformer,
             monotonic: configuration.nativeHapticClock)
@@ -277,7 +296,9 @@ final class AppSession {
         }, fetch: { [client = configuration.client] reference, scope in
             try await client.songCredits(reference, expectedScope: scope)
         })
-        player = WebPlayer(dataStore: configuration.dataStore)
+        player = PlaybackController(dataStore: configuration.dataStore,
+            admission: configuration.playbackOutputAdmission ?? PlaybackOutputAdmission(),
+            outputIsEnabled: configuration.enablesPlaybackOutput, local: configuration.localAudioResources?.playback)
         queueStore = configuration.queueStore
         queueError = configuration.queueStorageError
         sponsorBlock?.currentContext = { [weak self] in self?.sponsorBlockContext }
@@ -286,6 +307,11 @@ final class AppSession {
             guard let self, self.sponsorBlockContext == context else { return false }
             return await self.seekSponsorBlockSection(section, context: context)
         }
+        player.owner = { [weak self] in
+            guard let self, self.acceptsProfileActions else { return nil }
+            return .init(profile: self.playbackProfileGeneration, account: self.accountGeneration)
+        }
+        player.acceptsOccurrence = { [weak self] in self?.queue.accepts($0) == true }
         episodePlayback.rateController = player
         player.onEpisodeRates = { [weak self] occurrence, snapshot in
             guard let self, self.acceptsProfileActions, self.queue.accepts(occurrence), self.account.isSignedIn else { return }
@@ -349,9 +375,12 @@ final class AppSession {
             self.saveQueue()
         }
         player.onPageReady = { [weak self] view in
+            guard let self else { return }
+            let generation = self.accountGeneration
             Task { [weak self, weak view] in
-                guard let self, self.acceptsProfileActions, let view else { return }
-                await self.account.synchronize(from: view)
+                guard let self, self.acceptsProfileActions, let view, self.accountGeneration == generation,
+                      self.player.canReadAccountContext(from: view) else { return }
+                _ = await self.synchronizeAccountPage(self.account, view)
             }
         }
         player.onSessionRestoreFailed = { [weak account] in account?.sessionRestoreFailed() }
@@ -380,12 +409,38 @@ final class AppSession {
             guard let self, self.showsAccount else { return }
             self.closeAccount()
         }
+        configureLocalAudioLibrary()
         if configuration.installsSystemMedia { systemMedia = SystemMediaControls(session: self) }
         if isSceneCheck {
             started = true
             hasFinishedStartup = true
             page = SceneCheckFixture.page
         }
+    }
+
+    struct RetainedQueueReview: Identifiable {
+        let id: UUID
+        let account: UUID
+        let queueRevision: QueueRevision
+    }
+    var hasRetainedStartupQueue: Bool { retainedStartupQueue != nil }
+    func reviewRetainedStartupQueue() -> RetainedQueueReview? {
+        guard acceptsProfileActions, account.isSignedIn, retainedStartupQueue != nil else { return nil }
+        let id = UUID(); retainedQueueReviewID = id
+        return .init(id: id, account: accountGeneration, queueRevision: queue.revision)
+    }
+    func openRetainedStartupQueue(_ review: RetainedQueueReview) -> Bool {
+        guard acceptsProfileActions, account.isSignedIn, accountGeneration == review.account,
+              queue.revision == review.queueRevision, retainedQueueReviewID == review.id,
+              let snapshot = retainedStartupQueue else { return false }
+        retainedQueueReviewID = nil
+        do { try restoreSavedQueueSnapshot(snapshot); return true }
+        catch { queueError = AppLocalization.text("This saved queue could not be opened. The current queue has been kept."); return false }
+    }
+
+    func installLocalAudioLibrary(_ controller: LocalAudioLibraryController<LocalAudioQueueTarget>) {
+        guard localAudioLibrary == nil else { return }
+        localAudioLibrary = controller
     }
 
     /// Exercises observable queue state without issuing playback or account requests.
@@ -442,13 +497,30 @@ final class AppSession {
         defer { hasFinishedStartup = true }
         spotlight.start()
         let restoreGeneration = accountGeneration
-        if let queueStore, persistsLocalQueue, !preferences.bool(forKey: "sessionRestoreBlocked") {
+        if let queueStore, persistsLocalQueue {
             do {
                 if let saved = try await queueStore.load(),
-                   acceptsProfileActions, accountGeneration == restoreGeneration, queue.isEmpty,
-                   !preferences.bool(forKey: "sessionRestoreBlocked") {
-                    queue = try PlaybackQueue(snapshot: saved)
-                    resumeState.restore(saved)
+                   acceptsProfileActions, accountGeneration == restoreGeneration, queue.isEmpty {
+                    if preferences.bool(forKey: "sessionRestoreBlocked") {
+                        // A mixed snapshot remains on disk until a confirmed
+                        // review or an explicit queue edit replaces it.
+                        retainedStartupQueue = saved
+                        if !saved.entries.isEmpty, saved.entries.allSatisfy({ $0.track.hasLocalAudioSource }),
+                           let resources = localAudioResources {
+                            let authorization = LocalAudioIOAuthorization(profileStorageID: resources.context.websiteDataIdentifier) { [weak self] in
+                                guard let self else { return false }
+                                return self.acceptsProfileActions && self.accountGeneration == restoreGeneration && self.queue.isEmpty
+                            }
+                            if let library = try await loadStartupLocalLibrary(resources, authorization: authorization),
+                               try saved.isWhollyLocal(in: library, expectedProfileID: resources.context.websiteDataIdentifier),
+                               acceptsProfileActions, accountGeneration == restoreGeneration, queue.isEmpty {
+                                queue = try PlaybackQueue(snapshot: saved); resumeState.restore(saved)
+                                retainedStartupQueue = nil
+                            }
+                        }
+                    } else {
+                        queue = try PlaybackQueue(snapshot: saved); resumeState.restore(saved)
+                    }
                 }
             } catch { queueError = AppLocalization.text("The saved queue could not be restored. You can start a new queue.") }
         }
@@ -457,9 +529,23 @@ final class AppSession {
         setVolume(volume)
         systemMedia?.refresh()
         navigate(to: .home, recordHistory: false)
-        await account.restore { [player, account] in
-            player.restoreSessionPage { await account.synchronize(from: $0) }
+        if restoresWebAccount {
+            await account.restore { [weak self] in
+                guard let self, self.acceptsProfileActions, self.accountGeneration == restoreGeneration else { return false }
+                return self.player.restoreSessionPage { [weak self] view in
+                    guard let self, self.acceptsProfileActions, self.accountGeneration == restoreGeneration,
+                          self.player.canReadAccountContext(from: view) else { return false }
+                    return await self.synchronizeAccountPage(self.account, view)
+                }
+            }
         }
+    }
+
+    private func loadStartupLocalLibrary(_ resources: LocalAudioSessionResources,
+                                         authorization: LocalAudioIOAuthorization) async throws -> LocalAudioLibraryDocument? {
+        guard sessionOperations.begin() else { throw CancellationError() }
+        defer { sessionOperations.end() }
+        return try await resources.loadLibrary(authorization: authorization)
     }
 
     func navigate(to target: MusicDestination, recordHistory: Bool = true) {
@@ -934,10 +1020,11 @@ final class AppSession {
         collectionPlayback.cancel()
         scriptingPlayGeneration = UUID()
         guard !tracks.isEmpty, tracks.indices.contains(index) else { return }
-        guard account.isSignedIn else { openAccount(); return }
+        guard tracks[index].hasLocalAudioSource || account.isSignedIn else { openAccount(); return }
         cancelPendingCollectionRadio()
         sleepTimer.allowPlayback()
         wantsPlayback = true
+        retainedStartupQueue = nil
         request(queue.replace(with: tracks, startAt: index, origin: origin))
     }
 
@@ -950,7 +1037,7 @@ final class AppSession {
         collectionPlayback.cancel()
         scriptingPlayGeneration = UUID()
         guard !queue.isEmpty else { return }
-        guard account.isSignedIn else { openAccount(); return }
+        guard currentTrack?.hasLocalAudioSource == true || account.isSignedIn else { openAccount(); return }
         cancelPendingCollectionRadio()
         sleepTimer.allowPlayback()
         wantsPlayback = true
@@ -958,7 +1045,7 @@ final class AppSession {
             request(pendingEpisodeOccurrence)
             return
         }
-        if queue.currentOccurrence == nil {
+        if queue.currentOccurrence == nil || !player.canResume(queue.currentOccurrence) {
             let position = resumeState.position(for: queue, playerPosition: player.clock.position)
             request(queue.beginPlayback(), resumingAt: position, listeningIntent: .continuation)
         }
@@ -1065,7 +1152,7 @@ final class AppSession {
         guard acceptsProfileActions else { return }
         collectionPlayback.cancel()
         scriptingPlayGeneration = UUID()
-        guard account.isSignedIn else { openAccount(); return }
+        guard currentTrack?.hasLocalAudioSource == true || account.isSignedIn else { openAccount(); return }
         cancelPendingCollectionRadio()
         sleepTimer.allowPlayback()
         let position = resumeState.position(for: queue, playerPosition: player.clock.position)
@@ -1077,20 +1164,21 @@ final class AppSession {
         guard acceptsProfileActions else { return }
         collectionPlayback.cancel()
         scriptingPlayGeneration = UUID()
-        guard account.isSignedIn else { openAccount(); return }
+        guard queue.entries.first(where: { $0.id == id })?.track.hasLocalAudioSource == true || account.isSignedIn else { openAccount(); return }
         cancelPendingCollectionRadio()
         sleepTimer.allowPlayback()
         wantsPlayback = true
         request(queue.select(entryID: id))
     }
-    func playNext(_ tracks: [Track]) { guard acceptsProfileActions else { return }; collectionPlayback.cancel(); queue.playNext(tracks); saveQueue() }
-    func addToQueue(_ tracks: [Track]) { guard acceptsProfileActions else { return }; collectionPlayback.cancel(); queue.append(tracks); saveQueue() }
+    func playNext(_ tracks: [Track]) { guard acceptsProfileActions, !tracks.isEmpty else { return }; retainedStartupQueue = nil; collectionPlayback.cancel(); queue.playNext(tracks); saveQueue() }
+    func addToQueue(_ tracks: [Track]) { guard acceptsProfileActions, !tracks.isEmpty else { return }; retainedStartupQueue = nil; collectionPlayback.cancel(); queue.append(tracks); saveQueue() }
     func removeQueueEntries(_ ids: Set<UUID>) {
         guard acceptsProfileActions else { return }
         collectionPlayback.cancel()
         scriptingPlayGeneration = UUID()
         let previous = queue.currentOccurrence
         wantsPlayback = player.playbackIntent
+        if queue.entries.contains(where: { ids.contains($0.id) }) { retainedStartupQueue = nil }
         queue.remove(entryIDs: ids)
         reconcileQueue(previous: previous)
     }
@@ -1139,6 +1227,7 @@ final class AppSession {
         collectionPlayback.cancel()
         cancelMusicLink()
         let restored = try PlaybackQueue(snapshot: snapshot)
+        retainedStartupQueue = nil
         scriptingPlayGeneration = UUID()
         cancelRadio()
         sleepTimer.cancel()
@@ -1185,8 +1274,13 @@ final class AppSession {
         discordPresence?.interrupt()
         sponsorBlock?.interrupt()
         guard let occurrence, let track = queue.currentTrack else { episodePlayback.clearPlayback(); return }
-        sleepTimer.bind(to: occurrence)
         if position > 0 { resumeState.begin(occurrence, recovering: position) }
+        guard track.hasLocalAudioSource || account.isSignedIn else {
+            player.refuseServiceItem(); wantsPlayback = false; episodePlayback.clearPlayback()
+            saveQueue(); systemMedia?.refresh(); return
+        }
+        if track.hasLocalAudioSource { showsWebPlayer = false }
+        sleepTimer.bind(to: occurrence)
         if track.contentKind == .podcastEpisode, episodePlayback.isLoading {
             let generation = accountGeneration
             let intent = wantsPlayback
@@ -1332,7 +1426,8 @@ final class AppSession {
 
     func signOut() async {
         guard acceptsProfileActions, sessionOperations.begin() else { return }
-        defer { sessionOperations.end() }
+        isSigningOut = true
+        defer { isSigningOut = false; sessionOperations.end() }
         quickCommands.invalidate(); quickCommandProfile = nil
         chartCountries = []; chartCountryLabel = nil
         player.invalidateEpisodeRateControl()
@@ -1344,6 +1439,7 @@ final class AppSession {
         listenBrainz.bindAccount(nil)
         lastFM.bindAccount(nil)
         episodeStartTask?.cancel(); episodeStartTask = nil; pendingEpisodeOccurrence = nil
+        retainedStartupQueue = nil
         let progressFlush = episodePlayback.detachAccount()
         collectionPlayback.cancel()
         accountGeneration = UUID()
@@ -1379,13 +1475,15 @@ final class AppSession {
         await streamingExport?.waitForIdle()
         await discordPresence?.waitForIdle()
         await sponsorBlock?.waitForIdle()
-        await account.signOut()
+        await signOutWebAccount(account)
         do { try await queueStore?.clear() }
         catch { queueError = AppLocalization.text("The saved queue could not be removed. Try signing out again.") }
         showsAccount = false
         backHistory.removeAll()
         forwardHistory.removeAll()
         searchText = ""
+        isSigningOut = false
+        renewLocalAudioLibraryOwnership()
         navigate(to: .home, recordHistory: false)
         systemMedia?.refresh()
     }
@@ -1479,7 +1577,7 @@ final class AppSession {
 
     func saveQueue() {
         if acceptsProfileActions { prepareQueueContinuation() }
-        guard started, persistsLocalQueue, let queueStore else { return }
+        guard started, persistsLocalQueue, retainedStartupQueue == nil, let queueStore else { return }
         let permission = queuePersistenceGate.token
         let gate = queuePersistenceGate
         let previousTask = saveTask
@@ -1508,11 +1606,18 @@ final class AppSession {
         systemMedia = SystemMediaControls(session: self)
     }
 
+    private func preserveTransportPosition() {
+        guard let occurrence = queue.currentOccurrence else { return }
+        let position = resumeState.position(for: queue, playerPosition: player.clock.position)
+        resumeState.begin(occurrence, recovering: position)
+    }
+
     /// Reversible until the owner has prepared and durably selected its replacement.
     func quiesceForProfileSwitch() {
         guard !isProfileSuspended else { return }
         isProfileSuspended = true
         commandReview.invalidate()
+        localAudioLibrary?.quiesce()
         credits.clear()
         quickCommands.invalidate(); quickCommandProfile = nil
         streamingExport?.quiesce(); discordPresence?.quiesce(); sponsorBlock?.quiesce()
@@ -1532,12 +1637,13 @@ final class AppSession {
         spotlight.quiesce()
         savedQueues.profileOperations.quiesce(); localCollections.profileOperations.quiesce()
         songRules.profileOperations.quiesce(); storage.profileOperations.quiesce()
-        wantsPlayback = false; player.pause()
-        player.videoPresentation.close()
+        preserveTransportPosition()
+        wantsPlayback = false; player.quiesce()
         saveQueue()
     }
 
-    func settleForProfileSwitch() async {
+    @discardableResult func settleForProfileSwitch() async -> PlaybackOutputSettlement {
+        await localAudioLibrary?.waitForIdle()
         await commandReview.waitForIdle()
         await sessionOperations.waitForIdle()
         await pageTask?.value
@@ -1550,11 +1656,14 @@ final class AppSession {
         await spotlight.waitForIdle(); await queuePlaylistSave.waitForIdle()
         await savedQueues.profileOperations.waitForIdle(); await localCollections.profileOperations.waitForIdle()
         await songRules.profileOperations.waitForIdle(); await storage.profileOperations.waitForIdle()
+        return await player.settleOutput()
     }
 
     func resumePausedProfileOwnership() {
         guard isProfileSuspended, !isShuttingDown else { return }
         isProfileSuspended = false
+        player.resumePausedOwnership()
+        if let owner = localAudioLibraryOwner { localAudioLibrary?.resume(owner: owner) }
         sessionOperations.resume()
         savedQueues.profileOperations.resume(); localCollections.profileOperations.resume()
         songRules.profileOperations.resume(); storage.profileOperations.resume()

@@ -2,8 +2,9 @@
 
 The local library controller and reusable native window content support explicit
 file selection, review, saving, removal and reauthorization. They do not require a
-YouTube account. App-session factories, the app window and playback transport are
-separate integration points; this component does not create a player.
+YouTube account. The app session owns this controller; **View → Open Local Audio…**
+opens its profile-bound window. Queue actions use the app's shared transport;
+this controller does not create a player.
 
 Choose Files accepts 1–100 files for one review. Each file must pass local-file,
 identity and unprotected audio checks. Titles, artists and albums come from the
@@ -18,7 +19,9 @@ review leaves no new library records.
 
 Locate or Reauthorize requires selecting the same volume and file identity. It
 can replace access information for that record without changing queue references
-or starting playback. A different file must be imported as a new record. The
+or starting playback. A different file must be imported as a new record.
+Identity matching compares filesystem volume and file identifiers, without
+fingerprinting the recording; review its metadata before saving. The
 controller never searches by filename, adopts a foreign library reference or
 falls back to a service recording.
 
@@ -39,9 +42,10 @@ there is no automatic write retry.
 
 Closing the window or changing its owner revokes pickers, drafts and future work.
 Accepted operations retain their original profile resources until their actual
-read or write settles. Integration must drain these operations before replacing
-the profile owner. The same profile must reuse its reference-use registry across
-reactivation while old grants remain alive.
+read or write settles. Profile replacement drains accepted library operations.
+The same profile reuses its reference-use registry across reactivation while old
+grants remain alive. A restored window waits for the selected profile to finish
+loading before reading its library.
 
 Add to Queue and Play Selection pass validated local tracks to an injected
 transport callback with its captured queue target. Acceptance means the request
