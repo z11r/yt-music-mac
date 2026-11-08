@@ -267,7 +267,9 @@ final class MusicExtendedLibraryEditTests: XCTestCase {
 
     func testShelvesCannotGrantAnotherCollectionsControls() throws {
         let data = response(["contents": ["sectionListRenderer": ["contents": [["musicShelfRenderer": [
-            "contents": [["musicImmersiveHeaderRenderer": ["subscriptionButton": ["subscribeButtonRenderer": [
+            "contents": [["musicTwoRowItemRenderer": ["title": ["runs": [["text": "Song"]]],
+                "navigationEndpoint": ["watchEndpoint": ["videoId": "song"]]]],
+                ["musicImmersiveHeaderRenderer": ["subscriptionButton": ["subscribeButtonRenderer": [
                 "channelId": "UCtarget", "subscribed": true,
             ]]], "likeButtonRenderer": ["target": ["playlistId": "OLAKtarget"], "likeStatus": "LIKE"]]],
         ]]]]]]).data
