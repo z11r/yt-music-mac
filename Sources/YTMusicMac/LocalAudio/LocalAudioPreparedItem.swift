@@ -50,15 +50,19 @@ import MusicCore
         var lease: LocalAudioResourceLease?
         var prepared: (any LocalAudioPreparedSource)?
         do {
-            try authorization.check(); try track.validateLocalAudioSource()
+            try authorization.check()
+            guard resumePosition.isFinite, resumePosition >= 0 else { throw LocalAudioPlaybackIssue.seekFailed }
+            try track.validateLocalAudioSource()
             guard scope.engine == .local, let reference = track.localAudioReference, reference.libraryID == expectedLibraryID,
                   scope.occurrence.trackID == track.id else { throw LocalAudioPlaybackIssue.stale }
             let acquired = try await access.acquire(reference, expectedLibraryID: expectedLibraryID, authorization: authorization)
             lease = acquired; try authorization.check()
             let asset = try await assets.prepare(acquired)
             prepared = asset; try authorization.check()
+            guard asset.duration.isFinite, (0.001...604_800).contains(asset.duration) else { throw LocalAudioPlaybackIssue.unsupported }
+            let position = min(resumePosition, asset.duration)
             return .success(try LocalAudioPreparedItem(scope: scope, track: track, source: asset,
-                authorization: authorization, resumePosition: resumePosition))
+                authorization: authorization, resumePosition: position))
         } catch {
             prepared?.release(); lease?.release()
             return .failure(.sanitizing(error))
