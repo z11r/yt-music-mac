@@ -84,6 +84,27 @@ public struct PlaybackQueue: Sendable {
         return selected.map { self.requestPlayback(of: $0) }
     }
 
+    /// Starts an entire collection in service order or with every entry shuffled,
+    /// including the first one. Turning shuffle off restores the service order.
+    @discardableResult
+    public mutating func replaceForPlayback(with tracks: [Track], shuffled: Bool) -> PlaybackOccurrence? {
+        var generator = SystemRandomNumberGenerator()
+        return self.replaceForPlayback(with: tracks, shuffled: shuffled, using: &generator)
+    }
+
+    @discardableResult
+    public mutating func replaceForPlayback<R: RandomNumberGenerator>(with tracks: [Track], shuffled: Bool,
+                                                                    using generator: inout R) -> PlaybackOccurrence? {
+        self.rememberEdit()
+        self.entries = tracks.filter { !$0.id.isEmpty }.map { QueueEntry(track: $0) }
+        self.unshuffledOrder = self.entries.map(\.id)
+        self.isShuffled = shuffled
+        if shuffled { self.entries.shuffle(using: &generator) }
+        self.currentEntryID = self.entries.first?.id
+        self.currentOccurrence = nil
+        return self.entries.first.map { self.requestPlayback(of: $0) }
+    }
+
     @discardableResult
     public mutating func select(entryID: UUID) -> PlaybackOccurrence? {
         guard let entry = self.entries.first(where: { $0.id == entryID }) else { return nil }

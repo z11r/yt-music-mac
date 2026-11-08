@@ -281,11 +281,13 @@ private struct CollectionTracksView: View {
                     collectionHeading.frame(maxWidth: .infinity, alignment: .leading)
                 }
                 HStack {
-                    Button("Play", systemImage: "play.fill") { session.playTracks(session.visibleTracks) }
-                        .buttonStyle(.borderedProminent).disabled(rows.isEmpty)
-                    Button("Add to Queue", systemImage: "text.badge.plus") {
-                        session.addToQueue(session.visibleTracks)
-                    }.disabled(rows.isEmpty)
+                    Button("Play All", systemImage: "play.fill") { session.performCollectionAction(.play) }
+                        .buttonStyle(.borderedProminent)
+                        .help("Load every page and play the entire collection in order")
+                    Button("Shuffle All", systemImage: "shuffle") { session.performCollectionAction(.shuffle) }
+                        .help("Load every page and shuffle the entire collection")
+                    Button("Add All to Queue", systemImage: "text.badge.plus") { session.performCollectionAction(.append) }
+                        .help("Load every page and add the entire collection to the queue")
                     if case let .collection(collection) = session.destination, collection.radioPlaylistID != nil {
                         Button("Start Radio", systemImage: "dot.radiowaves.left.and.right") {
                             session.startRadio(from: collection)
@@ -293,10 +295,20 @@ private struct CollectionTracksView: View {
                     }
                     playlistActions
                 }
+                .disabled((allTracks.isEmpty && page.continuation == nil) || session.isLoadingMore || session.collectionPlayback.isLoading)
+                CollectionPlaybackStatus(session: session)
                 HStack {
                     TextField("Filter this collection", text: $session.collectionFilter)
                         .textFieldStyle(.roundedBorder).frame(maxWidth: 290)
                         .accessibilityLabel("Filter this collection")
+                    if !session.collectionFilter.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        Menu("Loaded Matches") {
+                            Button("Play Loaded Matches") { session.playTracks(session.visibleTracks) }
+                            Button("Add Loaded Matches to Queue") { session.addToQueue(session.visibleTracks) }
+                        }
+                        .disabled(rows.isEmpty)
+                        .help("Use matching songs from the pages already loaded")
+                    }
                     Spacer()
                     Menu {
                         Button("Play Selected") { session.playTracks(selectedTracks) }
@@ -309,6 +321,10 @@ private struct CollectionTracksView: View {
                     }
                     .labelStyle(.iconOnly).menuStyle(.borderlessButton).fixedSize()
                     .disabled(selection.isEmpty).help("Actions for selected songs")
+                }
+                if page.continuation != nil {
+                    Text("Filtering searches the \(allTracks.count) loaded songs. Play All, Shuffle All, and Add All to Queue include the remaining pages.")
+                        .font(.caption).foregroundStyle(.secondary)
                 }
             }
             .padding(24)
@@ -408,7 +424,30 @@ private struct CollectionTracksView: View {
             if case let .collection(value) = session.destination, let subtitle = value.subtitle {
                 Text(subtitle).foregroundStyle(.secondary).lineLimit(2)
             }
-            Text("\(session.visibleTracks.count) songs").foregroundStyle(.secondary)
+            Text(page.continuation == nil ? "\(allTracks.count) songs" : "\(allTracks.count) songs loaded")
+                .foregroundStyle(.secondary)
+        }
+    }
+}
+
+private struct CollectionPlaybackStatus: View {
+    let session: AppSession
+
+    var body: some View {
+        let operation = session.collectionPlayback
+        if operation.isLoading {
+            HStack {
+                ProgressView().controlSize(.small)
+                Text("Loading all songs… \(operation.loadedTrackCount) loaded")
+                    .font(.callout).foregroundStyle(.secondary)
+                Button("Cancel", action: operation.cancel)
+            }
+        } else if let message = operation.errorMessage {
+            HStack {
+                Text(message).font(.callout).foregroundStyle(.secondary)
+                if operation.canRetry { Button("Try Again") { operation.retry() } }
+                Button("Dismiss", action: operation.cancel)
+            }
         }
     }
 }
@@ -427,6 +466,7 @@ private struct PaginationView: View {
             } else if session.page?.continuation != nil {
                 Button("Load More", action: session.loadMore)
                     .frame(maxWidth: .infinity)
+                    .disabled(session.collectionPlayback.isLoading)
             }
         }
     }

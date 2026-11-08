@@ -98,6 +98,7 @@ final class AppSession {
     let radio: RadioSession
     let sleepTimer = SleepTimer()
     var queue = PlaybackQueue()
+    let collectionPlayback: CollectionPlayback
     private(set) var destination: MusicDestination = .home
     private(set) var page: MusicPage?
     private(set) var isLoading = false
@@ -154,6 +155,7 @@ final class AppSession {
         searchSuggestions = SearchSuggestions { [client = configuration.client] text in
             try await client.searchSuggestions(for: text)
         }
+        collectionPlayback = CollectionPlayback { [client = configuration.client] in try await client.nextPage($0) }
         player = WebPlayer(dataStore: configuration.dataStore)
         queueStore = configuration.queueStore
         queueError = configuration.queueStorageError
@@ -251,6 +253,7 @@ final class AppSession {
     }
 
     func navigate(to target: MusicDestination, recordHistory: Bool = true) {
+        collectionPlayback.cancel()
         if recordHistory, target != destination {
             backHistory.append(destination)
             if backHistory.count > 50 { backHistory.removeFirst() }
@@ -318,7 +321,39 @@ final class AppSession {
 
     func reload() { navigate(to: destination, recordHistory: false) }
 
+    /// Every collection action snapshots its scope and commits only while that
+    /// account, destination, and queue are still current.
+    @discardableResult
+    func performCollectionAction(_ action: CollectionPlaybackAction) -> Task<Void, Never>? {
+        guard let page, !isLoadingMore else { return nil }
+        guard action == .append || account.isSignedIn else { openAccount(); return nil }
+        let pageScope = pageGeneration
+        let accountScope = accountGeneration
+        let queueState = queue.snapshot()
+        let occurrence = queue.currentOccurrence
+        let playbackIntent = wantsPlayback
+        return collectionPlayback.start(page: page, action: action, isCurrent: { [weak self] in
+            guard let self else { return false }
+            return self.pageGeneration == pageScope && self.accountGeneration == accountScope &&
+                self.queue.snapshot() == queueState && self.queue.currentOccurrence == occurrence &&
+                self.wantsPlayback == playbackIntent
+        }, commit: { [weak self] complete, action in
+            guard let self else { return }
+            self.page = complete
+            self.pageError = nil
+            switch action {
+            case .append:
+                self.addToQueue(complete.tracks)
+            case .play, .shuffle:
+                self.scriptingPlayGeneration = UUID()
+                self.wantsPlayback = true
+                self.request(self.queue.replaceForPlayback(with: complete.tracks, shuffled: action == .shuffle))
+            }
+        })
+    }
+
     func loadMore() {
+        collectionPlayback.cancel()
         guard let initial = page, let continuation = initial.continuation, !isLoadingMore else { return }
         isLoadingMore = true
         pageError = nil
@@ -485,6 +520,7 @@ final class AppSession {
     }
 
     func playTracks(_ tracks: [Track], startingAt index: Int = 0) {
+        collectionPlayback.cancel()
         scriptingPlayGeneration = UUID()
         guard !tracks.isEmpty, tracks.indices.contains(index) else { return }
         guard account.isSignedIn else { openAccount(); return }
@@ -499,6 +535,7 @@ final class AppSession {
     }
 
     func play() {
+        collectionPlayback.cancel()
         scriptingPlayGeneration = UUID()
         guard !queue.isEmpty else { return }
         guard account.isSignedIn else { openAccount(); return }
@@ -515,6 +552,7 @@ final class AppSession {
     }
 
     func pause() {
+        collectionPlayback.cancel()
         scriptingPlayGeneration = UUID()
         cancelPendingCollectionRadio()
         wantsPlayback = false
@@ -524,12 +562,14 @@ final class AppSession {
     }
 
     func next() {
+        collectionPlayback.cancel()
         scriptingPlayGeneration = UUID()
         cancelPendingCollectionRadio()
         request(queue.next())
     }
 
     func previous() {
+        collectionPlayback.cancel()
         scriptingPlayGeneration = UUID()
         cancelPendingCollectionRadio()
         if player.clock.position > 3 { seek(to: 0) }
@@ -537,6 +577,7 @@ final class AppSession {
     }
 
     func seek(to value: TimeInterval) {
+        collectionPlayback.cancel()
         guard value.isFinite, value >= 0 else { return }
         cancelPendingCollectionRadio()
         resumeState.clear()
@@ -552,6 +593,7 @@ final class AppSession {
 
     func toggleMute() { setVolume(volumeState.toggledVolume(from: player.volume)) }
     func retryPlayback() {
+        collectionPlayback.cancel()
         scriptingPlayGeneration = UUID()
         guard account.isSignedIn else { openAccount(); return }
         cancelPendingCollectionRadio()
@@ -562,6 +604,7 @@ final class AppSession {
     }
 
     func selectQueueEntry(_ id: UUID) {
+        collectionPlayback.cancel()
         scriptingPlayGeneration = UUID()
         guard account.isSignedIn else { openAccount(); return }
         cancelPendingCollectionRadio()
@@ -569,9 +612,10 @@ final class AppSession {
         wantsPlayback = true
         request(queue.select(entryID: id))
     }
-    func playNext(_ tracks: [Track]) { queue.playNext(tracks); saveQueue() }
-    func addToQueue(_ tracks: [Track]) { queue.append(tracks); saveQueue() }
+    func playNext(_ tracks: [Track]) { collectionPlayback.cancel(); queue.playNext(tracks); saveQueue() }
+    func addToQueue(_ tracks: [Track]) { collectionPlayback.cancel(); queue.append(tracks); saveQueue() }
     func removeQueueEntries(_ ids: Set<UUID>) {
+        collectionPlayback.cancel()
         scriptingPlayGeneration = UUID()
         let previous = queue.currentOccurrence
         wantsPlayback = player.playbackIntent
@@ -579,18 +623,21 @@ final class AppSession {
         reconcileQueue(previous: previous)
     }
     func moveQueueEntries(from offsets: IndexSet, to destination: Int) {
+        collectionPlayback.cancel()
         queue.move(fromOffsets: offsets, toOffset: destination)
         saveQueue()
     }
     func undoQueueEdit() {
+        collectionPlayback.cancel()
         scriptingPlayGeneration = UUID()
         let previous = queue.currentOccurrence
         wantsPlayback = player.playbackIntent
         queue.undo()
         reconcileQueue(previous: previous)
     }
-    func toggleShuffle() { queue.setShuffle(!queue.isShuffled); saveQueue() }
+    func toggleShuffle() { collectionPlayback.cancel(); queue.setShuffle(!queue.isShuffled); saveQueue() }
     func cycleRepeat() {
+        collectionPlayback.cancel()
         switch queue.repeatMode {
         case .off: queue.repeatMode = .all
         case .all: queue.repeatMode = .one
@@ -600,6 +647,7 @@ final class AppSession {
     }
 
     func setRepeatMode(_ mode: RepeatMode) {
+        collectionPlayback.cancel()
         queue.repeatMode = mode
         saveQueue()
     }
@@ -652,6 +700,7 @@ final class AppSession {
 
     func signOut() async {
         cancelMusicLink()
+        collectionPlayback.cancel()
         accountGeneration = UUID()
         searchSuggestions.close()
         searchHistory.clear()
@@ -681,6 +730,7 @@ final class AppSession {
     private func accountChanged(replacedAccount: Bool) {
         cancelMusicLink()
         sleepTimer.cancel()
+        collectionPlayback.cancel()
         accountGeneration = UUID()
         searchSuggestions.close()
         searchHistory.clear()
@@ -727,6 +777,7 @@ final class AppSession {
 
     func shutdown() async {
         cancelMusicLink()
+        collectionPlayback.cancel()
         scriptingPlayGeneration = UUID()
         sleepTimer.cancel()
         cancelRadio()
