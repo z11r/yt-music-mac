@@ -97,33 +97,10 @@ context permits it; typing a space in a text field or activating a focused contr
 must still work. Do not install a global keyboard hook for ordinary app shortcuts.
 [Keyboards](https://developer.apple.com/design/human-interface-guidelines/keyboards)
 
-### Keyboard shortcuts
-
-The shortcuts follow Music and Kaset. Each one is a menu item, so the menus show
-it and it runs the same action as the player bar, menu bar, and Control Center.
-
-| Shortcut | Action | Menu |
-| --- | --- | --- |
-| Space | Play or pause | Playback |
-| ⌘→ | Next song | Playback |
-| ⌘← | Previous song, or restart after 3 seconds | Playback |
-| ⌘↑ / ⌘↓ | Volume up or down by 10% | Playback |
-| ⌘1 – ⌘4 | Home, Explore, Library, Liked Songs | View |
-| ⌘F | Search | Edit |
-| ⇧⌘U | Show or hide the queue | View |
-| ⇧⌘M | Show the mini-player | View |
-
-⌘M, ⌘W, ⌘Q, ⌘H, and ⌘, keep their standard meanings. The app follows the key
-window's first responder. While a text field, text view, or web page has focus,
-Space and the ⌘-arrow shortcuts leave the menu and go to that view: Space types a
-space and ⌘-arrows move the insertion point. While a button or segmented control
-has focus, Space activates it and the ⌘-arrow shortcuts still control playback.
-Choosing a Playback menu item with the pointer always runs it.
-
-Keyboard navigation can also focus controls that SwiftUI draws itself, such as
-the album and song cards. AppKit does not report those as the first responder, so
-Space may still toggle playback there; this needs a check with Keyboard navigation
-turned on.
+The [shortcut reference](KEYBOARD_SHORTCUTS.md) lists the implemented bindings.
+Playback commands follow the key window's first responder and yield to text
+editing, focused buttons, sheets, and web content. The same session actions serve
+the menus, player controls, and macOS media keys.
 
 Use native buttons, sliders, lists, and menus. Give icon buttons explicit labels
 and state, keep focus indicators visible, and expose track title and artist as one

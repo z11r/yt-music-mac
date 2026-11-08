@@ -20,6 +20,12 @@ struct PlaybackCommands: Commands {
             Button("Previous Song") { keyboardFocus.run(.previousSong, action: session.previous) }
                 .keyboardShortcut(shortcut(.previousSong))
                 .disabled(session.currentTrack == nil)
+            Button("Skip Forward 10 Seconds") { keyboardFocus.run(.seekForward) { session.seekBy(10) } }
+                .keyboardShortcut(shortcut(.seekForward))
+                .disabled(!session.canSeek)
+            Button("Skip Backward 10 Seconds") { keyboardFocus.run(.seekBackward) { session.seekBy(-10) } }
+                .keyboardShortcut(shortcut(.seekBackward))
+                .disabled(!session.canSeek)
             Divider()
             Button("Volume Up") { keyboardFocus.run(.volumeUp, action: session.increaseVolume) }
                 .keyboardShortcut(shortcut(.volumeUp))
@@ -27,8 +33,14 @@ struct PlaybackCommands: Commands {
                 .keyboardShortcut(shortcut(.volumeDown))
             Button(session.player.volume == 0 ? "Unmute" : "Mute", action: session.toggleMute)
             Divider()
-            Button(session.queue.isShuffled ? "Turn Shuffle Off" : "Turn Shuffle On") { session.toggleShuffle() }
-            Button("Repeat: \(session.queue.repeatMode.rawValue.capitalized)") { session.cycleRepeat() }
+            Button(session.queue.isShuffled ? "Turn Shuffle Off" : "Turn Shuffle On") {
+                keyboardFocus.run(.shuffle, action: session.toggleShuffle)
+            }
+            .keyboardShortcut(shortcut(.shuffle))
+            Button("Repeat: \(session.queue.repeatMode.rawValue.capitalized)") {
+                keyboardFocus.run(.repeatMode, action: session.cycleRepeat)
+            }
+            .keyboardShortcut(shortcut(.repeatMode))
             Divider()
             Button("Undo Queue Edit") { session.undoQueueEdit() }.disabled(!session.queue.canUndo)
         }

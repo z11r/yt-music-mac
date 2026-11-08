@@ -5,19 +5,27 @@ import WebKit
 
 /// Playback commands bound to keys that text editing and focused controls also use.
 enum PlaybackShortcut: CaseIterable, Sendable {
-    case playPause, nextSong, previousSong, volumeUp, volumeDown
+    case playPause, nextSong, previousSong, seekForward, seekBackward, volumeUp, volumeDown, shuffle, repeatMode
 
     var key: KeyEquivalent {
         switch self {
         case .playPause: .space
-        case .nextSong: .rightArrow
-        case .previousSong: .leftArrow
+        case .nextSong, .seekForward: .rightArrow
+        case .previousSong, .seekBackward: .leftArrow
         case .volumeUp: .upArrow
         case .volumeDown: .downArrow
+        case .shuffle: "s"
+        case .repeatMode: "r"
         }
     }
 
-    var modifiers: EventModifiers { self == .playPause ? [] : .command }
+    var modifiers: EventModifiers {
+        switch self {
+        case .playPause: []
+        case .seekForward, .seekBackward: [.command, .option]
+        default: .command
+        }
+    }
 
     /// The shortcut a menu item shows and responds to, or nil while the
     /// focused view needs the key for itself.
@@ -26,7 +34,11 @@ enum PlaybackShortcut: CaseIterable, Sendable {
     }
 
     func isAvailable(for focus: KeyboardFocus) -> Bool {
-        self == .playPause ? !focus.usesSpace : !focus.usesCommandArrows
+        switch self {
+        case .playPause: !focus.usesSpace
+        case .shuffle, .repeatMode: !focus.usesCommandLetters
+        default: !focus.usesCommandArrows
+        }
     }
 
     /// Whether a key press is this shortcut. A menu click or an accessibility
@@ -36,8 +48,12 @@ enum PlaybackShortcut: CaseIterable, Sendable {
         case .playPause: (" ", [])
         case .nextSong: (KeyInput.character(NSRightArrowFunctionKey), .command)
         case .previousSong: (KeyInput.character(NSLeftArrowFunctionKey), .command)
+        case .seekForward: (KeyInput.character(NSRightArrowFunctionKey), [.command, .option])
+        case .seekBackward: (KeyInput.character(NSLeftArrowFunctionKey), [.command, .option])
         case .volumeUp: (KeyInput.character(NSUpArrowFunctionKey), .command)
         case .volumeDown: (KeyInput.character(NSDownArrowFunctionKey), .command)
+        case .shuffle: ("s", .command)
+        case .repeatMode: ("r", .command)
         }
         return input.characters == expected.0 && input.modifiers == expected.1
     }
@@ -75,25 +91,31 @@ struct KeyboardFocus: Equatable, Sendable {
     var usesSpace = false
     /// Moving the insertion point or selection with Command and an arrow key.
     var usesCommandArrows = false
+    /// Web pages and sheets can have commands of their own, such as reload.
+    var usesCommandLetters = false
 
     static let none = KeyboardFocus()
     static let textInput = KeyboardFocus(usesSpace: true, usesCommandArrows: true)
     static let control = KeyboardFocus(usesSpace: true, usesCommandArrows: false)
     static let selectableText = KeyboardFocus(usesSpace: false, usesCommandArrows: true)
+    static let webContent = KeyboardFocus(usesSpace: true, usesCommandArrows: true, usesCommandLetters: true)
 
     @MainActor
     init(_ responder: NSResponder?) {
         self = Self.classify(responder)
     }
 
-    init(usesSpace: Bool = false, usesCommandArrows: Bool = false) {
+    init(usesSpace: Bool = false, usesCommandArrows: Bool = false, usesCommandLetters: Bool = false) {
         self.usesSpace = usesSpace
         self.usesCommandArrows = usesCommandArrows
+        self.usesCommandLetters = usesCommandLetters
     }
 
     @MainActor
     private static func classify(_ responder: NSResponder?) -> KeyboardFocus {
         guard let responder else { return .none }
+        if let window = (responder as? NSWindow) ?? (responder as? NSView)?.window,
+           window.sheetParent != nil || window.attachedSheet != nil { return .webContent }
         // Field editors and text views, including the search field's editor.
         if let text = responder as? NSText { return text.isEditable ? .textInput : .selectableText }
         if let field = responder as? NSTextField {
@@ -102,9 +124,18 @@ struct KeyboardFocus: Equatable, Sendable {
         }
         if let view = responder as? NSView {
             // Web content may have its own text fields, such as the sign-in page.
-            if view is WKWebView || view.enclosingWebView != nil { return .textInput }
+            if view is WKWebView || view.enclosingWebView != nil { return .webContent }
             // Keyboard navigation activates these controls with Space.
             if view is NSButton || view is NSSegmentedControl { return .control }
+            // SwiftUI can keep its hosting view as first responder while a
+            // button inside it has keyboard focus.
+            if let element = view.accessibilityFocusedUIElement as? NSAccessibilityProtocol {
+                switch element.accessibilityRole() {
+                case .button, .checkBox, .radioButton, .popUpButton, .menuButton: return .control
+                case .textField, .textArea, .comboBox: return .textInput
+                default: break
+                }
+            }
         }
         if responder is NSTextInputClient { return .textInput }
         return .none
@@ -173,8 +204,8 @@ final class KeyboardFocusMonitor {
         case .returnKeyToFocusedView:
             // Text views take the key directly: Space types and Command-arrow
             // moves the insertion point. Other views keep their focus untouched.
-            if let event, let text = NSApplication.shared.keyWindow?.firstResponder as? NSText {
-                text.keyDown(with: event)
+            if let event, let responder = NSApplication.shared.keyWindow?.firstResponder {
+                responder.keyDown(with: event)
             }
             followKeyWindow()
         }
@@ -198,5 +229,10 @@ final class KeyboardFocusMonitor {
     private func update() {
         let value = KeyboardFocus(observedWindow?.firstResponder)
         if value != focus { focus = value }
+    }
+
+    isolated deinit {
+        for observer in observers { NotificationCenter.default.removeObserver(observer) }
+        responderObservation?.invalidate()
     }
 }

@@ -35,6 +35,7 @@ See [development setup](docs/DEVELOPMENT.md), the [roadmap](docs/ROADMAP.md),
 [architecture](docs/ARCHITECTURE.md), [testing](docs/TESTING.md), and
 [interface design](docs/DESIGN.md). [Native playback commands](docs/AUTOMATION.md)
 are available for local automation.
+See [keyboard shortcuts](docs/KEYBOARD_SHORTCUTS.md) for playback and navigation controls.
 
 ## License
 

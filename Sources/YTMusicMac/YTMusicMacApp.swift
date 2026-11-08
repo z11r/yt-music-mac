@@ -145,6 +145,7 @@ private struct PlayerWindowCommands: View {
     @Environment(\.openWindow) private var openWindow
     var body: some View {
         Button("Show Main Window") { openWindow(id: "main") }
+            .keyboardShortcut("0", modifiers: .command)
         Button("Show Mini Player") { openWindow(id: "mini-player") }
             .keyboardShortcut("m", modifiers: [.command, .shift])
         KeepMiniPlayerOnTopToggle()
