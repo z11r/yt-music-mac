@@ -204,3 +204,11 @@ checks in [Compatibility](COMPATIBILITY.md).
   systems. Intel and Apple silicon results are recorded separately.
 - [ ] Fast scrolling, a long queue, artwork loading, and idle playback are measured;
   visual effects do not introduce continuous work when nothing changes.
+
+## Player windows
+
+Now Playing, Lyrics, and Queue each use a single native window. The mini player
+and menu bar controls can open them directly. They share the main playback
+session; opening or closing a window does not create another web player. Lyrics
+load while their window is visible and clear on close or account changes. The
+expanded player reuses the display clock, transport, seek, and volume controls.

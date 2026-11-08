@@ -125,7 +125,6 @@ final class AppSession {
     let searchSuggestions: SearchSuggestions
     let searchHistory = SearchHistory()
     let lyrics: LyricsSession
-    var showsLyrics = false
     var libraryDisplayOrder: LibraryDisplayOrder = .serviceOrder
     var collectionFilter = ""
     var showsQueue = false
@@ -792,7 +791,6 @@ final class AppSession {
 
     func openAccount() {
         guard !isSceneCheck else { return }
-        showsLyrics = false
         lyrics.clear()
         player.cancelSessionRestore()
         account.openLogin()
@@ -808,7 +806,6 @@ final class AppSession {
         cancelMusicLink()
         collectionPlayback.cancel()
         accountGeneration = UUID()
-        showsLyrics = false
         lyrics.clear()
         searchSuggestions.close()
         searchHistory.clear()

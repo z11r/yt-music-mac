@@ -82,6 +82,19 @@ struct YTMusicMacApp: App {
         }
         .defaultSize(width: 360, height: 180)
         .windowResizability(.contentSize)
+        Window("Now Playing", id: "now-playing") {
+            ExpandedPlayerView(session: session).preferredColorScheme(colorScheme)
+        }
+        .defaultSize(width: 520, height: 700)
+        Window("Lyrics", id: "lyrics") {
+            LyricsPanel(session: session).preferredColorScheme(colorScheme)
+        }
+        .defaultSize(width: 560, height: 620)
+        Window("Queue", id: "queue") {
+            QueueView(session: session).preferredColorScheme(colorScheme)
+                .frame(minWidth: 300, minHeight: 360)
+        }
+        .defaultSize(width: 380, height: 640)
         MenuBarExtra("YT Music for Mac", systemImage: "music.note") {
             MenuBarPlayerView(session: session).preferredColorScheme(colorScheme)
         }.menuBarExtraStyle(.window)
@@ -148,6 +161,9 @@ private struct PlayerWindowCommands: View {
             .keyboardShortcut("0", modifiers: .command)
         Button("Show Mini Player") { openWindow(id: "mini-player") }
             .keyboardShortcut("m", modifiers: [.command, .shift])
+        Button("Show Now Playing") { openWindow(id: "now-playing") }
+        Button("Show Lyrics") { openWindow(id: "lyrics") }
+        Button("Open Queue Window") { openWindow(id: "queue") }
         KeepMiniPlayerOnTopToggle()
     }
 }

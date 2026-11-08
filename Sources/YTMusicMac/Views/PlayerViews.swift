@@ -34,12 +34,14 @@ struct PlayerBar: View {
                 .frame(maxWidth: .infinity)
                 VStack(alignment: .trailing, spacing: 9) {
                     HStack(spacing: 14) {
-                        Button("Lyrics", systemImage: "text.quote") { session.showsLyrics = true }
+                        Button("Lyrics", systemImage: "text.quote") { openWindow(id: "lyrics") }
                             .help("Show lyrics").disabled(session.currentTrack == nil)
                         Button(session.showsWebPlayer ? "Hide Web Player" : "Show Web Player", systemImage: "play.rectangle") { session.showsWebPlayer.toggle() }
                             .accessibilityValue(session.showsWebPlayer ? "Shown" : "Hidden")
                             .help(session.showsWebPlayer ? "Hide Web Player" : "Show Web Player")
                             .disabled(session.currentTrack == nil)
+                        Button("Now Playing", systemImage: "arrow.up.left.and.arrow.down.right") { openWindow(id: "now-playing") }
+                            .help("Open Now Playing")
                         Button("Mini-Player", systemImage: "pip") { openWindow(id: "mini-player") }
                             .help("Open Mini-Player")
                         AudioOutputPicker().frame(width: 20, height: 20)
@@ -51,7 +53,7 @@ struct PlayerBar: View {
                     .labelStyle(.iconOnly).buttonStyle(.borderless)
                     VolumeView(session: session).frame(width: 136)
                 }
-                .frame(width: 144)
+                .frame(width: 192)
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 13)
@@ -295,6 +297,7 @@ struct MiniPlayerView: View {
                 RepeatButton(session: session)
             }
             SeekView(session: session)
+            CompactPlayerDestinations(session: session)
             if let message = session.player.errorMessage {
                 Text(message).font(.caption).foregroundStyle(.secondary).lineLimit(3)
                 Button("Retry Playback", action: session.retryPlayback)
@@ -326,6 +329,7 @@ struct MenuBarPlayerView: View {
                 NSApp.activate(ignoringOtherApps: true)
             }
             Button("Mini-Player", systemImage: "pip") { openWindow(id: "mini-player") }
+            CompactPlayerDestinations(session: session)
         }
         .buttonStyle(.borderless)
         .padding(16)

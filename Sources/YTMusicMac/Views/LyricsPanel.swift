@@ -3,7 +3,7 @@ import YouTubeMusic
 
 struct LyricsPanel: View {
     let session: AppSession
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.dismissWindow) private var dismissWindow
 
     private struct Target: Hashable {
         let videoID: String?
@@ -28,7 +28,7 @@ struct LyricsPanel: View {
                     }
                 }
                 Spacer()
-                Button("Done") { dismiss() }.keyboardShortcut(.cancelAction)
+                Button("Done") { dismissWindow(id: "lyrics") }.keyboardShortcut(.cancelAction)
             }
             .padding(20)
             Divider()
