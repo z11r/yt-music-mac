@@ -810,3 +810,7 @@
 "Global" = "Global";
 "Charts" = "Charts";
 "Followed Artists" = "Followed Artists";
+"Refresh Episode Speeds" = "Refresh Episode Speeds";
+"Updating episode speed" = "Updating episode speed";
+"Playback speed is unavailable for the current episode." = "Playback speed is unavailable for the current episode.";
+"The episode speed change was not confirmed. Refresh available speeds to try again." = "The episode speed change was not confirmed. Refresh available speeds to try again.";

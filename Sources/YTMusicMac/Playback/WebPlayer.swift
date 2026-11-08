@@ -56,6 +56,9 @@ final class WebPlayer: NSObject {
     private(set) var webViewGeneration = 0
     let clock = PlaybackClock()
     @ObservationIgnored let videoPresentation = VideoPresentationController()
+    @ObservationIgnored let episodeRates = EpisodeRateController()
+    @ObservationIgnored private var verifiedRateOccurrence: PlaybackOccurrence?
+    @ObservationIgnored private var retiredEpisodeRateTarget: EpisodeRateTarget?
     @ObservationIgnored private var presentationRevision = 0
     @ObservationIgnored private var externalPresentation = false
     @ObservationIgnored private var acceptedPresentationContent = false
@@ -76,6 +79,7 @@ final class WebPlayer: NSObject {
     @ObservationIgnored var onPageReady: ((WKWebView) -> Void)?
     @ObservationIgnored var onStateChanged: (() -> Void)?
     @ObservationIgnored var onVerifiedContentProgress: ((PlaybackOccurrence, TimeInterval, TimeInterval, Bool) -> Void)?
+    @ObservationIgnored var onEpisodeRates: ((PlaybackOccurrence, EpisodeRateSnapshot?) -> Void)?
     @ObservationIgnored var onListeningInterrupted: ((PlaybackOccurrence) -> Void)?
     @ObservationIgnored var onRecoveryRequested: ((PlaybackOccurrence, TimeInterval) -> TimeInterval?)?
     @ObservationIgnored var onSessionRestoreFailed: (() -> Void)?
@@ -103,6 +107,7 @@ final class WebPlayer: NSObject {
     @ObservationIgnored private var sessionMediaSuspended = false
     @ObservationIgnored private let dataStore: WKWebsiteDataStore
     @ObservationIgnored private let bridgeSource: String?
+    @ObservationIgnored private let episodeRateSource: String?
     @ObservationIgnored private var idleUnload: Task<Void, Never>?
     /// AppKit can keep a view created during launch alive for the life of the
     /// process: a notification observer registered while the view is set up
@@ -125,11 +130,17 @@ final class WebPlayer: NSObject {
         let source = scriptURL.flatMap { try? String(contentsOf: $0, encoding: .utf8) }
         self.dataStore = dataStore
         self.bridgeSource = source
+        let rateSource = AppIdentity.resourceBundle.url(forResource: "EpisodeRateBridge", withExtension: "js")
+            .flatMap { try? String(contentsOf: $0, encoding: .utf8) }
+        self.episodeRateSource = rateSource
         self.scriptAvailable = source != nil
         self.messageHandler = handler
-        self.webView = Self.makeWebView(dataStore: dataStore, handler: handler, bridgeSource: source)
+        self.webView = Self.makeWebView(dataStore: dataStore, handler: handler, bridgeSource: source, episodeRateSource: rateSource)
         super.init()
         handler.owner = self
+        self.episodeRates.execute = { [weak self] in await self?.executeEpisodeRate($0) ?? .stale }
+        self.episodeRates.report = { [weak self] occurrence, snapshot in self?.onEpisodeRates?(occurrence, snapshot) }
+        self.episodeRates.didFinishSongReset = { [weak self] target, _ in self?.retireEpisodeRateScope(target) }
         self.configure(self.webView)
         self.videoPresentation.bind(view: { [weak self] in self?.webView },
             hasSelection: { [weak self] in self?.track != nil },
@@ -143,7 +154,7 @@ final class WebPlayer: NSObject {
     }
 
     private static func makeWebView(dataStore: WKWebsiteDataStore, handler: PlayerMessageHandler,
-                                    bridgeSource: String?) -> WKWebView {
+                                    bridgeSource: String?, episodeRateSource: String?) -> WKWebView {
         let controller = WKUserContentController()
         controller.add(handler, contentWorld: .defaultClient, name: "playerBridge")
         if let bridgeSource {
@@ -153,6 +164,10 @@ final class WebPlayer: NSObject {
                 forMainFrameOnly: true,
                 in: .defaultClient
             ))
+        }
+        if let episodeRateSource {
+            controller.addUserScript(WKUserScript(source: episodeRateSource, injectionTime: .atDocumentStart,
+                forMainFrameOnly: true, in: .page))
         }
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = dataStore
@@ -175,6 +190,8 @@ final class WebPlayer: NSObject {
             self.fail(AppLocalization.text("The selected song no longer matches the playback request."), reason: .selectionMismatch)
             return
         }
+        self.episodeRates.prepareLoad(content: Self.rateContent(track))
+        self.verifiedRateOccurrence = nil
         self.videoPresentation.invalidate()
         self.acceptedPresentationContent = false
         self.webView.closeAllMediaPresentations(completionHandler: nil)
@@ -281,6 +298,7 @@ final class WebPlayer: NSObject {
     }
 
     func stop() {
+        self.invalidateEpisodeRateControl()
         self.videoPresentation.close()
         self.cancelSessionRestore()
         self.deadline?.cancel()
@@ -332,6 +350,9 @@ final class WebPlayer: NSObject {
         self.navigation = nil
         self.webView.stopLoading()
         let loadID = UUID()
+        self.episodeRates.prepareLoad(content: Self.rateContent(self.track))
+        self.verifiedRateOccurrence = nil
+        self.retiredEpisodeRateTarget = nil
         self.gate.activate(loadID: loadID, occurrence: occurrence)
         self.commandRevision = 0
         self.navigationRevision += 1
@@ -387,6 +408,7 @@ final class WebPlayer: NSObject {
             ],
             "autoplay": self.wantsPlaying,
             "volume": self.preferredVolume,
+            "rateContent": Self.rateContent(self.track).flatMap { $0 == .episode || self.episodeRates.needsSongReset ? $0.rawValue : nil } ?? "unknown",
         ]
         self.webView.callAsyncJavaScript(
             "return globalThis.YTMusicNativePlayer?.bind(context) ?? null;",
@@ -496,7 +518,9 @@ final class WebPlayer: NSObject {
         }
         if let occurrence = self.occurrence, message.confirmsEpisodeProgress {
             self.onVerifiedContentProgress?(occurrence, message.position, message.duration, message.kind == .ended)
+            self.verifiedRateOccurrence = occurrence
         }
+        self.acceptEpisodeRateMedia(message)
         if message.kind == .ended, let occurrence = self.occurrence {
             self.isPlaying = false
             self.isBuffering = false
@@ -519,6 +543,7 @@ final class WebPlayer: NSObject {
 
     private func fail(_ message: String, reason: PlaybackFailureReason = .bridgeUnavailable) {
         guard !self.failureReported else { return }
+        self.invalidateEpisodeRateControl()
         self.failureReported = true
         self.acceptedPresentationContent = false
         self.videoPresentation.invalidate()
@@ -604,9 +629,10 @@ final class WebPlayer: NSObject {
         previous.nextKeyView = nil
         if !mediaWasPresented { previous.removeFromSuperview() }
         let replacement = Self.makeWebView(dataStore: self.dataStore, handler: self.messageHandler,
-                                           bridgeSource: self.bridgeSource)
+                                           bridgeSource: self.bridgeSource, episodeRateSource: self.episodeRateSource)
         self.configure(replacement)
         self.webView = replacement
+        self.invalidateEpisodeRateControl()
         self.acceptedPresentationContent = false
         self.presentationRevision = 0
         self.videoPresentation.webViewChanged()
@@ -631,6 +657,67 @@ final class WebPlayer: NSObject {
         if !wasVisible, self.isPresented || self.externalPresentation,
            self.isPageUnloaded, self.track != nil, self.occurrence != nil { self.retry() }
         self.updateIdleUnload()
+    }
+
+    private static func rateContent(_ track: Track?) -> EpisodeRateTarget.Content? {
+        guard let track else { return nil }
+        if track.contentKind == .podcastEpisode, let identity = track.episode?.identity,
+           EpisodeProgressSnapshot.validEpisode(identity) { return .episode }
+        return track.contentKind == .song && track.episode == nil ? .song : nil
+    }
+    func invalidateEpisodeRateControl() {
+        if let target = self.rateTarget(), target.content == .song { self.retireEpisodeRateScope(target) }
+        self.episodeRates.invalidate()
+        self.verifiedRateOccurrence = nil
+    }
+    private func rateTarget() -> EpisodeRateTarget? {
+        guard !self.failureReported, let occurrence, let loadID = self.gate.loadID, let documentID = self.gate.documentID,
+              let content = Self.rateContent(self.track), self.gate.mediaGeneration > 0 else { return nil }
+        return .init(loadID: loadID, documentID: documentID, occurrence: occurrence, mediaGeneration: self.gate.mediaGeneration, content: content)
+    }
+    private func acceptEpisodeRateMedia(_ message: PlaybackBridgeMessage) {
+        guard Self.rateContent(self.track) == .episode || self.episodeRates.needsSongReset else {
+            if message.episodeRateMedia != nil, let target = self.rateTarget(), target.content == .song { self.retireEpisodeRateScope(target) }
+            return
+        }
+        guard message.kind != .error, message.kind != .ended, message.mediaReady, !message.isAd, !message.isBuffering,
+              let target = self.rateTarget(), self.verifiedRateOccurrence == target.occurrence,
+              let observation = message.episodeRateMedia else {
+            self.episodeRates.invalidate(clearOwnership: message.isAd || message.kind == .error)
+            if !self.episodeRates.needsSongReset, let target = self.rateTarget(), target.content == .song { self.retireEpisodeRateScope(target) }
+            return
+        }
+        self.episodeRates.accept(target, media: observation)
+    }
+    private func executeEpisodeRate(_ request: EpisodeRateRequest) async -> EpisodeRateOutcome {
+        guard self.rateTarget() == request.target, self.verifiedRateOccurrence == request.target.occurrence,
+              self.acceptedPresentationContent, let url = self.webView.url, PlaybackNavigation.permits(url) else { return .stale }
+        let generation = self.webViewGeneration
+        let view = self.webView
+        let reply = EpisodeRateReply()
+        return await withTaskCancellationHandler {
+            await reply.wait { finish in
+                view.callAsyncJavaScript("return await globalThis.YTMusicNativeEpisodeRateV1?.[method](request) ?? null;",
+                    arguments: ["method": request.action.rawValue, "request": request.payload], in: nil, in: .page) { [weak self, weak view] result in
+                    guard let self, self.webView === view, self.webViewGeneration == generation,
+                          self.rateTarget() == request.target, self.verifiedRateOccurrence == request.target.occurrence,
+                          self.acceptedPresentationContent else { finish(.stale); return }
+                    guard case let .success(body) = result else { finish(.rejected); return }
+                    finish(EpisodeRateResponse.decode(body, request: request))
+                }
+            }
+        } onCancel: { Task { @MainActor in reply.finish(.cancelled) } }
+    }
+    private func retireEpisodeRateScope(_ target: EpisodeRateTarget) {
+        guard self.rateTarget() == target, target.content == .song, self.retiredEpisodeRateTarget != target else { return }
+        self.retiredEpisodeRateTarget = target
+        let identity = PlaybackBridgeIdentity(target.occurrence)
+        let value: [String: Any] = ["loadID": target.loadID.uuidString, "documentID": target.documentID.uuidString.lowercased(),
+            "mediaGeneration": target.mediaGeneration,
+            "identity": ["sessionID": identity.sessionID.uuidString, "entryID": identity.entryID.uuidString,
+                         "trackID": identity.trackID, "generation": identity.generation]]
+        self.webView.callAsyncJavaScript("return globalThis.YTMusicNativePlayer?.retireEpisodeRateScope(request) ?? false;",
+            arguments: ["request": value], in: nil, in: .defaultClient, completionHandler: nil)
     }
 
     private func requestPictureInPicture(_ active: Bool) async -> VideoPresentationResult {
@@ -762,4 +849,9 @@ extension WebPlayer: WKNavigationDelegate, WKUIDelegate {
                  for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
         nil
     }
+}
+
+extension WebPlayer: EpisodeRateControlling {
+    func setEpisodeRate(_ rate: Double, occurrence: PlaybackOccurrence) async -> Bool { await episodeRates.set(rate, occurrence: occurrence) }
+    func refreshEpisodeRates(occurrence: PlaybackOccurrence) { episodeRates.refresh(occurrence: occurrence) }
 }

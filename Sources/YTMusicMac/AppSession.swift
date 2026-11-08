@@ -234,6 +234,12 @@ final class AppSession {
         player = WebPlayer(dataStore: configuration.dataStore)
         queueStore = configuration.queueStore
         queueError = configuration.queueStorageError
+        episodePlayback.rateController = player
+        player.onEpisodeRates = { [weak self] occurrence, snapshot in
+            guard let self, self.queue.accepts(occurrence), self.account.isSignedIn else { return }
+            if let snapshot { self.episodePlayback.reportRates(snapshot.rates, current: snapshot.current, occurrence: occurrence) }
+            else { self.episodePlayback.clearRates(occurrence: occurrence) }
+        }
         player.onEnded = { [weak self] occurrence in self?.ended(occurrence) }
         sleepTimer.onExpired = { [weak self] in
             self?.cancelRadio()
@@ -1089,6 +1095,7 @@ final class AppSession {
 
     func signOut() async {
         chartCountries = []; chartCountryLabel = nil
+        player.invalidateEpisodeRateControl()
         episodeContinuation = nil
         cancelMusicLink()
         listenBrainz.bindAccount(nil)
@@ -1155,6 +1162,7 @@ final class AppSession {
     private func accountChanged(replacedAccount: Bool) {
         chartCountries = []; chartCountryLabel = nil
         if case .chartCountry = destination { destination = .discovery(.charts) }
+        player.invalidateEpisodeRateControl()
         episodeContinuation = replacedAccount ? nil : episodePlayback.continuationForRebind()
         cancelMusicLink(keepingPending: !links.isReady && !replacedAccount)
         spotlightPageSource = nil
@@ -1251,6 +1259,7 @@ final class AppSession {
         await queuePlaylistSave.waitForIdle()
         player.onStateChanged = nil
         player.onVerifiedContentProgress = nil
+        player.onEpisodeRates = nil
         player.onListeningInterrupted = nil
         player.stop()
         systemMedia?.refresh()

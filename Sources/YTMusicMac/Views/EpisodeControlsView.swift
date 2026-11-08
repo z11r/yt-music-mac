@@ -28,7 +28,9 @@ struct EpisodeControlsView: View {
                         }
                     }
                     .disabled(session.episodePlayback.isLoading || session.episodePlayback.errorMessage != nil)
-                    if session.episodePlayback.canControlRate {
+                    Button("Refresh Episode Speeds", action: session.episodePlayback.refreshRates)
+                        .disabled(!session.episodePlayback.canRefreshRate)
+                    if !session.episodePlayback.availableRates.isEmpty || session.episodePlayback.isRatePending {
                         Menu("Playback Speed (\(session.episodePlayback.currentRate?.formatted() ?? "—")×)") {
                             ForEach(session.episodePlayback.availableRates, id: \.self) { rate in
                                 let occurrence = session.queue.currentOccurrence
@@ -37,9 +39,11 @@ struct EpisodeControlsView: View {
                                     await session.episodePlayback.setRate(rate, expectedOccurrence: occurrence)
                                 } }
                             }
-                        }
+                        }.disabled(!session.episodePlayback.canControlRate)
                     }
                 }
+                if session.episodePlayback.isRatePending { ProgressView().controlSize(.mini).accessibilityLabel("Updating episode speed") }
+                if let message = session.episodePlayback.rateMessage { Text(message).font(.caption).foregroundStyle(.secondary).lineLimit(2) }
                 if session.episodePlayback.isLoading { ProgressView().controlSize(.mini).accessibilityLabel("Loading local episode progress") }
                 if let error = session.episodePlayback.errorMessage { Text(error).font(.caption).foregroundStyle(.secondary).lineLimit(2) }
             }

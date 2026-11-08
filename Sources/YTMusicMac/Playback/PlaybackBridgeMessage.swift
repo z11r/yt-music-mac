@@ -40,6 +40,7 @@ struct PlaybackBridgeMessage: Decodable {
     let mediaReady: Bool
     let errorCode: String?
     let videoPresentation: VideoPresentationSnapshot?
+    let episodeRateMedia: EpisodeRateMedia?
 
     static func decode(_ body: Any) -> Self? {
         guard JSONSerialization.isValidJSONObject(body),

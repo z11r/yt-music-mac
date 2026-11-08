@@ -10,6 +10,8 @@
     let commandRevision = 0;
     let navigationRevision = 0;
     let presentationRevision = 0;
+    let episodeRateChanges = 0;
+    let episodeRateScopeArmed = false;
     let wantsPlaying = false;
     let intentSource = "native";
     let desiredVolume = 1;
@@ -113,6 +115,22 @@
         });
     }
 
+    function episodeRateMedia() {
+        if (!video || typeof video.setAttribute !== "function") return null;
+        const name = "data-ytm-native-episode-rate-v1";
+        if (!context || !["episode", "song"].includes(context.rateContent)) {
+            if (episodeRateScopeArmed) video.removeAttribute(name);
+            episodeRateScopeArmed = false;
+            return null;
+        }
+        const marker = JSON.stringify({version: 1, loadID: context.loadID, documentID, identity: context.identity,
+            mediaGeneration, content: context.rateContent, changes: episodeRateChanges,
+            ready: matchesTarget() && contentReady && video.readyState >= 1 && !adShowing() && !adInThisMedia});
+        if (video.getAttribute(name) !== marker) video.setAttribute(name, marker);
+        episodeRateScopeArmed = true;
+        return Number.isFinite(video.playbackRate) ? {rate: video.playbackRate, changes: episodeRateChanges} : null;
+    }
+
     function snapshot(kind, errorCode) {
         return {
             kind,
@@ -133,7 +151,8 @@
             isAd: adShowing() || adInThisMedia,
             mediaReady: !!video && video.readyState >= 1 && contentReady,
             errorCode: errorCode || null,
-            videoPresentation: presentationSnapshot()
+            videoPresentation: presentationSnapshot(),
+            episodeRateMedia: episodeRateMedia()
         };
     }
 
@@ -195,6 +214,10 @@
     function onMediaEvent(event) {
         if (event.target !== video) return;
         const kind = event.type;
+        if (kind === "ratechange") {
+            if (!context || !["episode", "song"].includes(context.rateContent)) return;
+            episodeRateChanges += 1;
+        }
         if (kind === "loadstart" || kind === "emptied") {
             mediaGeneration += 1;
             contentReady = false;
@@ -258,6 +281,8 @@
         if (next === video) return;
         removers.forEach(remove => remove());
         removers = [];
+        if (episodeRateScopeArmed && video && typeof video.removeAttribute === "function") video.removeAttribute("data-ytm-native-episode-rate-v1");
+        episodeRateScopeArmed = false;
         video = next;
         mediaGeneration += 1;
         endedGeneration = -1;
@@ -268,7 +293,7 @@
         if (!video) return;
         const events = ["play", "pause", "playing", "waiting", "stalled", "canplay",
             "loadedmetadata", "durationchange", "timeupdate", "seeking", "seeked",
-            "emptied", "loadstart", "error", "ended", "volumechange", "resize",
+            "emptied", "loadstart", "error", "ended", "volumechange", "resize", "ratechange",
             "webkitpresentationmodechanged", "enterpictureinpicture", "leavepictureinpicture"];
         events.forEach(name => {
             const target = video;
@@ -329,6 +354,7 @@
             desiredVolume = Math.min(1, Math.max(0, value.volume));
             commandRevision = 0;
             presentationRevision = 0;
+            episodeRateChanges = 0;
             pendingSeek = null;
             endedGeneration = -1;
             attach();
@@ -336,6 +362,17 @@
             return report("ready");
         },
         presentation(value) { return requestPresentation(value); },
+        retireEpisodeRateScope(value) {
+            const expected = context && context.identity;
+            const identity = value && value.identity;
+            if (!value || !expected || !identity || context.rateContent !== "song" || !matchesTarget()
+                || value.loadID !== context.loadID || typeof value.documentID !== "string" || value.documentID.toLowerCase() !== documentID
+                || value.mediaGeneration !== mediaGeneration || identity.sessionID !== expected.sessionID
+                || identity.entryID !== expected.entryID || identity.trackID !== expected.trackID || identity.generation !== expected.generation) return false;
+            context = {...context, rateContent: "unknown"};
+            episodeRateMedia();
+            return true;
+        },
         command(value) {
             if (!context || value.loadID !== context.loadID
                 || !Number.isInteger(value.revision) || value.revision <= commandRevision) return false;

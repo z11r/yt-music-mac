@@ -810,3 +810,7 @@
 "Global" = "Monde";
 "Charts" = "Classements";
 "Followed Artists" = "Artistes suivis";
+"Refresh Episode Speeds" = "Actualiser les vitesses de l’épisode";
+"Updating episode speed" = "Mise à jour de la vitesse de l’épisode";
+"Playback speed is unavailable for the current episode." = "La vitesse de lecture n’est pas disponible pour l’épisode actuel.";
+"The episode speed change was not confirmed. Refresh available speeds to try again." = "La modification de vitesse de l’épisode n’a pas été confirmée. Actualisez les vitesses disponibles pour réessayer.";

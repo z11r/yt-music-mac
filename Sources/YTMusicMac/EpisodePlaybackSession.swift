@@ -5,6 +5,11 @@ import Observation
 @MainActor protocol EpisodeRateControlling: AnyObject {
     /// True only after the current occurrence's player confirms this exact rate.
     func setEpisodeRate(_ rate: Double, occurrence: PlaybackOccurrence) async -> Bool
+    func refreshEpisodeRates(occurrence: PlaybackOccurrence)
+}
+
+extension EpisodeRateControlling {
+    func refreshEpisodeRates(occurrence: PlaybackOccurrence) {}
 }
 
 @MainActor @Observable
@@ -25,6 +30,9 @@ final class EpisodePlaybackSession {
     private(set) var settings = EpisodePlaybackSettings()
     private(set) var availableRates: [Double] = []
     private(set) var currentRate: Double?
+    private(set) var isRatePending = false
+    private(set) var rateMessage: String?
+    @ObservationIgnored private var rateRequest = UUID()
     @ObservationIgnored weak var rateController: (any EpisodeRateControlling)?
     @ObservationIgnored private let load: @Sendable (String) async throws -> EpisodeProgressSnapshot?
     @ObservationIgnored private let save: @Sendable (EpisodeProgressSnapshot) async throws -> Void
@@ -62,7 +70,7 @@ final class EpisodePlaybackSession {
         guard hash != accountHash else { return false }
         scope = UUID(); loadTask?.cancel(); saveTask?.cancel(); saveTask = nil
         accountHash = hash; records = [:]; settings = .init(); active = nil; verifiedOccurrence = nil
-        availableRates = []; currentRate = nil; errorMessage = nil; writable = false; isLoading = hash != nil
+        availableRates = []; currentRate = nil; rateRequest = UUID(); isRatePending = false; rateMessage = nil; errorMessage = nil; writable = false; isLoading = hash != nil
         guard let hash else { return true }
         let expected = scope
         let pendingSave = detachingSave
@@ -93,12 +101,12 @@ final class EpisodePlaybackSession {
     func waitUntilLoaded() async { await loadTask?.value }
 
     func begin(track: Track, occurrence: PlaybackOccurrence) {
-        availableRates = []; currentRate = nil; verifiedOccurrence = nil
+        availableRates = []; currentRate = nil; verifiedOccurrence = nil; rateRequest = UUID(); isRatePending = false; rateMessage = nil
         guard track.contentKind == .podcastEpisode, let episode = track.episode?.identity,
               EpisodeProgressSnapshot.validEpisode(episode), occurrence.trackID == track.id else { active = nil; return }
         active = Active(episode: episode, occurrence: occurrence)
     }
-    func clearPlayback() { active = nil; verifiedOccurrence = nil; availableRates = []; currentRate = nil }
+    func clearPlayback() { active = nil; verifiedOccurrence = nil; availableRates = []; currentRate = nil; rateRequest = UUID(); isRatePending = false; rateMessage = nil }
 
     func continuationForRebind() -> Continuation? {
         guard let accountHash, let active else { return nil }
@@ -152,21 +160,37 @@ final class EpisodePlaybackSession {
         settings = .init(skipBackward: backward, skipForward: forward); revision += 1; scheduleSave()
     }
 
-    var canControlRate: Bool { rateController != nil && active?.occurrence == verifiedOccurrence && !availableRates.isEmpty }
+    var canControlRate: Bool { rateController != nil && active?.occurrence == verifiedOccurrence && !availableRates.isEmpty && !isRatePending }
+    var canRefreshRate: Bool { rateController != nil && active != nil && active?.occurrence == verifiedOccurrence && !isRatePending }
+    func refreshRates() {
+        guard canRefreshRate, let active else { return }
+        rateController?.refreshEpisodeRates(occurrence: active.occurrence)
+    }
+    func clearRates(occurrence: PlaybackOccurrence) {
+        guard active?.occurrence == occurrence, verifiedOccurrence == occurrence else { return }
+        availableRates = []; currentRate = nil
+        rateMessage = AppLocalization.text("Playback speed is unavailable for the current episode.")
+    }
     func reportRates(_ rates: [Double], current: Double, occurrence: PlaybackOccurrence) {
         guard active?.occurrence == occurrence, verifiedOccurrence == occurrence else { return }
         guard rates.count <= 16, rates.allSatisfy({ $0.isFinite && (0.25...4).contains($0) }), rates.contains(current) else {
             availableRates = []; currentRate = nil; return
         }
-        availableRates = Array(Set(rates)).sorted(); currentRate = current
+        availableRates = Array(Set(rates)).sorted(); currentRate = current; rateMessage = nil
     }
     @discardableResult func setRate(_ rate: Double, expectedOccurrence: PlaybackOccurrence? = nil) async -> Bool {
         guard canControlRate, availableRates.contains(rate), let active, let rateController,
               expectedOccurrence == nil || expectedOccurrence == active.occurrence else { return false }
         let expected = scope
+        let request = UUID(); rateRequest = request; isRatePending = true; rateMessage = nil
         let confirmed = await rateController.setEpisodeRate(rate, occurrence: active.occurrence)
-        guard confirmed, scope == expected, self.active?.occurrence == active.occurrence,
+        guard scope == expected, rateRequest == request, self.active?.occurrence == active.occurrence,
               verifiedOccurrence == active.occurrence else { return false }
+        isRatePending = false
+        guard confirmed else {
+            rateMessage = AppLocalization.text("The episode speed change was not confirmed. Refresh available speeds to try again.")
+            return false
+        }
         currentRate = rate
         return true
     }

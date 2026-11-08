@@ -47,11 +47,45 @@ Episode controls skip backward or forward through the existing seek path.
 Intervals are configurable and remain within 5–120 seconds. They are disabled
 until the episode has a confirmed position and duration.
 
-Playback-speed controls require an installed rate adapter, a verified episode
-occurrence, and a supported-rate list from the current player. A rate change
-is displayed only after that adapter confirms it; stale replies are ignored.
-The current bridge has no rate adapter, so native speed controls remain hidden.
-The [YouTube IFrame API rate methods](https://developers.google.com/youtube/iframe_api_reference#Playback_rate)
-describe the embedded API's capabilities and do not establish support in this
-app's music-player bridge. Bridge rate reporting, command readback, and resetting
-music to its normal rate still need implementation and live verification.
+Playback-speed controls use a conditional adapter for the current service player.
+The [YouTube player rate methods](https://developers.google.com/youtube/iframe_api_reference#Playback_rate)
+describe available rates and warn that a setter call does not establish a change.
+These embedded API methods do not establish universal support on the music site.
+The app exposes only a list actually returned by the current service player,
+with matching service and media-element rates. Missing methods, inconsistent
+readback, advertisements, and unknown content do not grant a rate control.
+
+The service adapter runs in the
+[page JavaScript world](https://developer.apple.com/documentation/webkit/wkcontentworld)
+because isolated content worlds do not share the page's JavaScript properties. A small per-video marker
+carries only version, load/document/queue occurrence, media generation, known
+content kind, readiness, and a rate-change counter. It contains no account,
+credentials, episode bookmarks, progress positions, or local history. Both
+JavaScript and native code validate the current scope and service video URL.
+The adapter exposes only capability reads, episode rate changes, and a restricted
+normal-rate reset; it is injected in the main frame only.
+
+A speed change requires an observed rate-change event and exact service/media
+readback of the requested supported value. It has its own revision and bounded
+reply, independent of transport and video-presentation commands. Refused,
+clamped, unsupported, timed-out, cancelled, and stale optional requests cannot
+pause, seek, reload, restart, or advance playback. Native English and French
+controls show pending or unavailable states and provide an explicit capability
+refresh. Reads occur once per accepted media generation/rate counter and on
+explicit refresh or rate changes, with no polling during ordinary song playback.
+
+Only a confirmed rate change made by the app creates rate ownership. A rate
+already selected by the page is not claimed. Page changes, inconsistent
+readback, unknown content, account/session changes, and player replacement clear
+ownership. On accepted known-song content, the app may attempt one reset to 1
+only when the exact app-owned rate was inherited and 1 is offered by the service.
+An uncertain or refused reset is not retried and is not reported as confirmed.
+The temporary song-reset marker is then retired. Native transport, queue,
+clock, and presentation ownership remain unchanged by optional rate work.
+
+Synthetic JavaScript and native tests cover reported capabilities, scope and
+revision fences, exact readback, ownership, ordinary-song inactivity,
+conditional resets, cancellation, and optional failures. Runtime visibility of
+the service methods, real episode speed changes, song transitions, and older-OS
+behavior still require controlled live verification. No live rate or playback
+operation was performed for this implementation.

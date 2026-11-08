@@ -74,7 +74,7 @@ struct PlaybackResourceTests {
         let player = WebPlayer(dataStore: .nonPersistent())
         let scripts = player.webView.configuration.userContentController.userScripts.count
         player.stop()
-        #expect(scripts == 1)
+        #expect(scripts == 2)
         #expect(player.webView.configuration.userContentController.userScripts.count == scripts)
         #expect(player.webView.customUserAgent == WebSession.userAgent)
     }
