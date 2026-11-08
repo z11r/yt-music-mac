@@ -208,6 +208,69 @@ struct SearchSessionTests {
         #expect(session.searchText.isEmpty)
     }
 
+    @Test func libraryCategoriesHaveNativeDestinationsAndServiceRoutes() async throws {
+        let transport = RoutedTransport()
+        await transport.respond(to: "browse:FEmusic_liked_albums", with: searchPage(["album-song"]))
+        await transport.respond(to: "browse:FEmusic_library_corpus_artists", with: searchPage(["artist-song"]))
+        let harness = SessionHarness(transport, authenticated: true)
+        defer { harness.remove() }
+        let session = harness.session
+        session.navigate(to: .libraryCategory(.albums))
+        await session.pageTask?.value
+        #expect(session.destination.title == "Albums")
+        #expect(session.destination.libraryCategory == .albums)
+        #expect(trackIDs(session) == ["album-song"])
+        session.navigate(to: .libraryCategory(.artists))
+        await session.pageTask?.value
+        #expect(session.destination.title == "Artists")
+        session.goBack()
+        await session.pageTask?.value
+        #expect(session.destination == .libraryCategory(.albums))
+        #expect(await transport.keys == ["browse:FEmusic_liked_albums", "browse:FEmusic_library_corpus_artists", "browse:FEmusic_liked_albums"])
+    }
+
+    @Test func anOlderLibraryResponseCannotReplaceListeningHistory() async throws {
+        let transport = RoutedTransport()
+        await transport.respond(to: "browse:FEmusic_liked_albums", with: searchPage(["late-album"]), hold: true)
+        await transport.respond(to: "browse:FEmusic_history", with: searchPage(["same", "same"]))
+        let harness = SessionHarness(transport, authenticated: true)
+        defer { harness.remove() }
+        let session = harness.session
+        session.navigate(to: .libraryCategory(.albums))
+        let older = session.pageTask
+        await transport.waitForArrival("browse:FEmusic_liked_albums")
+        session.navigate(to: .history)
+        await session.pageTask?.value
+        await transport.release("browse:FEmusic_liked_albums")
+        await older?.value
+        #expect(session.destination == .history)
+        #expect(session.destination.libraryCategory == nil)
+        #expect(trackIDs(session) == ["same", "same"])
+        #expect(!session.isLoading)
+    }
+
+    @Test func failedHistoryPagingKeepsVisiblePlaysAndCanBeRetried() async throws {
+        let transport = RoutedTransport()
+        await transport.respond(to: "browse:FEmusic_history", with: searchPage(["same"], token: "older-history"))
+        await transport.respond(to: "next:older-history", with: data([:]))
+        let harness = SessionHarness(transport, authenticated: true)
+        defer { harness.remove() }
+        let session = harness.session
+        session.navigate(to: .history)
+        await session.pageTask?.value
+        session.loadMore()
+        await session.pageTask?.value
+        #expect(session.pageError != nil)
+        #expect(trackIDs(session) == ["same"])
+        #expect(session.page?.continuation != nil)
+        await transport.respond(to: "next:older-history", with: continuationPage(["same", "older"]))
+        session.loadMore()
+        await session.pageTask?.value
+        #expect(session.pageError == nil)
+        #expect(trackIDs(session) == ["same", "same", "older"])
+        #expect(session.page?.continuation == nil)
+    }
+
     private func trackIDs(_ session: AppSession) -> [String] {
         session.page?.tracks.map(\.id) ?? []
     }
@@ -218,9 +281,9 @@ private struct SessionHarness {
     let session: AppSession
     private let domain = "io.github.z11r.ytmusicmac.tests.search.\(UUID().uuidString)"
 
-    init(_ transport: RoutedTransport) {
+    init(_ transport: RoutedTransport, authenticated: Bool = false) {
         let preferences = UserDefaults(suiteName: domain)!
-        let client = YouTubeMusicClient(transport: transport, sessions: FixtureSession(), pause: { _ in })
+        let client = YouTubeMusicClient(transport: transport, sessions: FixtureSession(authenticated: authenticated), pause: { _ in })
         session = AppSession(configuration: AppSessionConfiguration(
             preferences: preferences, dataStore: .nonPersistent(), credentials: MusicSessionStore(), client: client,
             queueStore: nil, queueStorageError: nil, installsSystemMedia: false, isSceneCheck: false))
@@ -230,8 +293,12 @@ private struct SessionHarness {
 }
 
 private struct FixtureSession: MusicSessionProviding {
-    let value = MusicSession(scope: UUID(), configuration: MusicClientConfiguration(apiKey: "fixture-key",
-                                                                                     clientVersion: "fixture-version"))
+    let value: MusicSession
+    init(authenticated: Bool = false) {
+        value = MusicSession(scope: UUID(), accountID: authenticated ? "fixture-account" : nil,
+            cookieHeader: authenticated ? "fixture=value" : nil, sapisid: authenticated ? "fixture" : nil,
+            configuration: MusicClientConfiguration(apiKey: "fixture-key", clientVersion: "fixture-version"))
+    }
     func snapshot() async -> MusicSession { value }
 }
 
@@ -273,6 +340,7 @@ private actor RoutedTransport: MusicHTTPTransport {
         if request.url?.path.hasSuffix("/music/get_search_suggestions") == true {
             return "suggest:\(body["input"] as? String ?? "")"
         }
+        if let browseID = body["browseId"] as? String { return "browse:\(browseID)" }
         return "search:\(body["query"] as? String ?? "")|\(body["params"] as? String ?? "")"
     }
 }

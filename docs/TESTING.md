@@ -141,6 +141,12 @@ account changes. A delayed suggestion from the old account must not reappear
 after the account changes. Recent searches are kept only for the app session;
 these checks do not read or modify the service's search history.
 
+Library-category and listening-history tests use synthetic account sessions.
+They check dedicated browse routes, required authentication, history day groups,
+repeated plays across pages, account fences, stale navigation, and retry while
+keeping visible results. These routes match the pinned Kaset client; live
+category/history response shapes and totals still need verification.
+
 ## Manual playback
 
 Use the packaged app and record the commit, macOS build, processor, account

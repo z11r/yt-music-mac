@@ -389,6 +389,94 @@ final class MusicClientTests: XCTestCase {
         XCTAssertEqual(bodies[3]["params"] as? String, "ggMCCAU=")
     }
 
+    func testLibraryCategoriesUseDedicatedAuthenticatedBrowseRequests() async throws {
+        let transport = StubTransport(Array(repeating: .response(response(shelf([]))), count: 4))
+        let store = MusicSessionStore()
+        await setFixtureSession(store)
+        let client = client(transport, sessions: store)
+        for category in YouTubeMusicClient.LibraryCategory.allCases {
+            let page = try await client.library(category: category)
+            XCTAssertEqual(page.title, category.title)
+        }
+        let requests = await transport.requests
+        let bodies = try requests.map(body)
+        XCTAssertEqual(bodies.compactMap { $0["browseId"] as? String }, [
+            "FEmusic_library_landing", "FEmusic_liked_playlists", "FEmusic_liked_albums", "FEmusic_library_corpus_artists",
+        ])
+        XCTAssertTrue(requests.allSatisfy { $0.value(forHTTPHeaderField: "Authorization") != nil })
+        XCTAssertEqual(bodies.last?["params"] as? String, "ggMCCAU=")
+    }
+
+    func testHistoryRequiresAuthenticationWithoutMakingARequest() async throws {
+        let transport = StubTransport([])
+        do { _ = try await client(transport).history(); XCTFail("Expected sign in requirement") }
+        catch { XCTAssertEqual(error as? MusicServiceError, .signInRequired) }
+        let requests = await transport.requests
+        XCTAssertTrue(requests.isEmpty)
+    }
+
+    func testHistoryPreservesDaySectionsAndRepeatedPlaysAcrossPages() async throws {
+        let first = json(["contents": ["sectionListRenderer": [
+            "contents": [
+                ["musicShelfRenderer": ["title": text("Today"), "contents": [song("same"), song("same")]]],
+                ["musicShelfRenderer": ["title": text("Yesterday"), "contents": [song("other")]]],
+            ],
+            "continuations": [["nextContinuationData": ["continuation": "older-history"]]],
+        ]]])
+        let second = json(["continuationContents": ["sectionListContinuation": ["contents": [
+            ["musicShelfRenderer": ["title": text("Earlier"), "contents": [song("same"), song("oldest")]]],
+        ]]]])
+        let transport = StubTransport([.response(response(first)), .response(response(second))])
+        let store = MusicSessionStore()
+        await setFixtureSession(store)
+        let client = client(transport, sessions: store)
+        let initial = try await client.history()
+        let next = try await client.nextPage(XCTUnwrap(initial.continuation))
+        XCTAssertEqual(initial.sections.map(\.title), ["Today", "Yesterday"])
+        XCTAssertEqual(initial.tracks.map(\.id), ["same", "same", "other"])
+        XCTAssertEqual(next.sections.map(\.title), ["Earlier"])
+        XCTAssertEqual(next.tracks.map(\.id), ["same", "oldest"])
+        XCTAssertNil(next.continuation)
+        let requests = await transport.requests
+        XCTAssertEqual(try body(requests[0])["browseId"] as? String, "FEmusic_history")
+        XCTAssertEqual(try body(requests[1])["continuation"] as? String, "older-history")
+        XCTAssertTrue(requests.allSatisfy { $0.url?.path == "/youtubei/v1/browse" })
+    }
+
+    func testHistoryFailureRetainsTheSameContinuationForRetry() async throws {
+        let transport = StubTransport([
+            .response(response(shelf(["same"], token: "older-history"))),
+            .failure(.notConnectedToInternet), .response(response(shelf(["same"], continuation: true))),
+        ])
+        let store = MusicSessionStore()
+        await setFixtureSession(store)
+        let client = client(transport, sessions: store)
+        let initial = try await client.history()
+        let cursor = try XCTUnwrap(initial.continuation)
+        do { _ = try await client.nextPage(cursor); XCTFail("Expected offline failure") }
+        catch { XCTAssertEqual(error as? MusicServiceError, .network(.notConnectedToInternet)) }
+        let next = try await client.nextPage(cursor)
+        XCTAssertEqual(initial.tracks.map(\.id), ["same"])
+        XCTAssertEqual(next.tracks.map(\.id), ["same"])
+        let requests = await transport.requests
+        XCTAssertEqual(try requests.dropFirst().map { try body($0)["continuation"] as? String }, ["older-history", "older-history"])
+        let session = await store.snapshot()
+        XCTAssertTrue(session.isAuthenticated)
+    }
+
+    func testOldHistoryContinuationIsRejectedAfterAccountChanges() async throws {
+        let transport = StubTransport([.response(response(shelf(["private-song"], token: "private-cursor")))])
+        let store = MusicSessionStore()
+        await setFixtureSession(store)
+        let client = client(transport, sessions: store)
+        let initial = try await client.history()
+        await store.clear()
+        do { _ = try await client.nextPage(XCTUnwrap(initial.continuation)); XCTFail("Expected account fence") }
+        catch { XCTAssertEqual(error as? MusicServiceError, .sessionChanged) }
+        let requests = await transport.requests
+        XCTAssertEqual(requests.count, 1)
+    }
+
     private func client(_ transport: any MusicHTTPTransport, sessions: (any MusicSessionProviding)? = nil) -> YouTubeMusicClient {
         YouTubeMusicClient(transport: transport, sessions: sessions ?? FixedSession(), pause: { _ in })
     }

@@ -43,6 +43,14 @@ struct MusicContentView: View {
                     Divider()
                 }
                 .background(.bar)
+            } else if session.destination.libraryCategory != nil {
+                VStack(spacing: 0) {
+                    LibraryCategoryBar(session: session)
+                        .padding(.horizontal, 28)
+                        .padding(.vertical, 8)
+                    Divider()
+                }
+                .background(.bar)
             }
         }
         .background(Color(nsColor: .windowBackgroundColor))
@@ -56,12 +64,16 @@ struct MusicContentView: View {
                         Text(session.destination.title).font(.largeTitle.bold()).accessibilityAddTraits(.isHeader)
                         if case let .search(query) = session.destination {
                             Text("Results for “\(query)”").foregroundStyle(.secondary)
+                        } else if session.destination == .history {
+                            Text("Listening history from your YouTube Music account")
+                                .font(.subheadline).foregroundStyle(.secondary)
                         } else if !page.title.isEmpty && page.title != session.destination.title {
                             Text(page.title).foregroundStyle(.secondary)
                         }
                     }
                     Spacer()
-                    if session.destination == .library && session.remoteLibraryEditingEnabled {
+                    if session.remoteLibraryEditingEnabled,
+                       session.destination.libraryCategory == .all || session.destination.libraryCategory == .playlists {
                         Button("New Playlist", systemImage: "plus") { presentEditor(.createPlaylist(tracks: [])) }
                             .labelStyle(.iconOnly).buttonStyle(.borderless).help("New Playlist")
                             .disabled(session.isEditingLibrary)

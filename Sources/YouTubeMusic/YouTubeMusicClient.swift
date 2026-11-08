@@ -4,8 +4,16 @@ import CryptoKit
 import Foundation
 
 public actor YouTubeMusicClient {
-    public enum LibraryCategory: Sendable {
+    public enum LibraryCategory: String, CaseIterable, Hashable, Sendable {
         case all, playlists, albums, artists
+        public var title: String {
+            switch self {
+            case .all: "Library"
+            case .playlists: "Playlists"
+            case .albums: "Albums"
+            case .artists: "Artists"
+            }
+        }
         var browseID: String {
             switch self {
             case .all: "FEmusic_library_landing"
@@ -50,7 +58,12 @@ public actor YouTubeMusicClient {
     public func library(category: LibraryCategory = .all) async throws -> MusicPage {
         var body = ["browseId": category.browseID]
         if case .artists = category { body["params"] = "ggMCCAU=" }
-        return try await firstPage(endpoint: .browse, body: body, title: "Library", requiresAuthentication: true, preservesOccurrences: false)
+        return try await firstPage(endpoint: .browse, body: body, title: category.title, requiresAuthentication: true, preservesOccurrences: false)
+    }
+    /// Reads the account's listening history without changing it. Repeated
+    /// plays remain distinct, including when they appear on different pages.
+    public func history() async throws -> MusicPage {
+        try await browse("FEmusic_history", title: "Listening History", requiresAuthentication: true, preservesOccurrences: true)
     }
     public func likedSongs() async throws -> MusicPage {
         try await browse("VLLM", title: "Liked Songs", requiresAuthentication: true, preservesOccurrences: true)

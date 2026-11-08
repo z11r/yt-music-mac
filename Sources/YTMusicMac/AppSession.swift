@@ -5,7 +5,8 @@ import WebKit
 import YouTubeMusic
 
 enum MusicDestination: Hashable {
-    case home, explore, library, likedSongs
+    case home, explore, library, likedSongs, history
+    case libraryCategory(YouTubeMusicClient.LibraryCategory)
     case search(String)
     case collection(MusicCollection)
 
@@ -15,8 +16,18 @@ enum MusicDestination: Hashable {
         case .explore: "Explore"
         case .library: "Library"
         case .likedSongs: "Liked Songs"
+        case .history: "Listening History"
+        case let .libraryCategory(category): category.title
         case .search: "Search"
         case let .collection(value): value.title
+        }
+    }
+
+    var libraryCategory: YouTubeMusicClient.LibraryCategory? {
+        switch self {
+        case .library: .all
+        case let .libraryCategory(category): category
+        default: nil
         }
     }
 }
@@ -253,7 +264,9 @@ final class AppSession {
                 case .home: result = try await client.home()
                 case .explore: result = try await client.explore()
                 case .library: result = try await client.library()
+                case let .libraryCategory(category): result = try await client.library(category: category)
                 case .likedSongs: result = try await client.likedSongs()
+                case .history: result = try await client.history()
                 case let .search(query): result = try await client.search(query: query, filter: filter)
                 case let .collection(value):
                     switch value.kind {
@@ -426,11 +439,11 @@ final class AppSession {
                 if isCurrentPlaylist(playlistID), case let .collection(collection) = destination {
                     navigate(to: .collection(MusicCollection(id: collection.id, kind: .playlist,
                         title: title, subtitle: collection.subtitle, artworkURL: collection.artworkURL)), recordHistory: false)
-                } else if destination == .library { reload() }
+                } else if destination.libraryCategory != nil { reload() }
             case let .playlistDeleted(playlistID):
                 libraryEditMessage = "Playlist deleted."
                 if isCurrentPlaylist(playlistID) { navigate(to: .library) }
-                else if destination == .library { reload() }
+                else if destination.libraryCategory != nil { reload() }
             case let .itemsAdded(playlistID, _):
                 libraryEditMessage = "Songs added to the playlist."
                 if isCurrentPlaylist(playlistID) { reload() }

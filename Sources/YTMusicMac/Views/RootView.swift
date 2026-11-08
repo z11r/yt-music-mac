@@ -21,7 +21,11 @@ struct RootView: View {
                     }
                     Section("Your Library") {
                         Label("Library", systemImage: "square.stack").tag(MusicDestination.library)
+                        Label("Playlists", systemImage: "music.note.list").tag(MusicDestination.libraryCategory(.playlists))
+                        Label("Albums", systemImage: "square.stack.fill").tag(MusicDestination.libraryCategory(.albums))
+                        Label("Artists", systemImage: "person.2").tag(MusicDestination.libraryCategory(.artists))
                         Label("Liked Songs", systemImage: "heart").tag(MusicDestination.likedSongs)
+                        Label("Listening History", systemImage: "clock").tag(MusicDestination.history)
                     }
                 }
                 .listStyle(.sidebar)

@@ -39,6 +39,13 @@ app session. Clear Recent Searches removes this list. Signing out, changing
 accounts, or ending the app session also clears it. It is separate from the
 music service's search history and is never saved to disk.
 
+Library has All, Playlists, Albums, and Artists destinations with a native
+category picker. Liked Songs remains separate. A dedicated saved Songs view
+still needs a verified service path; it must not alias liked songs or an uploads
+library. Listening History shows the selected YouTube Music account's history,
+retaining the service's day groups and repeated plays. It offers read-only
+browsing with Load More and retry, without history deletion controls.
+
 While someone types, suggestions appear in a list under the search field. Down
 and Up Arrow move through them, Return searches for the highlighted suggestion
 or, with none highlighted, for the typed text, and Escape closes the list. All
