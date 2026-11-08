@@ -23,11 +23,14 @@ struct YTMusicMacApp: App {
             }
             let bundle = Bundle.main.bundleURL.resolvingSymlinksInPath()
             let resources = AppIdentity.resourceBundle.bundleURL.resolvingSymlinksInPath()
+            let scriptsPresent = ["PlayerBridge", "EpisodeRateBridge"].allSatisfy { name in
+                guard let url = AppIdentity.resourceBundle.url(forResource: name, withExtension: "js"),
+                      let content = try? String(contentsOf: url, encoding: .utf8) else { return false }
+                return !content.isEmpty
+            }
             guard Bundle.main.bundleIdentifier == AppIdentity.identifier,
                   bundle.pathExtension == "app",
-                  resources.path.hasPrefix(bundle.path + "/"),
-                  let script = AppIdentity.resourceBundle.url(forResource: "PlayerBridge", withExtension: "js"),
-                  let content = try? String(contentsOf: script, encoding: .utf8), !content.isEmpty else {
+                  resources.path.hasPrefix(bundle.path + "/"), scriptsPresent else {
                 FileHandle.standardError.write(Data("App bundle validation failed.\n".utf8))
                 exit(1)
             }

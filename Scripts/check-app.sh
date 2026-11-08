@@ -58,9 +58,11 @@ music_link_scheme="ytmusicmac"
    -s "$bundle/Contents/Resources/YTMusicMac.sdef" ]] || {
   echo "The native scripting definition is missing." >&2; exit 1;
 }
-[[ -f "$resources/PlayerBridge.js" || -f "$resources/Contents/Resources/PlayerBridge.js" ]] || {
-  echo "The packaged playback bridge is missing." >&2; exit 1;
-}
+for playback_script in PlayerBridge EpisodeRateBridge; do
+  [[ -s "$resources/$playback_script.js" || -s "$resources/Contents/Resources/$playback_script.js" ]] || {
+    echo "The packaged $playback_script script is missing." >&2; exit 1;
+  }
+done
 python3 - "$bundle/Contents/Resources" <<'PY'
 from pathlib import Path
 import sys
