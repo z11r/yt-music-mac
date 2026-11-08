@@ -41,6 +41,17 @@ public enum RepeatMode: String, Codable, CaseIterable, Sendable {
     case one
 }
 
+/// Identifies one arrangement of a queue's entries. Work started for one revision must not apply to another.
+public struct QueueRevision: Hashable, Sendable {
+    let queueID: UUID
+    let edit: UInt64
+
+    init(queueID: UUID, edit: UInt64) {
+        self.queueID = queueID
+        self.edit = edit
+    }
+}
+
 /// Identifies one requested play of a queue entry, including repeated plays.
 public struct PlaybackOccurrence: Codable, Hashable, Sendable {
     public let sessionID: UUID

@@ -1,0 +1,415 @@
+{
+  "contents": {
+    "singleColumnMusicWatchNextResultsRenderer": {
+      "tabbedRenderer": {
+        "watchNextTabbedResultsRenderer": {
+          "tabs": [
+            {
+              "tabRenderer": {
+                "title": "Up next",
+                "content": {
+                  "musicQueueRenderer": {
+                    "header": {
+                      "musicQueueHeaderRenderer": {
+                        "title": {
+                          "runs": [
+                            {
+                              "text": "Playing from"
+                            }
+                          ]
+                        },
+                        "subtitle": {
+                          "runs": [
+                            {
+                              "text": "Never Gonna Give You Up Mix"
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    "content": {
+                      "playlistPanelRenderer": {
+                        "playlistId": "RDAMVMdQw4w9WgXcQ",
+                        "isInfinite": true,
+                        "contents": [
+                          {
+                            "playlistPanelVideoRenderer": {
+                              "title": {
+                                "runs": [
+                                  {
+                                    "text": "Never Gonna Give You Up"
+                                  }
+                                ]
+                              },
+                              "longBylineText": {
+                                "runs": [
+                                  {
+                                    "text": "Rick Astley",
+                                    "navigationEndpoint": {
+                                      "browseEndpoint": {
+                                        "browseId": "UCwZEU0wAwIyZb4x5G_KJp2w",
+                                        "browseEndpointContextSupportedConfigs": {
+                                          "browseEndpointContextMusicConfig": {
+                                            "pageType": "MUSIC_PAGE_TYPE_ARTIST"
+                                          }
+                                        }
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "text": " • "
+                                  },
+                                  {
+                                    "text": "1.8B views"
+                                  },
+                                  {
+                                    "text": " • "
+                                  },
+                                  {
+                                    "text": "19M likes"
+                                  }
+                                ]
+                              },
+                              "shortBylineText": {
+                                "runs": [
+                                  {
+                                    "text": "Rick Astley"
+                                  }
+                                ]
+                              },
+                              "thumbnail": {
+                                "thumbnails": [
+                                  {
+                                    "url": "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg?sqp=-oaymwEWCJADEOEBIAQqCggAEOADGC0guwJIWg&rs=AMzJL3lrEQLVd7aUH6RTaLjc4JkVVNINHQ",
+                                    "width": 400,
+                                    "height": 225
+                                  },
+                                  {
+                                    "url": "https://i.ytimg.com/vi/dQw4w9WgXcQ/hq720.jpg?sqp=-oaymwEKCKAGEMIDIABIWg&rs=AMzJL3lfpZeEOiVk4TdFkCMcOh0F7fbuiQ",
+                                    "width": 800,
+                                    "height": 450
+                                  }
+                                ]
+                              },
+                              "lengthText": {
+                                "runs": [
+                                  {
+                                    "text": "3:34"
+                                  }
+                                ]
+                              },
+                              "selected": true,
+                              "navigationEndpoint": {
+                                "watchEndpoint": {
+                                  "videoId": "dQw4w9WgXcQ",
+                                  "playlistId": "RDAMVMdQw4w9WgXcQ",
+                                  "index": 0,
+                                  "watchEndpointMusicSupportedConfigs": {
+                                    "watchEndpointMusicConfig": {
+                                      "hasPersistentPlaylistPanel": true,
+                                      "musicVideoType": "MUSIC_VIDEO_TYPE_OMV"
+                                    }
+                                  }
+                                }
+                              },
+                              "videoId": "dQw4w9WgXcQ",
+                              "playlistSetVideoId": "56B44F6D10557CC6"
+                            }
+                          },
+                          {
+                            "playlistPanelVideoRenderer": {
+                              "title": {
+                                "runs": [
+                                  {
+                                    "text": "Together Forever (2022 Remaster)"
+                                  }
+                                ]
+                              },
+                              "longBylineText": {
+                                "runs": [
+                                  {
+                                    "text": "Rick Astley",
+                                    "navigationEndpoint": {
+                                      "browseEndpoint": {
+                                        "browseId": "UCwZEU0wAwIyZb4x5G_KJp2w",
+                                        "browseEndpointContextSupportedConfigs": {
+                                          "browseEndpointContextMusicConfig": {
+                                            "pageType": "MUSIC_PAGE_TYPE_ARTIST"
+                                          }
+                                        }
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "text": " • "
+                                  },
+                                  {
+                                    "text": "208M views"
+                                  },
+                                  {
+                                    "text": " • "
+                                  },
+                                  {
+                                    "text": "1.2M likes"
+                                  }
+                                ]
+                              },
+                              "shortBylineText": {
+                                "runs": [
+                                  {
+                                    "text": "Rick Astley"
+                                  }
+                                ]
+                              },
+                              "thumbnail": {
+                                "thumbnails": [
+                                  {
+                                    "url": "https://i.ytimg.com/vi/yPYZpwSpKmA/hqdefault.jpg?sqp=-oaymwEWCJADEOEBIAQqCggAEOADGC0guwJIWg&rs=AMzJL3kXZXeY-1aCjQEWu0o-GXDChKEfOA",
+                                    "width": 400,
+                                    "height": 225
+                                  },
+                                  {
+                                    "url": "https://i.ytimg.com/vi/yPYZpwSpKmA/hq720.jpg?sqp=-oaymwEKCKAGEMIDIABIWg&rs=AMzJL3nqA7E9Wx_JH6kPluDXghiikdTQCQ",
+                                    "width": 800,
+                                    "height": 450
+                                  }
+                                ]
+                              },
+                              "lengthText": {
+                                "runs": [
+                                  {
+                                    "text": "3:24"
+                                  }
+                                ]
+                              },
+                              "selected": false,
+                              "navigationEndpoint": {
+                                "watchEndpoint": {
+                                  "videoId": "yPYZpwSpKmA",
+                                  "playlistId": "RDAMVMdQw4w9WgXcQ",
+                                  "index": 1,
+                                  "watchEndpointMusicSupportedConfigs": {
+                                    "watchEndpointMusicConfig": {
+                                      "hasPersistentPlaylistPanel": true,
+                                      "musicVideoType": "MUSIC_VIDEO_TYPE_OMV"
+                                    }
+                                  }
+                                }
+                              },
+                              "videoId": "yPYZpwSpKmA",
+                              "playlistSetVideoId": "289F4A46DF0A30D2"
+                            }
+                          },
+                          {
+                            "playlistPanelVideoRenderer": {
+                              "title": {
+                                "runs": [
+                                  {
+                                    "text": "Take On Me"
+                                  }
+                                ]
+                              },
+                              "longBylineText": {
+                                "runs": [
+                                  {
+                                    "text": "a-ha",
+                                    "navigationEndpoint": {
+                                      "browseEndpoint": {
+                                        "browseId": "UCx00XxqRCfPS6zaTzRm3H2A",
+                                        "browseEndpointContextSupportedConfigs": {
+                                          "browseEndpointContextMusicConfig": {
+                                            "pageType": "MUSIC_PAGE_TYPE_ARTIST"
+                                          }
+                                        }
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "text": " • "
+                                  },
+                                  {
+                                    "text": "2.5B views"
+                                  },
+                                  {
+                                    "text": " • "
+                                  },
+                                  {
+                                    "text": "13M likes"
+                                  }
+                                ]
+                              },
+                              "shortBylineText": {
+                                "runs": [
+                                  {
+                                    "text": "a-ha"
+                                  }
+                                ]
+                              },
+                              "thumbnail": {
+                                "thumbnails": [
+                                  {
+                                    "url": "https://i.ytimg.com/vi/djV11Xbc914/hqdefault.jpg?sqp=-oaymwEWCJADEOEBIAQqCggAEOADGC0guwJIWg&rs=AMzJL3lnYP0tGrb4rgHWpUKN6xzNJ9uXaw",
+                                    "width": 400,
+                                    "height": 225
+                                  },
+                                  {
+                                    "url": "https://i.ytimg.com/vi/djV11Xbc914/hq720.jpg?sqp=-oaymwEKCKAGEMIDIABIWg&rs=AMzJL3mmPTGnPcmzRTeFgWnQ1g36bfXJCw",
+                                    "width": 800,
+                                    "height": 450
+                                  }
+                                ]
+                              },
+                              "lengthText": {
+                                "runs": [
+                                  {
+                                    "text": "4:04"
+                                  }
+                                ]
+                              },
+                              "selected": false,
+                              "navigationEndpoint": {
+                                "watchEndpoint": {
+                                  "videoId": "djV11Xbc914",
+                                  "playlistId": "RDAMVMdQw4w9WgXcQ",
+                                  "index": 2,
+                                  "watchEndpointMusicSupportedConfigs": {
+                                    "watchEndpointMusicConfig": {
+                                      "hasPersistentPlaylistPanel": true,
+                                      "musicVideoType": "MUSIC_VIDEO_TYPE_OMV"
+                                    }
+                                  }
+                                }
+                              },
+                              "videoId": "djV11Xbc914",
+                              "playlistSetVideoId": "017208FAA85233F9"
+                            }
+                          },
+                          {
+                            "playlistPanelVideoRenderer": {
+                              "title": {
+                                "runs": [
+                                  {
+                                    "text": "Gimme! Gimme! Gimme! (A Man After Midnight)"
+                                  }
+                                ]
+                              },
+                              "longBylineText": {
+                                "runs": [
+                                  {
+                                    "text": "ABBA",
+                                    "navigationEndpoint": {
+                                      "browseEndpoint": {
+                                        "browseId": "UCuubAXN9AYgtcmSrD0frggQ",
+                                        "browseEndpointContextSupportedConfigs": {
+                                          "browseEndpointContextMusicConfig": {
+                                            "pageType": "MUSIC_PAGE_TYPE_ARTIST"
+                                          }
+                                        }
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "text": " • "
+                                  },
+                                  {
+                                    "text": "758M views"
+                                  },
+                                  {
+                                    "text": " • "
+                                  },
+                                  {
+                                    "text": "5.1M likes"
+                                  }
+                                ]
+                              },
+                              "shortBylineText": {
+                                "runs": [
+                                  {
+                                    "text": "ABBA"
+                                  }
+                                ]
+                              },
+                              "thumbnail": {
+                                "thumbnails": [
+                                  {
+                                    "url": "https://i.ytimg.com/vi/XEjLoHdbVeE/hqdefault.jpg?sqp=-oaymwEWCJADEOEBIAQqCggAEOADGC0guwJIWg&rs=AMzJL3nURTTgadHNZA7zG-9-iPWzx9tqZg",
+                                    "width": 400,
+                                    "height": 225
+                                  },
+                                  {
+                                    "url": "https://i.ytimg.com/vi/XEjLoHdbVeE/hq720.jpg?sqp=-oaymwEKCKAGEMIDIABIWg&rs=AMzJL3l_FGBgyiJ-cQ6VCN2GcYsc1C1Tyw",
+                                    "width": 800,
+                                    "height": 450
+                                  }
+                                ]
+                              },
+                              "lengthText": {
+                                "runs": [
+                                  {
+                                    "text": "3:17"
+                                  }
+                                ]
+                              },
+                              "selected": false,
+                              "navigationEndpoint": {
+                                "watchEndpoint": {
+                                  "videoId": "XEjLoHdbVeE",
+                                  "playlistId": "RDAMVMdQw4w9WgXcQ",
+                                  "index": 3,
+                                  "watchEndpointMusicSupportedConfigs": {
+                                    "watchEndpointMusicConfig": {
+                                      "hasPersistentPlaylistPanel": true,
+                                      "musicVideoType": "MUSIC_VIDEO_TYPE_OMV"
+                                    }
+                                  }
+                                }
+                              },
+                              "videoId": "XEjLoHdbVeE",
+                              "playlistSetVideoId": "52152B4946C2F73F"
+                            }
+                          }
+                        ],
+                        "continuations": [
+                          {
+                            "nextRadioContinuationData": {
+                              "continuation": "CDISOBILWWh0YkltbVlXb1EiEVJEQU1WTWRRdzR3OVdnWGNRODHQAQH6ARBENjI1QUI0MDI5NEQzODFEGAo%3D"
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "tabRenderer": {
+                "title": "Lyrics",
+                "unselectable": true
+              }
+            },
+            {
+              "tabRenderer": {
+                "title": "Comments",
+                "unselectable": true
+              }
+            },
+            {
+              "tabRenderer": {
+                "title": "Related",
+                "unselectable": true
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "currentVideoEndpoint": {
+    "watchEndpoint": {
+      "videoId": "dQw4w9WgXcQ",
+      "playlistId": "RDAMVMdQw4w9WgXcQ",
+      "index": 0
+    }
+  }
+}

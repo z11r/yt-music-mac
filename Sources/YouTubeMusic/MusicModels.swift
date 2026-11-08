@@ -8,13 +8,17 @@ public struct MusicCollection: Identifiable, Hashable, Sendable {
     public let title: String
     public let subtitle: String?
     public let artworkURL: URL?
+    /// The radio or mix the service offered for this collection, if any.
+    public let radioPlaylistID: String?
 
-    public init(id: String, kind: Kind, title: String, subtitle: String? = nil, artworkURL: URL? = nil) {
+    public init(id: String, kind: Kind, title: String, subtitle: String? = nil, artworkURL: URL? = nil,
+                radioPlaylistID: String? = nil) {
         self.id = id
         self.kind = kind
         self.title = title
         self.subtitle = subtitle
         self.artworkURL = artworkURL
+        self.radioPlaylistID = radioPlaylistID
     }
 }
 
@@ -135,7 +139,7 @@ public struct MusicContinuation: Sendable, CustomStringConvertible, CustomDebugS
 }
 
 enum MusicEndpoint: String, Sendable {
-    case browse, search
+    case browse, search, next
     case searchSuggestions = "music/get_search_suggestions"
 }
 

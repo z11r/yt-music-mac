@@ -318,22 +318,26 @@ enum MusicResponseParser {
         let metadata = columns.dropFirst().flatMap { $0["runs"].array } + node["subtitle"]["runs"].array + node["secondSubtitle"]["runs"].array
         let subtitle = metadata.compactMap { $0["text"].string }.joined()
         let artwork = thumbnail(node)
+        let radio = MusicRadioParser.offeredRadioPlaylistID(node["menu"])
         // A browse destination takes precedence over the card's play overlay.
         for endpoint in endpoints {
             let browse = endpoint["browseEndpoint"]
             if let id = browse["browseId"].string, let kind = collectionKind(browse) {
-                return .collection(MusicCollection(id: id, kind: kind, title: title, subtitle: subtitle.isEmpty ? nil : subtitle, artworkURL: artwork))
+                return .collection(MusicCollection(id: id, kind: kind, title: title, subtitle: subtitle.isEmpty ? nil : subtitle, artworkURL: artwork,
+                                                   radioPlaylistID: radio))
             }
         }
         for endpoint in endpoints {
             if let id = endpoint["watchPlaylistEndpoint"]["playlistId"].string {
-                return .collection(MusicCollection(id: id, kind: .playlist, title: title, subtitle: subtitle, artworkURL: artwork))
+                return .collection(MusicCollection(id: id, kind: .playlist, title: title, subtitle: subtitle, artworkURL: artwork,
+                                                   radioPlaylistID: radio))
             }
         }
         // Playlist cards sometimes expose only a watch endpoint.
         if metadata.first?["text"].string?.lowercased() == "playlist",
            let id = endpoints.compactMap({ $0["watchEndpoint"]["playlistId"].string }).first {
-            return .collection(MusicCollection(id: id, kind: .playlist, title: title, subtitle: subtitle, artworkURL: artwork))
+            return .collection(MusicCollection(id: id, kind: .playlist, title: title, subtitle: subtitle, artworkURL: artwork,
+                                               radioPlaylistID: radio))
         }
         guard let videoID = node["playlistItemData"]["videoId"].string
                 ?? endpoints.compactMap({ $0["watchEndpoint"]["videoId"].string }).first else { return nil }
@@ -350,7 +354,7 @@ enum MusicResponseParser {
         return .track(Track(id: videoID, title: title, artist: artist, album: album, artworkURL: artwork, duration: duration))
     }
 
-    private static func collectionKind(_ browse: JSONNode) -> MusicCollection.Kind? {
+    static func collectionKind(_ browse: JSONNode) -> MusicCollection.Kind? {
         let pageType = browse["browseEndpointContextSupportedConfigs"]["browseEndpointContextMusicConfig"]["pageType"].string
         switch pageType {
         case "MUSIC_PAGE_TYPE_ALBUM": return .album
@@ -365,7 +369,7 @@ enum MusicResponseParser {
         return nil
     }
 
-    private static func thumbnail(_ node: JSONNode, depth: Int = 0) -> URL? {
+    static func thumbnail(_ node: JSONNode, depth: Int = 0) -> URL? {
         guard depth < 6 else { return nil }
         for value in node["thumbnails"].array.reversed() {
             if var raw = value["url"].string {

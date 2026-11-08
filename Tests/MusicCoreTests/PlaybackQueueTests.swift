@@ -281,4 +281,45 @@ struct PlaybackQueueTests {
             #expect(queue.currentOccurrence == next)
         }
     }
+
+    @Test func revisionChangesWithEditsButNotWithPlayback() throws {
+        var queue = playingQueue(["a", "b"])
+        var revisions = [queue.revision]
+        func expectNewRevision(_ edit: (inout PlaybackQueue) -> Void) {
+            edit(&queue)
+            #expect(!revisions.contains(queue.revision))
+            revisions.append(queue.revision)
+        }
+        // Playback requests, endings, repeat changes, and metadata leave the arrangement alone.
+        let unchanged = queue.revision
+        _ = queue.next()
+        _ = queue.previous()
+        _ = queue.beginPlayback()
+        let occurrence = try #require(queue.currentOccurrence)
+        _ = queue.handleEnd(occurrence: occurrence)
+        queue.repeatMode = .all
+        queue.updateTrack(Track(id: "a", title: "Renamed", artist: "Artist"))
+        #expect(queue.revision == unchanged)
+
+        expectNewRevision { $0.append([song("c")]) }
+        expectNewRevision { $0.playNext([song("d")]) }
+        expectNewRevision { $0.move(fromOffsets: IndexSet(integer: 0), toOffset: 2) }
+        var generator = SeededGenerator(state: 3)
+        expectNewRevision { $0.setShuffle(true, using: &generator) }
+        expectNewRevision { $0.setShuffle(false) }
+        expectNewRevision { $0.remove(entryIDs: [$0.entries[0].id]) }
+        expectNewRevision { _ = $0.undo() }
+        expectNewRevision { _ = $0.replace(with: [song("a"), song("b")]) }
+
+        // A queue that keeps no undo history still records its edits.
+        var noUndo = PlaybackQueue(undoLimit: 0)
+        let before = noUndo.revision
+        noUndo.append([song("a")])
+        #expect(noUndo.revision != before)
+
+        // Another queue, including one restored from this queue's snapshot, never shares a revision.
+        let restored = try PlaybackQueue(snapshot: queue.snapshot())
+        #expect(restored.revision != queue.revision)
+        #expect(PlaybackQueue().revision != PlaybackQueue().revision)
+    }
 }
