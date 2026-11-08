@@ -9,6 +9,7 @@ from [Kaset](https://github.com/sozercan/kaset) at commit
 - `Sources/Kaset/Services/API/YTMusicClient.swift`
 - `Sources/Kaset/Services/API/InnerTubeSupport.swift`
 - `Sources/Kaset/Services/API/Parsers/HomeResponseParser.swift`
+- `Sources/Kaset/Services/API/Parsers/ArtistParser.swift`
 - `Sources/Kaset/Services/API/Parsers/SearchResponseParser.swift`
 - `Sources/Kaset/Services/API/Parsers/SearchSuggestionsParser.swift`
 - `Sources/Kaset/Services/API/Parsers/PlaylistParser.swift`
@@ -20,12 +21,16 @@ from [Kaset](https://github.com/sozercan/kaset) at commit
 - `Sources/Kaset/Services/API/Parsers/LyricsParser.swift`
 - `Sources/Kaset/Models/Lyrics.swift`
 - `Sources/Kaset/Models/SyncedLyrics.swift`
+- `Sources/Kaset/Models/ShelfMoreEndpoint.swift`
 
 Synthetic editability and like-state tests also use response shapes documented in
 `Tests/KasetTests/PlaylistParserTests.swift` and
 `Tests/KasetTests/RadioQueueParserTests.swift` at the same revision.
 Synthetic lyrics tests also use response shapes documented in
 `Tests/KasetTests/LyricsParserTests.swift` at that revision.
+Synthetic discovery tests use browse-action and category-button shapes from
+`Tests/KasetTests/ArtistParserTests.swift` and
+`Tests/KasetTests/HomeResponseParserTests.swift` at that revision.
 
 The parser regression tests reuse these sanitized fixtures from
 `Tests/KasetTests/Fixtures/` at the same revision:

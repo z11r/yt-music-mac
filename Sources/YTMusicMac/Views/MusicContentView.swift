@@ -10,12 +10,17 @@ struct MusicContentView: View {
         switch session.destination {
         case .likedSongs: true
         case let .collection(value): value.kind != .artist
+        case let .browse(reference): reference.kind == .playlist
         default: false
         }
     }
 
-    private var showsSearchGrid: Bool {
-        if case .search = session.destination { session.searchFilter != .all } else { false }
+    private var showsResultGrid: Bool {
+        switch session.destination {
+        case .search: session.searchFilter != .all
+        case let .browse(reference): reference.kind == .discography
+        default: false
+        }
     }
 
     private var showsSortedLibrary: Bool {
@@ -55,9 +60,23 @@ struct MusicContentView: View {
                     Divider()
                 }
                 .background(.bar)
+            } else if showsDiscoveryCategories {
+                VStack(spacing: 0) {
+                    DiscoveryCategoryBar(session: session)
+                        .padding(.horizontal, 28).padding(.vertical, 8)
+                    Divider()
+                }
+                .background(.bar)
             }
         }
         .background(Color(nsColor: .windowBackgroundColor))
+    }
+
+    private var showsDiscoveryCategories: Bool {
+        switch session.destination {
+        case .explore, .discovery: true
+        default: false
+        }
     }
 
     private func shelves(_ page: MusicPage) -> some View {
@@ -85,6 +104,7 @@ struct MusicContentView: View {
                     Button("Refresh", systemImage: "arrow.clockwise", action: session.reload)
                         .labelStyle(.iconOnly).buttonStyle(.borderless).help("Refresh this page")
                 }
+                UnavailableMusicNotice(page: page)
                 if page.sections.isEmpty && page.items.isEmpty {
                     if case let .search(query) = session.destination {
                         ContentUnavailableView.search(text: query)
@@ -96,10 +116,18 @@ struct MusicContentView: View {
                     }
                 }
                 // A filtered search is one list that grows page by page, so show it as one grid.
-                ForEach(Array((showsSearchGrid || showsSortedLibrary ? [] : page.sections).enumerated()), id: \.offset) { _, section in
+                ForEach(Array((showsResultGrid || showsSortedLibrary ? [] : page.sections).enumerated()), id: \.offset) { _, section in
                     VStack(alignment: .leading, spacing: 14) {
-                        if !section.title.isEmpty {
-                            Text(section.title).font(.title2.bold()).accessibilityAddTraits(.isHeader)
+                        HStack(alignment: .firstTextBaseline) {
+                            if !section.title.isEmpty {
+                                Text(section.title).font(.title2.bold()).accessibilityAddTraits(.isHeader)
+                            }
+                            Spacer()
+                            if let reference = section.browseReference {
+                                Button("See All") { session.navigate(to: .browse(reference)) }
+                                    .buttonStyle(.borderless)
+                                    .accessibilityLabel("See all \(section.title)")
+                            }
                         }
                         ScrollView(.horizontal) {
                             LazyHStack(alignment: .top, spacing: 20) {
@@ -112,7 +140,7 @@ struct MusicContentView: View {
                         .scrollIndicators(.automatic)
                     }
                 }
-                if (showsSearchGrid || showsSortedLibrary || page.sections.isEmpty) && !page.items.isEmpty {
+                if (showsResultGrid || showsSortedLibrary || page.sections.isEmpty) && !page.items.isEmpty {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 176, maximum: 220), spacing: 20)],
                               alignment: .leading, spacing: 26) {
                         ForEach(Array((showsSortedLibrary ? session.libraryDisplayOrder.sorted(page.items) : page.items).enumerated()), id: \.offset) { _, item in
@@ -177,8 +205,11 @@ private struct MusicCard: View {
                                 .accessibilityHidden(true)
                         }
                     }
-                Text(item.title).font(.headline).lineLimit(2)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                HStack(alignment: .firstTextBaseline, spacing: 5) {
+                    Text(item.title).font(.headline).lineLimit(2)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    if case let .track(track) = item { ExplicitContentBadge(track: track) }
+                }
                 Text(item.subtitle ?? (isArtist ? "Artist" : ""))
                     .font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
             }
@@ -200,7 +231,7 @@ private struct MusicCard: View {
         }
         .onHover { isHovered = $0 }
         .help([item.title, item.subtitle].compactMap { $0 }.joined(separator: " — "))
-        .accessibilityLabel([item.title, item.subtitle].compactMap { $0 }.joined(separator: ", "))
+        .accessibilityLabel([item.title, item.subtitle, explicitLabel].compactMap { $0 }.joined(separator: ", "))
         .accessibilityHint(isTrack ? "Play song" : "Open collection")
         .accessibilityActions {
             if case let .track(track) = item {
@@ -209,6 +240,7 @@ private struct MusicCard: View {
                 Button("Start Radio") { session.startRadio(from: track) }
                 LibraryTrackActions(session: session, tracks: [track], presentEditor: presentEditor,
                                     showsSeparator: false)
+                TrackMetadataActions(track: track, session: session)
             } else if case let .collection(collection) = item, collection.radioPlaylistID != nil {
                 Button("Start Radio") { session.startRadio(from: collection) }
             }
@@ -217,6 +249,7 @@ private struct MusicCard: View {
             switch item {
             case let .track(track): MusicLinkActions(link: .track(track.id))
             case let .collection(collection): MusicLinkActions(link: .collection(collection))
+            case .browse: EmptyView()
             }
             Button(isTrack ? "Play" : "Open") { session.activate(item) }
             if case let .track(track) = item {
@@ -224,6 +257,7 @@ private struct MusicCard: View {
                 Button("Add to Queue") { session.addToQueue([track]) }
                 Button("Start Radio") { session.startRadio(from: track) }
                 LibraryTrackActions(session: session, tracks: [track], presentEditor: presentEditor)
+                TrackMetadataActions(track: track, session: session)
             } else if case let .collection(collection) = item {
                 LocalCollectionActions(session: session, collection: collection)
                 if collection.radioPlaylistID != nil {
@@ -235,6 +269,9 @@ private struct MusicCard: View {
 
     private var isTrack: Bool { if case .track = item { true } else { false } }
     private var trackID: String? { if case let .track(track) = item { track.id } else { nil } }
+    private var explicitLabel: String? {
+        if case let .track(track) = item, track.isExplicit == true { "Explicit content" } else { nil }
+    }
 }
 
 private struct CollectionTracksView: View {
@@ -325,7 +362,10 @@ private struct CollectionTracksView: View {
                     HStack(spacing: 10) {
                         ArtworkView(url: row.track.artworkURL, size: 36, videoID: row.track.id)
                         VStack(alignment: .leading, spacing: 3) {
-                            Text(row.track.title).fontWeight(.medium).lineLimit(1)
+                            HStack(spacing: 5) {
+                                Text(row.track.title).fontWeight(.medium).lineLimit(1)
+                                ExplicitContentBadge(track: row.track)
+                            }
                             Text(row.track.artist).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                         }
                         Spacer(minLength: 0)
@@ -339,6 +379,7 @@ private struct CollectionTracksView: View {
                         Button("Add to Queue") { session.addToQueue([row.track]) }
                         Button("Start Radio") { session.startRadio(from: row.track) }
                         TrackRatingActions(session: session, track: row.track)
+                        TrackMetadataActions(track: row.track, session: session)
                     }
                 }.width(min: 190, ideal: 380)
                 TableColumn("Time") { row in
@@ -358,6 +399,9 @@ private struct CollectionTracksView: View {
                         Button("Start Radio") { session.startRadio(from: track) }
                     }
                     LibraryTrackActions(session: session, tracks: tracks, presentEditor: presentEditor)
+                    if tracks.count == 1, let track = tracks.first {
+                        TrackMetadataActions(track: track, session: session)
+                    }
                     removalAction(for: ids)
                 }
             } primaryAction: { ids in
@@ -451,6 +495,7 @@ private struct CollectionTracksView: View {
             }
             Text(page.continuation == nil ? "\(allTracks.count) songs" : "\(allTracks.count) songs loaded")
                 .foregroundStyle(.secondary)
+            UnavailableMusicNotice(page: page)
         }
     }
 }

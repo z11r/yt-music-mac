@@ -39,6 +39,8 @@ struct ParsedMusicPage {
     var ratings: [String: MusicRating] {
         ratingCandidates.compactMapValues { $0.count == 1 ? $0.first : nil }
     }
+    var unavailableItemCount = 0
+    var hasUnsupportedContent = false
     var likeStates: [String: Bool] {
         ratings.mapValues { $0 == .liked }
     }
@@ -100,6 +102,9 @@ enum MusicResponseParser {
             }
         }
         guard result.recognized else { throw MusicServiceError.unsupportedResponse }
+        if result.items.isEmpty, result.sections.isEmpty, result.unavailableItemCount == 0, result.hasUnsupportedContent {
+            throw MusicServiceError.unsupportedResponse
+        }
         return result
     }
 
@@ -131,13 +136,18 @@ enum MusicResponseParser {
                     return
                 }
             }
-            if let item = item(node) {
+            if isUnavailable(node) {
+                result.unavailableItemCount += 1
+                result.recognized = true
+            } else if let item = item(node) {
                 result.recognized = true
                 result.sections.append(MusicSection(id: path, title: "", items: [item]))
                 if case let .track(track) = item { recordLikeState(node, track: track, result: &result) }
                 if preservesOccurrences, case let .track(track) = item {
                     result.playlistItems.append(playlistItem(node, track: track))
                 }
+            } else if isUnreadableContent(node) {
+                result.hasUnsupportedContent = true
             }
             result.token = try continuationItem(node) ?? result.token
         }
@@ -158,11 +168,13 @@ enum MusicResponseParser {
     private static func appendShelf(_ node: JSONNode, result: inout ParsedMusicPage, path: String,
                                     preservesOccurrences: Bool, includesCard: Bool = false) throws {
         let title = node["title"].text ?? node["header"]["musicCarouselShelfBasicHeaderRenderer"]["title"].text ?? ""
+        let browseReference = MusicBrowseParser.shelfReference(node, title: title)
         let previousToken = result.token
         result.token = nil
         var children = node["contents"].array + node["items"].array
         if includesCard { children.insert(.object(["musicTwoRowItemRenderer": node]), at: 0) }
-        try appendShelfItems(children, title: title, result: &result, path: path, preservesOccurrences: preservesOccurrences)
+        try appendShelfItems(children, title: title, result: &result, path: path, preservesOccurrences: preservesOccurrences,
+                             browseReference: browseReference)
         result.token = try result.token ?? continuation(node) ?? previousToken
     }
 
@@ -174,16 +186,22 @@ enum MusicResponseParser {
     }
 
     private static func appendShelfItems(_ nodes: [JSONNode], title: String, result: inout ParsedMusicPage, path: String,
-                                         preservesOccurrences: Bool) throws {
+                                         preservesOccurrences: Bool, browseReference: MusicBrowseReference? = nil) throws {
         let items = nodes.compactMap { node -> MusicItem? in
-            guard let item = item(node) else { return nil }
+            if isUnavailable(node) { result.unavailableItemCount += 1; return nil }
+            guard let item = item(node) else {
+                if isUnreadableContent(node) { result.hasUnsupportedContent = true }
+                return nil
+            }
             if case let .track(track) = item { recordLikeState(node, track: track, result: &result) }
             if preservesOccurrences, case let .track(track) = item {
                 result.playlistItems.append(playlistItem(node, track: track))
             }
             return item
         }
-        if !items.isEmpty { result.sections.append(MusicSection(id: path, title: title, items: items)) }
+        if !items.isEmpty || browseReference != nil {
+            result.sections.append(MusicSection(id: path, title: title, items: items, browseReference: browseReference))
+        }
         for node in nodes { result.token = try continuationItem(node) ?? result.token }
     }
 
@@ -220,10 +238,28 @@ enum MusicResponseParser {
     }
 
     private static func item(_ node: JSONNode) -> MusicItem? {
+        if let reference = MusicBrowseParser.navigationReference(node["musicNavigationButtonRenderer"]) {
+            return .browse(reference)
+        }
         for key in ["musicResponsiveListItemRenderer", "musicTwoRowItemRenderer", "musicMultiRowListItemRenderer"] {
             if node[key].exists { return parseItem(node[key]) }
         }
         return nil
+    }
+
+    private static func isUnavailable(_ node: JSONNode) -> Bool {
+        ["musicResponsiveListItemRenderer", "musicTwoRowItemRenderer", "musicMultiRowListItemRenderer"].contains {
+            node[$0]["musicItemRendererDisplayPolicy"].string == "MUSIC_ITEM_RENDERER_DISPLAY_POLICY_GREY_OUT"
+        }
+    }
+
+    private static func isUnreadableContent(_ node: JSONNode) -> Bool {
+        guard case let .object(values) = node else { return false }
+        // Descriptions and pagination controls are not music items. Unknown
+        // content renderers must not make a partial page appear complete.
+        return values.keys.contains {
+            $0.hasSuffix("Renderer") && !["continuationItemRenderer", "musicDescriptionShelfRenderer", "messageRenderer"].contains($0)
+        }
     }
 
     private static func playlistItem(_ node: JSONNode, track: Track) -> MusicPlaylistItem {
@@ -342,6 +378,8 @@ enum MusicResponseParser {
         }
         guard let videoID = node["playlistItemData"]["videoId"].string
                 ?? endpoints.compactMap({ $0["watchEndpoint"]["videoId"].string }).first else { return nil }
+        let artistReferences = metadataReferences(metadata, kind: .artist)
+        let albumReference = metadataReferences(metadata, kind: .album).first
         let artists = metadata.compactMap { run -> String? in
             collectionKind(run["navigationEndpoint"]["browseEndpoint"]) == .artist ? run["text"].string : nil
         }
@@ -352,7 +390,26 @@ enum MusicResponseParser {
             !$0.isEmpty && !["•", "·", "&", "Song", "Video", "Album", "Single", "EP"].contains($0) && parseDuration($0) == nil
         }
         let artist = artists.isEmpty ? (fallback ?? "Unknown artist") : artists.joined(separator: ", ")
-        return .track(Track(id: videoID, title: title, artist: artist, album: album, artworkURL: artwork, duration: duration))
+        let isExplicit = ["badges", "subtitleBadges"].contains { key in
+            node[key].array.contains { $0["musicInlineBadgeRenderer"]["icon"]["iconType"].string == "MUSIC_EXPLICIT_BADGE" }
+        }
+        return .track(Track(id: videoID, title: title, artist: artist, album: album, artworkURL: artwork, duration: duration,
+                            albumReference: albumReference, artistReferences: artistReferences.isEmpty ? nil : artistReferences,
+                            isExplicit: isExplicit ? true : nil))
+    }
+
+    private static func metadataReferences(_ runs: [JSONNode], kind: MusicCollection.Kind) -> [TrackMetadataReference] {
+        var seen: Set<String> = []
+        return runs.compactMap { run in
+            let browse = run["navigationEndpoint"]["browseEndpoint"]
+            guard collectionKind(browse) == kind, let id = browse["browseId"].string,
+                  !id.isEmpty, id.count <= 256, id.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "_" || $0 == "-") }),
+                  let title = run["text"].string else { return nil }
+            // Metadata links use bare catalog identities. Filtered browse params
+            // belong to a shelf action and cannot be carried by a saved track.
+            guard !browse["params"].exists, seen.insert(id).inserted else { return nil }
+            return TrackMetadataReference(id: id, title: title)
+        }
     }
 
     static func collectionKind(_ browse: JSONNode) -> MusicCollection.Kind? {

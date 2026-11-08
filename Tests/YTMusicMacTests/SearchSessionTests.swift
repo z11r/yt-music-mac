@@ -271,6 +271,67 @@ struct SearchSessionTests {
         #expect(session.page?.continuation == nil)
     }
 
+    @Test func switchingFromDiscoveryDiscardsItsLateResponse() async throws {
+        let transport = RoutedTransport()
+        await transport.respond(to: "browse:FEmusic_charts", with: searchPage(["late-chart"]), hold: true)
+        await transport.respond(to: "browse:UCdiscography", with: searchPage(["album-result"]))
+        let harness = SessionHarness(transport)
+        defer { harness.remove() }
+        let session = harness.session
+        session.navigate(to: .discovery(.charts))
+        let older = session.pageTask
+        await transport.waitForArrival("browse:FEmusic_charts")
+        let target = MusicBrowseReference(browseID: "UCdiscography", params: "albums-scope", title: "Albums", kind: .discography)
+        session.navigate(to: .browse(target))
+        await session.pageTask?.value
+        await transport.release("browse:FEmusic_charts")
+        await older?.value
+        #expect(session.destination == .browse(target))
+        #expect(trackIDs(session) == ["album-result"])
+        #expect(!session.isLoading)
+    }
+
+    @Test func browseFailureKeepsItsDestinationAndRetriesThroughReload() async throws {
+        let transport = RoutedTransport()
+        await transport.respond(to: "browse:UCdiscography", with: data(["unknownRenderer": [:]]))
+        let harness = SessionHarness(transport)
+        defer { harness.remove() }
+        let session = harness.session
+        let target = MusicBrowseReference(browseID: "UCdiscography", params: "albums-scope", title: "Albums", kind: .discography)
+        session.navigate(to: .browse(target))
+        await session.pageTask?.value
+        #expect(session.pageError != nil)
+        #expect(session.page == nil)
+        #expect(session.destination == .browse(target))
+        await transport.respond(to: "browse:UCdiscography", with: searchPage(["recovered"]))
+        session.reload()
+        await session.pageTask?.value
+        #expect(session.pageError == nil)
+        #expect(trackIDs(session) == ["recovered"])
+    }
+
+    @Test func browseLoadMoreNeverAppendsAfterChangingDiscoveryCategory() async throws {
+        let transport = RoutedTransport()
+        await transport.respond(to: "browse:UCdiscography", with: searchPage(["album"], token: "more-albums"))
+        await transport.respond(to: "next:more-albums", with: continuationPage(["late-album"]), hold: true)
+        await transport.respond(to: "browse:FEmusic_new_releases", with: searchPage(["release"]))
+        let harness = SessionHarness(transport)
+        defer { harness.remove() }
+        let session = harness.session
+        session.navigate(to: .browse(MusicBrowseReference(browseID: "UCdiscography", title: "Albums", kind: .discography)))
+        await session.pageTask?.value
+        session.loadMore()
+        let older = session.pageTask
+        await transport.waitForArrival("next:more-albums")
+        session.navigate(to: .discovery(.newReleases))
+        await session.pageTask?.value
+        await transport.release("next:more-albums")
+        await older?.value
+        #expect(session.destination == .discovery(.newReleases))
+        #expect(trackIDs(session) == ["release"])
+        #expect(!session.isLoadingMore)
+    }
+
     private func trackIDs(_ session: AppSession) -> [String] {
         session.page?.tracks.map(\.id) ?? []
     }

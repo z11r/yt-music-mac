@@ -7,6 +7,10 @@ public struct Track: Identifiable, Codable, Hashable, Sendable {
     public var album: String?
     public var artworkURL: URL?
     public var duration: TimeInterval?
+    public var albumReference: TrackMetadataReference?
+    public var artistReferences: [TrackMetadataReference]?
+    /// True when a service badge establishes explicit content; nil means unknown.
+    public var isExplicit: Bool?
 
     public init(
         id: String,
@@ -14,7 +18,10 @@ public struct Track: Identifiable, Codable, Hashable, Sendable {
         artist: String,
         album: String? = nil,
         artworkURL: URL? = nil,
-        duration: TimeInterval? = nil
+        duration: TimeInterval? = nil,
+        albumReference: TrackMetadataReference? = nil,
+        artistReferences: [TrackMetadataReference]? = nil,
+        isExplicit: Bool? = nil
     ) {
         self.id = id
         self.title = title
@@ -22,6 +29,9 @@ public struct Track: Identifiable, Codable, Hashable, Sendable {
         self.album = album
         self.artworkURL = artworkURL
         self.duration = duration.flatMap { $0.isFinite && $0 >= 0 ? $0 : nil }
+        self.albumReference = albumReference
+        self.artistReferences = artistReferences
+        self.isExplicit = isExplicit
     }
 }
 

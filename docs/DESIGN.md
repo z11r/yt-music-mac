@@ -49,6 +49,21 @@ Sort Loaded Items offers service order or natural title order in either
 direction. Sorting applies only to the loaded library cards. It does not
 reorder service playlists, change the queue, or change history chronology.
 
+Explore offers Featured, Charts, Moods & Genres, and New Releases. Mood buttons
+and supported shelf See All controls open native browse pages with the exact
+service parameters. These actions are bound to the account that returned them.
+See All currently supports playlist, artist, and discography page types; unknown
+types offer no link. Pages retain Load More, retry, and navigation history.
+Charts use the service's default selection; country filtering is not implemented.
+
+Songs with catalog identities offer Go to Album and Go to Artist actions in
+native card, collection, queue, and player menus. Display text alone does not
+create a link. Explicit badges require positive service evidence; missing badges
+remain unknown. Unavailable rows stay out of playback and are counted only for
+loaded pages. Unreadable content produces a partial-content notice or an error
+when no content can be read. Optional track metadata remains compatible with
+version 1 saved queues.
+
 While someone types, suggestions appear in a list under the search field. Down
 and Up Arrow move through them, Return searches for the highlighted suggestion
 or, with none highlighted, for the typed text, and Escape closes the list. All

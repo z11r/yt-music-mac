@@ -25,12 +25,14 @@ public struct MusicCollection: Identifiable, Hashable, Sendable {
 public enum MusicItem: Hashable, Identifiable, Sendable {
     case track(Track)
     case collection(MusicCollection)
+    case browse(MusicBrowseReference)
 
     /// Content identity; use a separate occurrence identifier when building a playback queue.
     public var id: String {
         switch self {
         case let .track(track): "track:\(track.id)"
         case let .collection(collection): "\(collection.kind.rawValue):\(collection.id)"
+        case let .browse(reference): "browse:\(reference.browseID)|\(reference.params ?? "")"
         }
     }
 
@@ -38,6 +40,7 @@ public enum MusicItem: Hashable, Identifiable, Sendable {
         switch self {
         case let .track(track): track.title
         case let .collection(collection): collection.title
+        case let .browse(reference): reference.title
         }
     }
 
@@ -45,6 +48,7 @@ public enum MusicItem: Hashable, Identifiable, Sendable {
         switch self {
         case let .track(track): track.artist
         case let .collection(collection): collection.subtitle
+        case .browse: nil
         }
     }
 
@@ -52,6 +56,7 @@ public enum MusicItem: Hashable, Identifiable, Sendable {
         switch self {
         case let .track(track): track.artworkURL
         case let .collection(collection): collection.artworkURL
+        case .browse: nil
         }
     }
 }
@@ -60,11 +65,13 @@ public struct MusicSection: Identifiable, Sendable {
     public let id: String
     public let title: String
     public let items: [MusicItem]
+    public let browseReference: MusicBrowseReference?
 
-    public init(id: String, title: String, items: [MusicItem]) {
+    public init(id: String, title: String, items: [MusicItem], browseReference: MusicBrowseReference? = nil) {
         self.id = id
         self.title = title
         self.items = items
+        self.browseReference = browseReference
     }
 }
 
@@ -117,12 +124,17 @@ public struct MusicPage: Sendable {
     public let likeStates: [String: Bool]
     /// Authoritative three-state ratings. A legacy false like value cannot establish neutral versus disliked.
     public let ratings: [String: MusicRating]
+    /// Rows explicitly marked unavailable by the service, excluded from playable items.
+    /// Counts only the pages fetched so far, not the complete collection.
+    public let unavailableItemCount: Int
+    public let hasUnsupportedContent: Bool
     public var tracks: [Track] { items.compactMap { if case let .track(track) = $0 { track } else { nil } } }
 
     public init(title: String, sections: [MusicSection], items: [MusicItem], continuation: MusicContinuation? = nil,
                 playlistItems: [MusicPlaylistItem] = [],
                 playlistCapabilities: MusicPlaylistCapabilities = MusicPlaylistCapabilities(),
-                likeStates: [String: Bool] = [:], ratings: [String: MusicRating] = [:]) {
+                likeStates: [String: Bool] = [:], ratings: [String: MusicRating] = [:],
+                unavailableItemCount: Int = 0, hasUnsupportedContent: Bool = false) {
         self.title = title
         self.sections = sections
         self.items = items
@@ -131,6 +143,8 @@ public struct MusicPage: Sendable {
         self.playlistCapabilities = playlistCapabilities
         self.ratings = likeStates.compactMapValues { $0 ? .liked : nil }.merging(ratings) { _, explicit in explicit }
         self.likeStates = likeStates.merging(self.ratings.mapValues { $0 == .liked }) { _, explicit in explicit }
+        self.unavailableItemCount = max(0, unavailableItemCount)
+        self.hasUnsupportedContent = hasUnsupportedContent
     }
 }
 

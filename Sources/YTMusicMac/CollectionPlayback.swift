@@ -136,7 +136,8 @@ final class CollectionPlayback {
         MusicPage(title: page.title, sections: page.sections,
                   items: page.items.isEmpty ? page.sections.flatMap(\.items) : page.items,
                   continuation: page.continuation, playlistItems: page.playlistItems,
-                  playlistCapabilities: page.playlistCapabilities, likeStates: page.likeStates, ratings: page.ratings)
+                  playlistCapabilities: page.playlistCapabilities, likeStates: page.likeStates, ratings: page.ratings,
+                  unavailableItemCount: page.unavailableItemCount, hasUnsupportedContent: page.hasUnsupportedContent)
     }
 
     private static func append(_ next: MusicPage, to previous: MusicPage) -> MusicPage {
@@ -146,6 +147,8 @@ final class CollectionPlayback {
                          playlistItems: previous.playlistItems + next.playlistItems,
                          playlistCapabilities: previous.playlistCapabilities,
                          likeStates: previous.likeStates.merging(next.likeStates) { _, new in new },
-                         ratings: previous.ratings.merging(next.ratings) { _, new in new })
+                         ratings: previous.ratings.merging(next.ratings) { _, new in new },
+                         unavailableItemCount: previous.unavailableItemCount + next.unavailableItemCount,
+                         hasUnsupportedContent: previous.hasUnsupportedContent || next.hasUnsupportedContent)
     }
 }

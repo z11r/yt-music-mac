@@ -9,6 +9,8 @@ enum MusicDestination: Hashable {
     case libraryCategory(YouTubeMusicClient.LibraryCategory)
     case search(String)
     case collection(MusicCollection)
+    case discovery(MusicDiscoveryCategory)
+    case browse(MusicBrowseReference)
 
     var title: String {
         switch self {
@@ -20,6 +22,8 @@ enum MusicDestination: Hashable {
         case let .libraryCategory(category): category.title
         case .search: "Search"
         case let .collection(value): value.title
+        case let .discovery(category): category.title
+        case let .browse(reference): reference.title
         }
     }
 
@@ -300,6 +304,8 @@ final class AppSession {
                 switch target {
                 case .home: result = try await client.home()
                 case .explore: result = try await client.explore()
+                case let .discovery(category): result = try await client.discovery(category)
+                case let .browse(reference): result = try await client.browse(reference)
                 case .library: result = try await client.library()
                 case let .libraryCategory(category): result = try await client.library(category: category)
                 case .likedSongs: result = try await client.likedSongs()
@@ -395,7 +401,9 @@ final class AppSession {
                     playlistItems: initial.playlistItems + next.playlistItems,
                     playlistCapabilities: initial.playlistCapabilities,
                     likeStates: initial.likeStates.merging(next.likeStates) { _, new in new },
-                    ratings: initial.ratings.merging(next.ratings) { _, new in new })
+                    ratings: initial.ratings.merging(next.ratings) { _, new in new },
+                    unavailableItemCount: initial.unavailableItemCount + next.unavailableItemCount,
+                    hasUnsupportedContent: initial.hasUnsupportedContent || next.hasUnsupportedContent)
                 self.songRatings.observe(next.ratings, from: ratingsRead)
                 self.isLoadingMore = false
             } catch {
@@ -410,6 +418,7 @@ final class AppSession {
         switch item {
         case let .track(track): play(track)
         case let .collection(value): navigate(to: .collection(value))
+        case let .browse(reference): navigate(to: .browse(reference))
         }
     }
 

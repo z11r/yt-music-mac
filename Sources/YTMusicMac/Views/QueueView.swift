@@ -88,6 +88,7 @@ struct QueueView: View {
                     Button("Remove from Queue") { session.removeQueueEntries(ids) }
                     if ids.count == 1, let entry = session.queue.entries.first(where: { ids.contains($0.id) }) {
                         TrackRatingActions(session: session, track: entry.track)
+                        TrackMetadataActions(track: entry.track, session: session)
                     }
                 }
             } primaryAction: { ids in playSelection(ids) }
@@ -119,8 +120,11 @@ struct QueueView: View {
         HStack(spacing: 10) {
             ArtworkView(url: entry.track.artworkURL, size: 40, videoID: entry.track.id)
             VStack(alignment: .leading, spacing: 4) {
-                Text(entry.track.title).fontWeight(entry.id == session.queue.currentEntryID ? .semibold : .regular)
-                    .lineLimit(1)
+                HStack(spacing: 5) {
+                    Text(entry.track.title).fontWeight(entry.id == session.queue.currentEntryID ? .semibold : .regular)
+                        .lineLimit(1)
+                    ExplicitContentBadge(track: entry.track)
+                }
                 Text(entry.track.artist).font(.caption).foregroundStyle(.secondary).lineLimit(1)
             }
             Spacer(minLength: 2)
@@ -132,7 +136,7 @@ struct QueueView: View {
         }
         .padding(.vertical, 5)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(entry.track.title), \(entry.track.artist)")
+        .accessibilityLabel("\(entry.track.title), \(entry.track.artist)\(entry.track.isExplicit == true ? ", Explicit content" : "")")
         .accessibilityValue(queuePosition(entry, index: index))
         .help("\(entry.track.title) — \(entry.track.artist)")
         .accessibilityActions {
@@ -146,6 +150,7 @@ struct QueueView: View {
             }
             Button("Remove from Queue") { session.removeQueueEntries([entry.id]) }
             TrackRatingActions(session: session, track: entry.track)
+            TrackMetadataActions(track: entry.track, session: session)
         }
     }
 

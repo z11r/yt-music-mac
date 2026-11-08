@@ -71,8 +71,11 @@ struct TrackIdentityView: View {
         HStack(spacing: 11) {
             ArtworkView(url: session.currentTrack?.artworkURL, size: artworkSize, videoID: session.currentTrack?.id)
             VStack(alignment: .leading, spacing: 4) {
-                Text(session.currentTrack?.title ?? "Choose a song")
-                    .font(.headline).lineLimit(1)
+                HStack(spacing: 5) {
+                    Text(session.currentTrack?.title ?? "Choose a song")
+                        .font(.headline).lineLimit(1)
+                    if let track = session.currentTrack { ExplicitContentBadge(track: track) }
+                }
                 HStack(spacing: 5) {
                     if session.player.isBuffering {
                         ProgressView().controlSize(.mini).accessibilityLabel("Buffering")
@@ -83,6 +86,7 @@ struct TrackIdentityView: View {
             }
             .accessibilityElement(children: .combine)
             if let track = session.currentTrack {
+                TrackMetadataMenu(track: track, session: session)
                 TrackRatingMenu(session: session, track: track)
             }
         }
@@ -91,6 +95,7 @@ struct TrackIdentityView: View {
         .contextMenu {
             if let track = session.currentTrack {
                 MusicLinkActions(link: .track(track.id))
+                TrackMetadataActions(track: track, session: session)
                 TrackRatingActions(session: session, track: track)
             }
         }

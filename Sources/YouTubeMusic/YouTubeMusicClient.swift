@@ -52,6 +52,17 @@ public actor YouTubeMusicClient {
 
     public func home() async throws -> MusicPage { try await browse("FEmusic_home", title: "Home") }
     public func explore() async throws -> MusicPage { try await browse("FEmusic_explore", title: "Explore") }
+    public func discovery(_ category: MusicDiscoveryCategory) async throws -> MusicPage {
+        try await browse(category.browseID, title: category.title)
+    }
+    public func browse(_ reference: MusicBrowseReference) async throws -> MusicPage {
+        guard reference.isValid else { throw MusicServiceError.invalidInput }
+        var body = ["browseId": reference.browseID]
+        if let params = reference.params { body["params"] = params }
+        return try await firstPage(endpoint: .browse, body: body, title: reference.title,
+                                   requiresAuthentication: false, preservesOccurrences: reference.kind == .playlist,
+                                   expectedScope: reference.scope)
+    }
     public func search(query: String, filter: MusicSearchFilter = .all) async throws -> MusicPage {
         let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty, query.count <= 500 else { throw MusicServiceError.invalidInput }
@@ -164,8 +175,9 @@ public actor YouTubeMusicClient {
     }
 
     private func firstPage(endpoint: MusicEndpoint, body: [String: String], title: String,
-                           requiresAuthentication: Bool, preservesOccurrences: Bool) async throws -> MusicPage {
+                           requiresAuthentication: Bool, preservesOccurrences: Bool, expectedScope: UUID? = nil) async throws -> MusicPage {
         let session = await sessions.snapshot()
+        if let expectedScope, expectedScope != session.scope { throw MusicServiceError.sessionChanged }
         let data = try await request(endpoint: endpoint, body: body, session: session, requiresAuthentication: requiresAuthentication)
         let parsed = try MusicResponseParser.parse(data, preservesOccurrences: preservesOccurrences)
         return makePage(parsed, title: title, endpoint: endpoint, session: session,
@@ -177,9 +189,13 @@ public actor YouTubeMusicClient {
                           previousTokens: Set<String> = [], previousItems: Set<String> = []) -> MusicPage {
         var seen = previousItems
         let sections = parsed.sections.compactMap { section -> MusicSection? in
-            let items = section.items.filter { preservesOccurrences || seen.insert($0.id).inserted }
-            guard !items.isEmpty else { return nil }
-            return MusicSection(id: "page\(previousTokens.count).\(section.id)", title: section.title, items: items)
+            let items = section.items.filter { preservesOccurrences || seen.insert($0.id).inserted }.map { item in
+                if case let .browse(reference) = item { return MusicItem.browse(reference.scoped(to: session.scope)) }
+                return item
+            }
+            guard !items.isEmpty || section.browseReference != nil else { return nil }
+            return MusicSection(id: "page\(previousTokens.count).\(section.id)", title: section.title, items: items,
+                                browseReference: section.browseReference?.scoped(to: session.scope))
         }
         let next = parsed.token.map {
             MusicContinuation(token: $0, endpoint: endpoint, scope: session.scope, title: parsed.title ?? title,
@@ -188,7 +204,9 @@ public actor YouTubeMusicClient {
         }
         return MusicPage(title: parsed.title ?? title, sections: sections, items: sections.flatMap(\.items), continuation: next,
                          playlistItems: parsed.playlistItems, playlistCapabilities: parsed.playlistCapabilities,
-                         likeStates: parsed.likeStates, ratings: parsed.ratings)
+                         likeStates: parsed.likeStates, ratings: parsed.ratings,
+                         unavailableItemCount: parsed.unavailableItemCount,
+                         hasUnsupportedContent: parsed.hasUnsupportedContent)
     }
 
     func request(endpoint: MusicEndpoint, body: [String: Any], session: MusicSession, requiresAuthentication: Bool) async throws -> Data {
