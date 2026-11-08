@@ -96,6 +96,11 @@ final class AppSession {
     private(set) var libraryEditingScope = UUID()
     private(set) var sceneCheckRevision = 0
     var searchText = ""
+    /// Applies to the current search and every later one until changed.
+    var searchFilter: MusicSearchFilter = .all {
+        didSet { if searchFilter != oldValue { searchFilterChanged() } }
+    }
+    let searchSuggestions: SearchSuggestions
     var collectionFilter = ""
     var showsQueue = false
     var showsAccount = false
@@ -111,7 +116,7 @@ final class AppSession {
     @ObservationIgnored private let isSceneCheck: Bool
     @ObservationIgnored private var started = false
     @ObservationIgnored private var wantsPlayback = false
-    @ObservationIgnored private var pageTask: Task<Void, Never>?
+    @ObservationIgnored private(set) var pageTask: Task<Void, Never>?
     @ObservationIgnored private var saveTask: Task<Void, Never>?
     @ObservationIgnored private var pageGeneration = UUID()
     @ObservationIgnored private var accountGeneration = UUID()
@@ -129,6 +134,9 @@ final class AppSession {
         account = WebSession(dataStore: configuration.dataStore, credentials: configuration.credentials,
                              preferences: configuration.preferences)
         client = configuration.client
+        searchSuggestions = SearchSuggestions { [client = configuration.client] text in
+            try await client.searchSuggestions(for: text)
+        }
         player = WebPlayer(dataStore: configuration.dataStore)
         queueStore = configuration.queueStore
         queueError = configuration.queueStorageError
@@ -233,6 +241,7 @@ final class AppSession {
         pageTask?.cancel()
         let generation = UUID()
         pageGeneration = generation
+        let filter = searchFilter
         pageTask = Task { [weak self, client] in
             do {
                 let result: MusicPage
@@ -241,7 +250,7 @@ final class AppSession {
                 case .explore: result = try await client.explore()
                 case .library: result = try await client.library()
                 case .likedSongs: result = try await client.likedSongs()
-                case let .search(query): result = try await client.search(query: query)
+                case let .search(query): result = try await client.search(query: query, filter: filter)
                 case let .collection(value):
                     switch value.kind {
                     case .album: result = try await client.album(id: value.id)

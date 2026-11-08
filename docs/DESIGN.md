@@ -34,6 +34,13 @@ a playlist filter must be labeled separately. Preserve the query while opening a
 result and returning. Cancel obsolete requests and keep existing results visible
 while updating them. [Searching](https://developer.apple.com/design/human-interface-guidelines/searching)
 
+While someone types, suggestions appear in a list under the search field. Down
+and Up Arrow move through them, Return searches for the highlighted suggestion
+or, with none highlighted, for the typed text, and Escape closes the list. All
+other keys go to the field. Filters above the results limit them to songs,
+videos, albums, artists, community playlists, or featured playlists. The chosen
+filter applies to later searches until someone changes it.
+
 ## Appearance
 
 Support automatic, light, and dark appearance. Use semantic foreground and
