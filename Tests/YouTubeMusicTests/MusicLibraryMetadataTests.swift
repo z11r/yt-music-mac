@@ -26,8 +26,12 @@ final class MusicLibraryMetadataTests: XCTestCase {
         let endpoint: [String: Any] = ["urlEndpoint": ["url": "https://music.youtube.com/playlist/delete?list=PLexample"]]
         let allowed = try parse(header: ["musicDetailHeaderRenderer": ["menu": endpoint]], rows: [])
         XCTAssertTrue(allowed.playlistCapabilities.canDelete)
+        var otherRow = row("song", status: "INDIFFERENT")
+        var renderer = otherRow["musicResponsiveListItemRenderer"] as! [String: Any]
+        renderer["menu"] = endpoint
+        otherRow["musicResponsiveListItemRenderer"] = renderer
         let text = try parse(header: ["musicDetailHeaderRenderer": ["title": ["runs": [["text": "playlist/delete"]]]]],
-                             rows: [["musicTwoRowItemRenderer": ["menu": endpoint]]])
+                             rows: [otherRow])
         XCTAssertEqual(text.playlistCapabilities, MusicPlaylistCapabilities())
         for address in ["https://music.youtube.com.evil.example/playlist/delete", "http://music.youtube.com/playlist/delete",
                         "https://music.youtube.com/playlist/delete-extra", "https://user@music.youtube.com/playlist/delete"] {

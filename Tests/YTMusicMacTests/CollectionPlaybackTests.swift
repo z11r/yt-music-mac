@@ -41,6 +41,25 @@ struct CollectionPlaybackTests {
         #expect(requests.count == 7)
     }
 
+    @Test func pagingPreservesRatingsAndUnavailableContentNotices() async throws {
+        let transport = CollectionTransport([.page(collectionData(["a"], next: "second"))])
+        let first = try await collectionClient(transport).playlist(id: "PLfixture")
+        let initial = MusicPage(title: "Collection", sections: [], items: [.track(collectionTrack("a"))],
+            continuation: first.continuation, ratings: ["a": .disliked], unavailableItemCount: 2)
+        let next = MusicPage(title: "Collection", sections: [], items: [.track(collectionTrack("b"))],
+            ratings: ["b": .neutral], unavailableItemCount: 1, hasUnsupportedContent: true)
+        let operation = CollectionPlayback { _ in next }
+        var result: MusicPage?
+        await operation.start(page: initial, action: .append, isCurrent: { true }) { page, _ in
+            result = page
+        }.value
+        let complete = try #require(result)
+        #expect(complete.ratings == ["a": .disliked, "b": .neutral])
+        #expect(complete.unavailableItemCount == 3)
+        #expect(complete.hasUnsupportedContent)
+        #expect(complete.tracks.map(\.id) == ["a", "b"])
+    }
+
     @Test func failedPageRetriesTheSameCursorWithoutDuplicatingEarlierPages() async throws {
         let transport = CollectionTransport([
             .page(collectionData(["a"], next: "second")),
