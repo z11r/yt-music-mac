@@ -10,13 +10,13 @@ Checks name the exact source checkpoint; later feature work can follow it.
 
 | Check | Status |
 | --- | --- |
-| Local automated suite on Apple silicon, macOS 26.6, Xcode 27.2 | Checkpoint `7e2a7fc` passed 1,497 deterministic checks; four opt-in live checks skipped. The later documentation checkpoint `1c4e39e` passed full compiler-key localization coverage. An earlier intermittent TXT-export error remains under investigation; see [export verification](STREAMING_METADATA_EXPORT.md#verification). |
+| Local automated suite on Apple silicon, macOS 26.6, Xcode 27.2 | Checkpoint `cf9c767` passed 1,513 deterministic checks; four opt-in live checks skipped. Checkpoint `a23ad0d` passed full compiler-key localization coverage. An earlier intermittent TXT-export error remains under investigation; see [export verification](STREAMING_METADATA_EXPORT.md#verification). |
 | Anonymous home, explore, search, album, artist, and playlist requests through the native service client | Passed locally |
-| Local release universal bundle | Checkpoint `1c4e39e` built locally; arm64 and x86_64 slices declare macOS 14 |
-| Relocated release bundle diagnostics on Apple silicon/macOS 26.6 | Checkpoint `1c4e39e` passed identity, resources, runtime paths, shortcut metadata and ad-hoc signature checks |
-| CI tests and host app builds on Intel/macOS 15 and Apple silicon/macOS 26 | Feature checkpoint [1c4e39e](https://github.com/z11r/yt-music-mac/actions/runs/42522341416) passed tests, release packaging and relocated-bundle checks on both architectures with Xcode 26.2 |
-| Release window and menu scenes with isolated synthetic data | Checkpoint `1c4e39e` passed 100 synthetic rendered queue-state changes locally. The report recorded `windowVisible=true`; this does not establish manual layout, focus or VoiceOver acceptance |
-| Explicit startup choices in a release package | Checkpoint `1c4e39e` opened an unexpected main window for No Startup Window and Mini Player; a fix is in progress. Earlier debug-package scene checks do not establish release behavior. |
+| Local release universal bundle | Checkpoint `a23ad0d` built locally; arm64 and x86_64 slices declare macOS 14 |
+| Relocated release bundle diagnostics on Apple silicon/macOS 26.6 | Checkpoint `a23ad0d` passed identity, resources, runtime paths, shortcut metadata and ad-hoc signature checks |
+| CI tests and host app builds on Intel/macOS 15 and Apple silicon/macOS 26 | Feature checkpoint [a23ad0d](https://github.com/z11r/yt-music-mac/actions/runs/42528295162) passed tests, release packaging and relocated-bundle checks on both architectures with Xcode 26.2 |
+| Release window and menu scenes with isolated synthetic data | Checkpoint `a23ad0d` passed 100 synthetic rendered queue-state changes locally. The report recorded `windowVisible=true`; this does not establish manual layout, focus or VoiceOver acceptance |
+| Explicit startup choices in a release package | Checkpoint `a23ad0d` passed No Startup Window, Mini Player, Main Window, System and standard launch with 100 synthetic revisions each. The older-window restoration fix was observed declining a legacy request once; later runs followed changed AppKit bookkeeping. See [startup verification](STARTUP_WINDOWS.md#verification). |
 | Packaged app on macOS 14, physical Intel and Apple silicon | Pending |
 | Initial Premium sign-in and playback on the development Mac | Manually reported working; extended cases pending |
 | Packaged release: retained sign-in, queue restore without autoplay, saved-position playback, pause, and resume | Verified through native commands on the development Mac |

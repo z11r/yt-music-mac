@@ -227,7 +227,7 @@ Run the focused deterministic checks with isolated preferences, service fixtures
 and injected lifecycle controls:
 
 ```sh
-Scripts/with-xcode.sh swift test --jobs 1 --filter 'StartupWindow|AppAutomation|EpisodeDetails|PlaylistCollaboration|CustomControlAccent|NativeControlAccent|MusicDiscovery|RecordingCounterpart'
+Scripts/with-xcode.sh swift test --jobs 1 --filter 'StartupWindow|AppAutomation|EpisodeDetails|PlaylistCollaboration|CustomControlAccent|NativeControlAccent|MusicDiscovery|RecordingCounterpart|ArtistAbout'
 ```
 
 [Custom accent checks](APPEARANCE.md) use memory preferences and pure sRGB
@@ -259,6 +259,11 @@ These fixtures do not establish playback entitlement or timeline equivalence.
 current header. Fixtures cover bounded labels and portraits, unrelated headers,
 and keeping contributor channels out of track artist metadata across pages.
 They do not establish membership or edit permission.
+
+[Artist About checks](COLLECTION_DETAILS.md#artist-about-text) cover current
+primary descriptions, supplied credit text and addresses, header-only fallback,
+strict bounds and immutable presentation scopes. Both ordinary and scoped artist
+destinations are covered. No biography request or URL action is introduced.
 
 In a packaged app, verify these panels with keyboard navigation, VoiceOver,
 long text and right-to-left text. Change accounts, profiles and the selected
