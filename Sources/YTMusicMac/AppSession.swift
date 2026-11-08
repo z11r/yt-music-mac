@@ -142,6 +142,7 @@ final class AppSession {
     @ObservationIgnored var quickCommandProfile: String?
     let discordPresence: DiscordPresenceSession?
     let sponsorBlock: SponsorBlockSession?
+    let nativeHaptics: NativeHaptics
     private(set) var destination: MusicDestination = .home
     private(set) var page: MusicPage?
     private(set) var chartCountries: [MusicChartCountry] = []
@@ -216,6 +217,8 @@ final class AppSession {
 
     init(configuration: AppSessionConfiguration = .live()) {
         preferences = configuration.preferences
+        nativeHaptics = NativeHaptics(preferences: configuration.preferences, performer: configuration.nativeHapticPerformer,
+            monotonic: configuration.nativeHapticClock)
         commandReview = CommandReviewSession(preferences: configuration.preferences,
             interpreter: configuration.commandInterpreter ?? SystemCommandInterpreter(),
             gate: configuration.commandGenerationGate ?? .shared)

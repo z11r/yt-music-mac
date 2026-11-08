@@ -237,7 +237,8 @@ struct VolumeView: View {
 struct ShuffleButton: View {
     let session: AppSession
     var body: some View {
-        Button("Shuffle", systemImage: "shuffle", action: session.toggleShuffle)
+        let target = session.nativeQueueInteractionTarget
+        Button("Shuffle", systemImage: "shuffle") { session.performNativeQueueInteraction(.shuffle, target: target) }
             .labelStyle(.iconOnly).buttonStyle(.borderless)
             .foregroundStyle(session.queue.isShuffled ? Color.accentColor : Color.secondary)
             .modifier(PlaybackStateMark(isActive: session.queue.isShuffled))
@@ -250,8 +251,10 @@ struct ShuffleButton: View {
 struct RepeatButton: View {
     let session: AppSession
     var body: some View {
-        Button("Repeat", systemImage: session.queue.repeatMode == .one ? "repeat.1" : "repeat",
-               action: session.cycleRepeat)
+        let target = session.nativeQueueInteractionTarget
+        Button("Repeat", systemImage: session.queue.repeatMode == .one ? "repeat.1" : "repeat") {
+            session.performNativeQueueInteraction(.cycleRepeat, target: target)
+        }
             .labelStyle(.iconOnly).buttonStyle(.borderless)
             .foregroundStyle(session.queue.repeatMode == .off ? Color.secondary : Color.accentColor)
             .modifier(PlaybackStateMark(isActive: session.queue.repeatMode != .off))

@@ -33,6 +33,7 @@ struct SettingsView: View {
                 .pickerStyle(.segmented)
                 NativeAccentSettingsView(session: session)
             }
+            NativeHapticsSettingsView(session: session)
             CommandInterpretationSettings(session: session)
             Section("Playback") {
                 LabeledContent("Volume") { VolumeView(session: session).frame(width: 190) }

@@ -27,6 +27,7 @@ struct QueueView: View {
     }
 
     var body: some View {
+        let hapticTarget = session.nativeQueueInteractionTarget
         VStack(spacing: 0) {
             HStack(alignment: .firstTextBaseline) {
                 Text("Queue").font(.title2.bold()).accessibilityAddTraits(.isHeader)
@@ -39,7 +40,7 @@ struct QueueView: View {
                 ShuffleButton(session: session)
                 RepeatButton(session: session)
                 Spacer()
-                Button("Undo Queue Edit", systemImage: "arrow.uturn.backward", action: session.undoQueueEdit)
+                Button("Undo Queue Edit", systemImage: "arrow.uturn.backward") { session.performNativeQueueInteraction(.undo, target: hapticTarget) }
                     .disabled(!session.queue.canUndo)
                     .labelStyle(.iconOnly).buttonStyle(.borderless)
                 Menu {
@@ -52,8 +53,8 @@ struct QueueView: View {
                         .disabled(!session.canPreviewRecommendations)
                     Divider()
                     Button("Play Selected") { playSelection(selection) }.disabled(selection.isEmpty)
-                    Button("Move Up") { moveSelection(up: true) }.disabled(!canMove(up: true))
-                    Button("Move Down") { moveSelection(up: false) }.disabled(!canMove(up: false))
+                    Button("Move Up") { moveSelection(up: true, target: hapticTarget) }.disabled(!canMove(up: true))
+                    Button("Move Down") { moveSelection(up: false, target: hapticTarget) }.disabled(!canMove(up: false))
                     Divider()
                     Button("Remove Selected") { removeSelection() }.disabled(selection.isEmpty)
                     Button("Clear Queue") {
@@ -86,7 +87,7 @@ struct QueueView: View {
                         .onMove { offsets, destination in
                             guard let move = QueuePresentation.move(in: group, offsets: offsets,
                                 destination: destination, isFiltering: isFiltering) else { return }
-                            session.moveQueueEntries(from: move.offsets, to: move.destination)
+                            session.performNativeQueueInteraction(.move(move.offsets, destination: move.destination), target: hapticTarget)
                         }
                     }
                 }
@@ -135,7 +136,8 @@ struct QueueView: View {
     }
 
     private func queueRow(_ entry: QueueEntry, index: Int) -> some View {
-        HStack(spacing: 10) {
+        let hapticTarget = session.nativeQueueInteractionTarget
+        return HStack(spacing: 10) {
             ArtworkView(url: entry.track.artworkURL, size: 40, videoID: entry.track.id)
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 5) {
@@ -166,10 +168,10 @@ struct QueueView: View {
             Button("Play") { session.selectQueueEntry(entry.id) }
             if entry.track.origin != .upload && entry.track.contentKind != .podcastEpisode { Button("Start Radio") { session.startRadio(from: entry.track) } }
             if !isFiltering && index > 0 {
-                Button("Move Up") { moveEntry(entry.id, up: true) }
+                Button("Move Up") { moveEntry(entry.id, up: true, target: hapticTarget) }
             }
             if !isFiltering && index + 1 < session.queue.entries.count {
-                Button("Move Down") { moveEntry(entry.id, up: false) }
+                Button("Move Down") { moveEntry(entry.id, up: false, target: hapticTarget) }
             }
             Button("Remove from Queue") { session.removeQueueEntries([entry.id]) }
             TrackRatingActions(session: session, track: entry.track)
@@ -177,10 +179,10 @@ struct QueueView: View {
         }
     }
 
-    private func moveEntry(_ id: UUID, up: Bool) {
+    private func moveEntry(_ id: UUID, up: Bool, target: NativeQueueInteractionTarget) {
         guard !isFiltering, let index = session.queue.entries.firstIndex(where: { $0.id == id }),
               up ? index > 0 : index + 1 < session.queue.entries.count else { return }
-        session.moveQueueEntries(from: IndexSet(integer: index), to: up ? index - 1 : index + 2)
+        session.performNativeQueueInteraction(.move(IndexSet(integer: index), destination: up ? index - 1 : index + 2), target: target)
     }
 
     private func queuePosition(_ entry: QueueEntry, index: Int) -> String {
@@ -206,9 +208,9 @@ struct QueueView: View {
         return up ? first > 0 : last < session.queue.entries.count - 1
     }
 
-    private func moveSelection(up: Bool) {
+    private func moveSelection(up: Bool, target: NativeQueueInteractionTarget) {
         guard canMove(up: up), let first = offsets.first, let last = offsets.last else { return }
-        session.moveQueueEntries(from: offsets, to: up ? first - 1 : last + 2)
+        session.performNativeQueueInteraction(.move(offsets, destination: up ? first - 1 : last + 2), target: target)
     }
 
     private func removeSelection() {

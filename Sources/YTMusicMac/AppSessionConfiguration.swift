@@ -31,6 +31,8 @@ struct AppSessionConfiguration {
     var commandInterpreter: (any CommandInterpreting)? = nil
     var commandGenerationGate: CommandGenerationGate? = nil
     var sponsorBlockClient: (any SponsorBlockProviding)? = nil
+    var nativeHapticPerformer: (any NativeHapticPerforming)? = nil
+    var nativeHapticClock: @Sendable () -> TimeInterval = PlaybackOutputTime.monotonic
 
     static func withoutSystemMedia(_ source: Self) -> Self {
         var result = source; result.installsSystemMedia = false; return result
@@ -71,7 +73,7 @@ struct AppSessionConfiguration {
                         secrets: KeychainLastFMCredentials(service: namespace + ".lastfm"),
                         api: LastFMAPI(transport: LastFMHTTPTransport())) },
                     streamingMetadataWriter: StreamingExportFile(), discordPresenceClient: DiscordPresenceClient(),
-                    sponsorBlockClient: SponsorBlockClient())
+                    sponsorBlockClient: SponsorBlockClient(), nativeHapticPerformer: AppKitHapticPerformer())
     }
 
     static func sceneCheck(preferences: UserDefaults, transport: SceneCheckTransport) -> Self {

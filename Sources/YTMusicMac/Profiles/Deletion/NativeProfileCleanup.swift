@@ -103,7 +103,7 @@ import WebKit
     }
 }
 enum ProfilePreferenceCleanup {
-    static let booleans: Set<String> = ["autoplay", "cacheLibraryMetadata", "persistsLocalQueue", "persistsEpisodeProgress", "keepsMiniPlayerOnTop", "showsSongChangeNotifications", "sessionRestoreBlocked", "spotlightLibraryEnabled", "onDeviceCommandInterpretationEnabled"]
+    static let booleans: Set<String> = ["autoplay", "cacheLibraryMetadata", "persistsLocalQueue", "persistsEpisodeProgress", "keepsMiniPlayerOnTop", "showsSongChangeNotifications", "sessionRestoreBlocked", "spotlightLibraryEnabled", "onDeviceCommandInterpretationEnabled", NativeHaptics.preferenceKey]
     static func accepts(_ values: [String: Any]) -> Bool {
         guard values.count <= 32 else { return false }
         for (key, value) in values {

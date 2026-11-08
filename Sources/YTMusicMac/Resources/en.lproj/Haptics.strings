@@ -1,0 +1,3 @@
+"Haptic Feedback" = "Haptic Feedback";
+"Use Haptics for Direct Queue Controls" = "Use Haptics for Direct Queue Controls";
+"Off by default for each local profile. Requests a brief tactile response for direct queue moves, Undo, Shuffle and Repeat changes. A supported Force Touch trackpad is required; macOS may suppress feedback. Visual controls remain available. Automated and background actions stay silent." = "Off by default for each local profile. Requests a brief tactile response for direct queue moves, Undo, Shuffle and Repeat changes. A supported Force Touch trackpad is required; macOS may suppress feedback. Visual controls remain available. Automated and background actions stay silent.";
