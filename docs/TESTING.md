@@ -33,6 +33,15 @@ controls, shortcut routing, bounded seek steps, and volume/mute actions using
 isolated preferences without network requests. On November 7, 2026, the combined feature branch passed 636 deterministic
 tests locally on Apple silicon; four opt-in network tests were skipped.
 
+Local audio checks use fake bookmark/file/profile adapters and fake native output.
+The integrated transport also uses controlled Web acknowledgments and retirement
+receipts. Tests cover preparation-time Play/Pause/Mute, stale progress/end events,
+retained resource lifetimes, seek preservation, source changes, blocked profile
+activation, sign-out admission and wholly local versus unverified mixed startup
+queues. They establish control and storage behavior without playing local files
+or invoking real chooser/bookmark/AV output operations. Native format, permission,
+device and accessibility acceptance remains separate.
+
 Check scripts and workflow syntax separately:
 
 ```sh
