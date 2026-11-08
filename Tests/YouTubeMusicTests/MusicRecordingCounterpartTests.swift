@@ -117,10 +117,17 @@ struct MusicRecordingCounterpartTests {
         let wrapper = tab + ["content", "musicQueueRenderer", "content", "playlistPanelRenderer", "contents", "0", "playlistPanelVideoWrapperRenderer"]
         let primary = wrapper + ["primaryRenderer", "playlistPanelVideoRenderer"]
         let counterpart = wrapper + ["counterpart", "0", "counterpartRenderer", "playlistPanelVideoRenderer"]
-        let paths = [["currentVideoEndpoint"], ["currentVideoEndpoint", "watchEndpoint"], ["currentVideoEndpoint", "watchEndpoint", "videoId"],
-            primary + ["navigationEndpoint", "watchEndpoint", "videoId"], counterpart + ["navigationEndpoint", "watchEndpoint", "videoId"],
-            primary + ["isPlayable"], counterpart + ["isPlayable"], primary + ["unplayableText"], counterpart + ["unplayableText"],
-            tab + ["selected"], tab + ["disabled"], tab + ["unselectable"]]
+        var paths: [[String]] = [
+            ["currentVideoEndpoint"], ["currentVideoEndpoint", "watchEndpoint"],
+            ["currentVideoEndpoint", "watchEndpoint", "videoId"]
+        ]
+        paths.append(primary + ["navigationEndpoint", "watchEndpoint", "videoId"])
+        paths.append(counterpart + ["navigationEndpoint", "watchEndpoint", "videoId"])
+        for field in ["isPlayable", "unplayableText"] {
+            paths.append(primary + [field])
+            paths.append(counterpart + [field])
+        }
+        for field in ["selected", "disabled", "unselectable"] { paths.append(tab + [field]) }
         for path in paths {
             let modified = replacingRecordingValue(root, path: path[...], value: NSNull())
             #expect(!offersRecordingPair(try JSONSerialization.data(withJSONObject: modified)), "Explicit null must not be optional absence")
