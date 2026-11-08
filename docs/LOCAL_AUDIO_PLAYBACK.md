@@ -93,12 +93,16 @@ distinguishes reversible pause from suspension that blocks page and user resumes
   retires, a fresh web engine needs a valid permit and a fresh facade/host generation.
   A new WebPlayer's internal `webViewGeneration == 0` cannot identify that replacement
   or leave an old SwiftUI host attached.
-- Account and login views are also media owners. `WebSession.openLogin()` currently
-  restricts autoplay with `mediaTypesRequiringUserActionForPlayback`, which does not
-  block an explicit page action. Before local playback is enabled, login/auth views
-  must stay media-suspended before loading and through account callbacks and view
-  replacement. They must never become a second playback engine. This foundation
-  does not change WebSession or claim that integration is complete.
+- Account views remain media-suspended for their full lifetime. `WebSession.openLogin()`
+  creates an empty view and waits for its exact sticky suspension acknowledgment
+  before loading. `LoginMediaSuspensionGate` admits only one unresolved native call.
+  Its three-second response deadline fails closed; close and profile suspension
+  revoke load authority immediately while retaining a pending exact resource until
+  the native callback settles. Late or duplicate callbacks cannot load an old view
+  or authorize a replacement. Every login navigation and popup callback checks the
+  exact current acknowledged view. There is no unsuspend path or secondary player.
+  Startup account restoration still uses the owned playback view; the facade must
+  not start that restoration while another source owns output.
 - Local-to-web retirement must mute and pause the exact AVPlayer, detach its item
   and retire observers. The prepared asset and resource lease must remain retained
   for the full native item lifetime. A canceled task or cached paused flag cannot
@@ -114,7 +118,7 @@ Deterministic tests use fake engines, targets, deadlines and receipts. They cove
 joined old-view retirement, callback ordering, bounded inventories, timeouts,
 cancellation, late replies, permanent holds, exact scopes, cross-profile admission
 prepared reservation cancellation, exact engine registration, same-instance retargeting,
-immutable event bindings and bounded Quit settlement. They do not establish physical silence, actual
+immutable event bindings, exact login-view suspension and bounded Quit settlement. They do not establish physical silence, actual
 WebKit/PiP behavior, AVPlayer retirement, device behavior, local playback, native
 layout, VoiceOver or older-system runtime acceptance. Those remain requirements
 for the complete integration before local playback is enabled.

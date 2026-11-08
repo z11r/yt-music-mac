@@ -45,6 +45,8 @@ final class WebSession: NSObject {
     @ObservationIgnored private var delegatedSessionID: String?
     @ObservationIgnored private var loginAttempt = false
     @ObservationIgnored private var isRestoringSession = false
+    @ObservationIgnored private let loginMedia = LoginMediaSuspensionGate()
+    @ObservationIgnored private var loginMediaTarget: WKLoginMediaSuspensionTarget?
 
     static let userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15"
 
@@ -103,34 +105,62 @@ final class WebSession: NSObject {
 
     func openLogin() {
         guard !isSuspended, !isClearing else { return }
+        // Repeated clicks cannot supersede a pending suspension or create more views.
+        if let target = loginMediaTarget, !loginMedia.isReady(target) { return }
+        guard loginWebView != nil || loginMedia.canCreateView else {
+            reportLoginMediaBlocked(); return
+        }
         epoch = UUID()
         refreshTask?.cancel()
         isRestoringSession = false
         errorMessage = nil
         isWorking = true
         loginAttempt = true
-        if loginWebView == nil {
-            let configuration = WKWebViewConfiguration()
-            configuration.websiteDataStore = dataStore
-            configuration.mediaTypesRequiringUserActionForPlayback = .all
-            let view = WKWebView(frame: .zero, configuration: configuration)
-            ProfileStoreLeaseRetention.attachView(view, from: dataStore)
-            view.customUserAgent = Self.userAgent
-            view.navigationDelegate = self
-            view.uiDelegate = self
-            loginWebView = view
+        if let view = loginWebView, let target = loginMediaTarget, loginMedia.isReady(target) {
+            view.load(URLRequest(url: URL(string: "https://music.youtube.com/")!))
+            return
         }
-        loginWebView?.load(URLRequest(url: URL(string: "https://music.youtube.com/")!))
+        let configuration = WKWebViewConfiguration()
+        configuration.websiteDataStore = dataStore
+        configuration.mediaTypesRequiringUserActionForPlayback = .all
+        let view = WKWebView(frame: .zero, configuration: configuration)
+        ProfileStoreLeaseRetention.attachView(view, from: dataStore)
+        view.customUserAgent = Self.userAgent
+        view.navigationDelegate = self
+        view.uiDelegate = self
+        let target = WKLoginMediaSuspensionTarget(view)
+        loginWebView = view; loginMediaTarget = target
+        let operation = epoch
+        loginMedia.begin(target, onReady: { [weak self, weak view, weak target] in
+            guard let self, let view, let target, self.epoch == operation,
+                  self.acceptsLoginView(view), self.loginMedia.isReady(target) else { return }
+            view.load(URLRequest(url: URL(string: "https://music.youtube.com/")!))
+        }, onBlocked: { [weak self, weak target] in
+            guard let self, let target, self.epoch == operation, self.loginMediaTarget === target,
+                  !self.isSuspended, !self.isClearing else { return }
+            self.reportLoginMediaBlocked()
+        })
+    }
+
+    private func reportLoginMediaBlocked() {
+        isWorking = false
+        errorMessage = LoginMediaText.text("Could not prepare the account page safely. Close Account and try again.")
+    }
+
+    private func acceptsLoginView(_ view: WKWebView) -> Bool {
+        guard !isSuspended, !isClearing, loginWebView === view, let target = loginMediaTarget else { return false }
+        return loginMedia.isReady(target)
     }
 
     func closeLogin() {
         epoch = UUID()
         isRestoringSession = false
         refreshTask?.cancel()
+        loginMedia.revoke()
         loginWebView?.stopLoading()
         loginWebView?.navigationDelegate = nil
         loginWebView?.uiDelegate = nil
-        loginWebView = nil
+        loginWebView = nil; loginMediaTarget = nil
         isWorking = false
         loginAttempt = false
     }
@@ -277,7 +307,7 @@ extension WebSession: WKHTTPCookieStoreObserver {
 extension WebSession: WKNavigationDelegate, WKUIDelegate {
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction,
                  decisionHandler: @escaping @MainActor @Sendable (WKNavigationActionPolicy) -> Void) {
-        guard !isSuspended, let url = navigationAction.request.url, SessionPolicy.allowsLoginNavigation(url) else {
+        guard acceptsLoginView(webView), let url = navigationAction.request.url, SessionPolicy.allowsLoginNavigation(url) else {
             decisionHandler(.cancel)
             return
         }
@@ -285,16 +315,19 @@ extension WebSession: WKNavigationDelegate, WKUIDelegate {
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        guard acceptsLoginView(webView) else { return }
+        let operation = epoch
         Task { [weak self, weak webView] in
-            guard let self, !self.isSuspended, let webView else { return }
+            guard let self, let webView, self.epoch == operation, self.acceptsLoginView(webView) else { return }
             await self.synchronize(from: webView)
+            guard self.epoch == operation, self.acceptsLoginView(webView) else { return }
             self.isWorking = false
             if self.isSignedIn && !self.loginAttempt { self.closeLogin() }
         }
     }
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: any Error) {
-        guard !isSuspended else { return }
+        guard acceptsLoginView(webView) else { return }
         guard (error as NSError).code != NSURLErrorCancelled else { return }
         isWorking = false
         errorMessage = AppLocalization.text("Could not open YouTube Music. Check your connection and try again.")
@@ -302,7 +335,7 @@ extension WebSession: WKNavigationDelegate, WKUIDelegate {
 
     func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration,
                  for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
-        if let url = navigationAction.request.url, SessionPolicy.allowsLoginNavigation(url) {
+        if acceptsLoginView(webView), let url = navigationAction.request.url, SessionPolicy.allowsLoginNavigation(url) {
             webView.load(navigationAction.request)
         }
         return nil
