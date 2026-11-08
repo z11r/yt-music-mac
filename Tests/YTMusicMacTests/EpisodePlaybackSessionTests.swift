@@ -241,6 +241,32 @@ import Testing
         #expect(!session.canControlRate)
     }
 
+    @Test func profileSuspensionRevokesPendingRateAndRequiresFreshContentBeforeRollbackControls() async {
+        let session = model(ProgressLedger())
+        session.bindAccount(firstHash); await session.waitUntilLoaded()
+        let occurrence = occurrence()
+        session.begin(track: track, occurrence: occurrence)
+        session.record(occurrence: occurrence, position: 10, duration: 3_600, confirmedContent: true)
+        session.reportRates([1, 2], current: 1, occurrence: occurrence)
+        let rates = TestEpisodeRates(); rates.suspends = true
+        session.rateController = rates
+        let task = Task { await session.setRate(2) }
+        while rates.pending == nil { await Task.yield() }
+        session.suspendProfileOwnership()
+        #expect(!session.isRatePending && !session.canControlRate && !session.canRefreshRate)
+        session.reportRates([1, 2], current: 2, occurrence: occurrence)
+        session.refreshRates()
+        session.resumeProfileOwnership()
+        rates.finish(true)
+        #expect(!(await task.value))
+        #expect(session.currentRate == nil && !session.canControlRate && !session.canRefreshRate)
+        session.reportRates([1, 2], current: 2, occurrence: occurrence)
+        #expect(session.currentRate == nil)
+        session.record(occurrence: occurrence, position: 11, duration: 3_600, confirmedContent: true)
+        session.reportRates([1, 2], current: 1, occurrence: occurrence)
+        #expect(session.canControlRate && session.currentRate == 1)
+    }
+
     @Test func bridgeSamplesExcludeAdsLoadingZerosAndUnconfirmedPausedStates() throws {
         let occurrence = occurrence()
         var payload: [String: Any] = [

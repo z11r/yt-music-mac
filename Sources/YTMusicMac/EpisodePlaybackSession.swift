@@ -137,7 +137,11 @@ final class EpisodePlaybackSession {
 
     func waitUntilLoaded() async { await loadTask?.value }
 
-    func suspendProfileOwnership() { isProfileSuspended = true; ownershipID = UUID() }
+    func suspendProfileOwnership() {
+        isProfileSuspended = true; ownershipID = UUID()
+        rateRequest = UUID(); isRatePending = false; rateMessage = nil
+        availableRates = []; currentRate = nil; verifiedOccurrence = nil
+    }
     func resumeProfileOwnership() { isProfileSuspended = false; ownershipID = UUID() }
 
     func begin(track: Track, occurrence: PlaybackOccurrence) {
@@ -201,19 +205,19 @@ final class EpisodePlaybackSession {
         settings = .init(skipBackward: backward, skipForward: forward); revision += 1; scheduleSave()
     }
 
-    var canControlRate: Bool { rateController != nil && active?.occurrence == verifiedOccurrence && !availableRates.isEmpty && !isRatePending }
-    var canRefreshRate: Bool { rateController != nil && active != nil && active?.occurrence == verifiedOccurrence && !isRatePending }
+    var canControlRate: Bool { !isProfileSuspended && rateController != nil && active?.occurrence == verifiedOccurrence && !availableRates.isEmpty && !isRatePending }
+    var canRefreshRate: Bool { !isProfileSuspended && rateController != nil && active != nil && active?.occurrence == verifiedOccurrence && !isRatePending }
     func refreshRates() {
         guard canRefreshRate, let active else { return }
         rateController?.refreshEpisodeRates(occurrence: active.occurrence)
     }
     func clearRates(occurrence: PlaybackOccurrence) {
-        guard active?.occurrence == occurrence, verifiedOccurrence == occurrence else { return }
+        guard !isProfileSuspended, active?.occurrence == occurrence, verifiedOccurrence == occurrence else { return }
         availableRates = []; currentRate = nil
         rateMessage = AppLocalization.text("Playback speed is unavailable for the current episode.")
     }
     func reportRates(_ rates: [Double], current: Double, occurrence: PlaybackOccurrence) {
-        guard active?.occurrence == occurrence, verifiedOccurrence == occurrence else { return }
+        guard !isProfileSuspended, active?.occurrence == occurrence, verifiedOccurrence == occurrence else { return }
         guard rates.count <= 16, rates.allSatisfy({ $0.isFinite && (0.25...4).contains($0) }), rates.contains(current) else {
             availableRates = []; currentRate = nil; return
         }

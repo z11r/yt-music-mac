@@ -6,12 +6,12 @@ extension AppSession {
         .init(scope: .init(accountGeneration: accountGeneration, profile: account.isSignedIn ? quickCommandProfile : nil,
                            startupIntent: links.generation),
               ready: hasFinishedStartup && (isSceneCheck || links.isReady) && !account.isWorking && (!account.isSignedIn || quickCommandProfile != nil),
-              shuttingDown: isShuttingDown, signedIn: account.isSignedIn, hasQueue: !queue.isEmpty,
+              shuttingDown: !acceptsProfileActions, signedIn: account.isSignedIn, hasQueue: !queue.isEmpty,
               canPause: currentTrack != nil || player.isPlaying || player.isBuffering || wantsPlayback,
               hasNext: queue.hasNext, occurrence: queue.currentOccurrence, duration: player.clock.duration)
     }
     func executeQuickCommand(_ command: QuickCommand, environment: QuickCommandEnvironment) {
-        guard quickCommandEnvironment.scope == environment.scope, !isShuttingDown,
+        guard acceptsProfileActions, quickCommandEnvironment.scope == environment.scope,
               QuickCommandPalette.unavailable(command, in: quickCommandEnvironment) == nil else { return }
         switch command {
         case .play: play()

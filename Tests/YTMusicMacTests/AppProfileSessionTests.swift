@@ -15,8 +15,16 @@ struct AppProfileSessionTests {
         session.addToQueue([track]); session.setVolume(0.4)
         let before = session.queue.snapshot()
         let destination = session.destination
+        session.quickCommands.present(); session.quickCommands.edit("volume 90")
+        let ticket = session.quickCommands.ticket
+        let commandEnvironment = session.quickCommandEnvironment
         session.quiesceForProfileSwitch()
         #expect(!session.acceptsProfileActions)
+        #expect(!session.quickCommands.isPresented && session.quickCommands.input.isEmpty)
+        #expect(session.quickCommands.run(ticket: ticket) == .failure(.stale))
+        session.executeQuickCommand(.volume(90), environment: commandEnvironment)
+        session.quickCommands.present()
+        #expect(!session.quickCommands.isPresented)
         session.addToQueue([track]); session.playNext([track]); session.next()
         session.toggleShuffle(); session.setVolume(0.9)
         session.navigate(to: .explore)
@@ -27,6 +35,8 @@ struct AppProfileSessionTests {
         await session.settleForProfileSwitch()
         session.resumePausedProfileOwnership()
         #expect(session.acceptsProfileActions && !session.wantsPlayback)
+        session.executeQuickCommand(.volume(90), environment: commandEnvironment)
+        #expect(preferences.double(forKey: "volume") == 0.4)
         session.addToQueue([track]); #expect(session.queue.entries.count == 2)
         await session.shutdown()
         session.addToQueue([track]); #expect(session.queue.entries.count == 2)
