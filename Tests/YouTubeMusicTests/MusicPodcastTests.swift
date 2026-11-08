@@ -81,6 +81,21 @@ final class MusicPodcastTests: XCTestCase {
         XCTAssertNil(track.episode)
     }
 
+    func testOnlyExplicitSongVideoTypesEstablishScrobblingEligibility() throws {
+        for type in ["MUSIC_VIDEO_TYPE_ATV", "MUSIC_VIDEO_TYPE_OMV", "MUSIC_VIDEO_TYPE_UGC", ""] {
+            let row: [String: Any] = ["musicResponsiveListItemRenderer": [
+                "playlistItemData": ["videoId": "abcDEF12_-3"],
+                "onTap": ["watchEndpoint": ["videoId": "abcDEF12_-3", "watchEndpointMusicSupportedConfigs": [
+                    "watchEndpointMusicConfig": ["musicVideoType": type]]]],
+                "flexColumns": [["musicResponsiveListItemFlexColumnRenderer": ["text": ["runs": [["text": "Song"]]]]]],
+            ]]
+            let parsed = try MusicResponseParser.parse(shelf([row]).data, preservesOccurrences: true)
+            guard case let .track(track) = parsed.items.first else { return XCTFail("Expected track") }
+            XCTAssertEqual(track.contentKind, ["MUSIC_VIDEO_TYPE_ATV", "MUSIC_VIDEO_TYPE_OMV"].contains(type) ? .song : nil)
+            XCTAssertNil(track.episode)
+        }
+    }
+
     func testEpisodeContinuationPreservesMetadataAndRejectsOldAccount() async throws {
         let store = await session()
         let transport = PodcastTransport([shelf([episode()], token: "episode-next"), continuation([episode(videoID: "xyzABC98_-7", browseID: "MPEDsecond")])])

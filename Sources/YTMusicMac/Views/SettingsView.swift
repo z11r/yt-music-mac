@@ -67,10 +67,11 @@ struct SettingsView: View {
                 Text("Sign-out clears this app's session and current queue. Named saved queues and local collection organization stay on this Mac for their account until deleted.")
                     .font(.caption).foregroundStyle(.secondary)
             }
+            ListenBrainzSettings(session: session)
         }
         .formStyle(.grouped)
         .padding(10)
-        .frame(width: 470, height: 580)
+        .frame(width: 600, height: 750)
         .sheet(isPresented: $showsStorage) { StorageSettingsView(session: session) }
         .sheet(isPresented: $showsKeyboardSettings) {
             if let playbackBindings { PlaybackShortcutSettings(bindings: playbackBindings) }

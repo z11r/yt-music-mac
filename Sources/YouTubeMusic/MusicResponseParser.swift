@@ -415,10 +415,14 @@ enum MusicResponseParser {
             node[key].array.contains { $0["musicInlineBadgeRenderer"]["icon"]["iconType"].string == "MUSIC_EXPLICIT_BADGE" }
         }
         let episode = MusicPodcastParser.metadata(node, videoID: videoID, endpoints: endpoints)
+        let songType = endpoints.contains {
+            ["MUSIC_VIDEO_TYPE_ATV", "MUSIC_VIDEO_TYPE_OMV"].contains(
+                $0["watchEndpoint"]["watchEndpointMusicSupportedConfigs"]["watchEndpointMusicConfig"]["musicVideoType"].string ?? "")
+        }
         return .track(Track(id: videoID, title: title, artist: episode.flatMap { _ in MusicPodcastParser.showTitle(node) } ?? artist,
                             album: album, artworkURL: artwork, duration: duration ?? episode?.durationText.flatMap(parseDuration),
                             albumReference: albumReference, artistReferences: artistReferences.isEmpty ? nil : artistReferences,
-                            isExplicit: isExplicit ? true : nil, contentKind: episode == nil ? nil : .podcastEpisode, episode: episode))
+                            isExplicit: isExplicit ? true : nil, contentKind: episode == nil ? (songType ? .song : nil) : .podcastEpisode, episode: episode))
     }
 
     private static func metadataReferences(_ runs: [JSONNode], kind: MusicCollection.Kind) -> [TrackMetadataReference] {

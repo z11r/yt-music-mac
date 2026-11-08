@@ -72,6 +72,7 @@ final class WebPlayer: NSObject {
     @ObservationIgnored var onPageReady: ((WKWebView) -> Void)?
     @ObservationIgnored var onStateChanged: (() -> Void)?
     @ObservationIgnored var onVerifiedContentProgress: ((PlaybackOccurrence, TimeInterval, TimeInterval, Bool) -> Void)?
+    @ObservationIgnored var onListeningInterrupted: ((PlaybackOccurrence) -> Void)?
     @ObservationIgnored var onRecoveryRequested: ((PlaybackOccurrence, TimeInterval) -> TimeInterval?)?
     @ObservationIgnored var onSessionRestoreFailed: (() -> Void)?
 
@@ -433,6 +434,9 @@ final class WebPlayer: NSObject {
 
     private func receive(_ message: PlaybackBridgeMessage) {
         guard self.gate.accept(message), !self.failureReported else { return }
+        if let occurrence, !message.confirmsEpisodeProgress || (message.kind != .progress && message.kind != .ended) {
+            self.onListeningInterrupted?(occurrence)
+        }
         if message.kind == .error {
             let description: String
             switch message.errorCode {
