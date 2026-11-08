@@ -30,7 +30,16 @@ struct ListenBrainzDocument: Codable, Equatable, Sendable {
         !name.isEmpty && name.utf8.count <= 256 && !name.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains)
     }
 }
-enum ListenBrainzStoreError: Error, Equatable { case invalidData, unsupportedVersion, tooLarge }
+enum ListenBrainzStoreError: Error, Equatable, LocalizedError {
+    case invalidData, unsupportedVersion, tooLarge
+    var errorDescription: String? {
+        switch self {
+        case .invalidData: AppLocalization.text("The local ListenBrainz data could not be read. Its file has been kept.")
+        case .unsupportedVersion: AppLocalization.text("This version of the local ListenBrainz data is not supported. Its file has been kept.")
+        case .tooLarge: AppLocalization.text("The local ListenBrainz data exceeds its storage limit.")
+        }
+    }
+}
 
 /// The coordinator actor owns this store; no shared preferences contain tokens
 /// or listening metadata. Corrupt and newer files are never silently replaced.

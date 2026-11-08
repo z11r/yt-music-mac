@@ -450,5 +450,43 @@
 			<string>Loading all songs… %lld loaded</string>
 		</dict>
 	</dict>
+	<key>Unsent: %lld. Uncertain: %lld. Rejected: %lld.</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%1$#@ready@. %2$#@uncertain@. %3$#@rejected@.</string>
+		<key>ready</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>Unsent: %lld</string>
+			<key>other</key>
+			<string>Unsent: %lld</string>
+		</dict>
+		<key>rejected</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>Rejected: %lld</string>
+			<key>other</key>
+			<string>Rejected: %lld</string>
+		</dict>
+		<key>uncertain</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>Uncertain: %lld</string>
+			<key>other</key>
+			<string>Uncertain: %lld</string>
+		</dict>
+	</dict>
 </dict>
 </plist>

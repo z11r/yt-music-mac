@@ -66,7 +66,7 @@ actor ListenBrainzCoordinator {
             }
             document = value; ledger = ListeningLedger(state: value.ledger)
             if value.enabled { await checkConnection(expectedScope: scope, resumeSending: !value.paused, revision: revision) }
-        } catch { message = "ListenBrainz data could not be loaded. Existing files were retained; no listens will be sent." }
+        } catch { message = AppLocalization.text("ListenBrainz data could not be loaded. Existing files were retained; no listens will be sent.") }
         notify(); return viewState()
     }
 
@@ -75,14 +75,14 @@ actor ListenBrainzCoordinator {
               scope == expectedScope, gate.matches(scope: expectedScope, revision: revision), let profile, document != nil, !working else { return viewState() }
         gate.disable(scope: expectedScope); worker?.cancel(); worker = nil; workerID = nil
         document!.enabled = false
-        do { try persist() } catch { message = "Scrobbling could not be safely configured."; notify(); return viewState() }
+        do { try persist() } catch { message = AppLocalization.text("Scrobbling could not be safely configured."); notify(); return viewState() }
         working = true; workingRevision = revision; message = nil; notify()
         defer { finishConfiguration(revision: revision) }
         do {
             let username = try await api.validateToken(supplied)
             guard scope == expectedScope, gate.matches(scope: expectedScope, revision: revision) else { return viewState() }
             guard document!.outbox.filter({ $0.state != .confirmed }).allSatisfy({ $0.username == username }) else {
-                working = false; message = "Discard pending listens and disconnect before choosing another ListenBrainz account."; notify(); return viewState()
+                working = false; message = AppLocalization.text("Discard pending listens and disconnect before choosing another ListenBrainz account."); notify(); return viewState()
             }
             try await tokens.store(supplied, profile: profile)
             guard scope == expectedScope, gate.matches(scope: expectedScope, revision: revision) else { return viewState() }
@@ -92,10 +92,10 @@ actor ListenBrainzCoordinator {
             document!.username = username; document!.enabled = false; document!.paused = false
             token = supplied
             try persist()
-            message = "Token verified and stored. Enable scrobbling to send songs started after opting in."
+            message = AppLocalization.text("Token verified and stored. Enable scrobbling to send songs started after opting in.")
         } catch {
             guard scope == expectedScope, gate.matches(scope: expectedScope, revision: revision) else { return viewState() }
-            token = nil; message = "The ListenBrainz connection was not established. Check the token and local credential storage."
+            token = nil; message = AppLocalization.text("The ListenBrainz connection was not established. Check the token and local credential storage.")
         }
         working = false; notify(); return viewState()
     }
@@ -109,8 +109,8 @@ actor ListenBrainzCoordinator {
         document!.enabled = enabled
         ledger.suspendCurrent()
         if !enabled { gate.disable(scope: expectedScope); worker?.cancel(); worker = nil; workerID = nil; working = false; workingRevision = nil }
-        do { try persist(); message = enabled ? "Scrobbling applies to new song plays. Uploads and podcasts are excluded." : "Scrobbling is off. Pending and uncertain listens stay local." }
-        catch { document!.enabled = false; message = "The setting could not be saved. Scrobbling remains off." }
+        do { try persist(); message = enabled ? AppLocalization.text("Scrobbling applies to new song plays. Uploads and podcasts are excluded.") : AppLocalization.text("Scrobbling is off. Pending and uncertain listens stay local.") }
+        catch { document!.enabled = false; message = AppLocalization.text("The setting could not be saved. Scrobbling remains off.") }
         if document!.enabled { gate.activate(scope: expectedScope, revision: revision) }
         notify(); return viewState()
     }
@@ -129,10 +129,10 @@ actor ListenBrainzCoordinator {
             token = saved
             if document!.enabled { gate.activate(scope: expectedScope, revision: revision) }
             if resumeSending { document!.paused = false; try persist() }
-            message = "ListenBrainz connection verified."
+            message = AppLocalization.text("ListenBrainz connection verified.")
         } catch {
             guard scope == expectedScope, gate.matches(scope: expectedScope, revision: revision) else { return }
-            token = nil; message = "Reconnect ListenBrainz before sending listens."
+            token = nil; message = AppLocalization.text("Reconnect ListenBrainz before sending listens.")
         }
         working = false; notify()
         if resumeSending { startWorker() }
@@ -149,10 +149,10 @@ actor ListenBrainzCoordinator {
             guard scope == expectedScope, gate.matches(scope: expectedScope, revision: revision) else { return viewState() }
             try store.clear(profile: profile)
             document = .init(profile: profile); ledger = .init()
-            message = "Disconnected. Local ListenBrainz settings, pending listens, and receipts were removed."
+            message = AppLocalization.text("Disconnected. Local ListenBrainz settings, pending listens, and receipts were removed.")
         } catch {
             guard scope == expectedScope, gate.matches(scope: expectedScope, revision: revision) else { return viewState() }
-            message = "Reporting is off. Credential or local-data removal was not confirmed; try disconnecting again."
+            message = AppLocalization.text("Reporting is off. Credential or local-data removal was not confirmed; try disconnecting again.")
         }
         notify(); return viewState()
     }
@@ -160,8 +160,8 @@ actor ListenBrainzCoordinator {
     func discardPending(expectedScope: UUID) -> ListenBrainzViewState {
         guard scope == expectedScope, gate.matches(scope: expectedScope), document != nil, worker == nil else { return viewState() }
         document!.outbox.removeAll { $0.state != .confirmed }
-        do { try persist(); message = "Pending listens were discarded locally. No provider history was changed." }
-        catch { message = "Local ListenBrainz data could not be saved." }
+        do { try persist(); message = AppLocalization.text("Pending listens were discarded locally. No provider history was changed.") }
+        catch { message = AppLocalization.text("Local ListenBrainz data could not be saved.") }
         notify(); return viewState()
     }
 
@@ -189,12 +189,12 @@ actor ListenBrainzCoordinator {
         if let listen = ledger.sample(occurrence: occurrence, position: position, duration: duration,
                                       monotonicTime: observedTime ?? monotonicTime(), wallTime: observedWallTime ?? wallTime(), ended: ended) {
             guard document!.outbox.filter({ $0.state != .confirmed }).count < 100, let username = document!.username else {
-                document!.paused = true; message = "The local outbox is full. Resolve pending listens before collecting more."; persistIfNeeded(force: true); notify(); return
+                document!.paused = true; message = AppLocalization.text("The local outbox is full. Resolve pending listens before collecting more."); persistIfNeeded(force: true); notify(); return
             }
             ledger.markQueued(listen)
             document!.outbox.append(.init(listen: listen, username: username, state: .ready))
             do { try persist(); startWorker() }
-            catch { document!.paused = true; message = "The listen could not be saved locally; it was not submitted." }
+            catch { document!.paused = true; message = AppLocalization.text("The listen could not be saved locally; it was not submitted.") }
             notify()
         } else { persistIfNeeded(force: ended) }
     }
@@ -232,7 +232,7 @@ actor ListenBrainzCoordinator {
     private func persistIfNeeded(force: Bool = false) {
         guard let document, document.enabled || document.username != nil || !document.outbox.isEmpty else { return }
         guard force || monotonicTime() - lastSavedTime >= 5 else { return }
-        do { try persist() } catch { message = "Local ListenBrainz data could not be saved."; notify() }
+        do { try persist() } catch { message = AppLocalization.text("Local ListenBrainz data could not be saved."); notify() }
     }
 
     private func startWorker() {
@@ -255,7 +255,7 @@ actor ListenBrainzCoordinator {
             let pending = document!.outbox[index]
             document!.outbox[index].state = .sending
             do { try persist() }
-            catch { document!.outbox[index].state = .ready; document!.paused = true; message = "The attempt marker could not be saved; no listen was sent."; break }
+            catch { document!.outbox[index].state = .ready; document!.paused = true; message = AppLocalization.text("The attempt marker could not be saved; no listen was sent."); break }
             notify()
             let gate = self.gate
             let outcome = await api.submit(pending.listen, token: token, authorized: { gate.allows(scope: expectedScope) })
@@ -284,12 +284,12 @@ actor ListenBrainzCoordinator {
             if self.profile == profile {
                 document = value
                 if outcome == .authenticationRejected { token = nil }
-                message = outcome == .confirmed ? "ListenBrainz confirmed the listen." :
-                    "Submission stopped. Uncertain or rejected listens are kept locally and are never retried automatically."
+                message = outcome == .confirmed ? AppLocalization.text("ListenBrainz confirmed the listen.") :
+                    AppLocalization.text("Submission stopped. Uncertain or rejected listens are kept locally and are never retried automatically.")
                 notify()
             }
         } catch {
-            if self.profile == profile { message = "Delivery state could not be saved. The attempt will not be automatically repeated."; notify() }
+            if self.profile == profile { message = AppLocalization.text("Delivery state could not be saved. The attempt will not be automatically repeated."); notify() }
         }
     }
     private func finishConfiguration(revision: UUID) {

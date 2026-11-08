@@ -61,3 +61,8 @@ Deterministic tests use fake clocks, temporary files, an injected credential
 store, and fake transports. They cover thresholds, seeks, recovery, consent
 races, account changes, uncertain delivery, file bounds, request isolation, and
 response limits. Live token storage and provider delivery have not been verified.
+
+Native settings, delivery messages, and local storage errors follow the app's
+language. Pending counts select singular or plural independently for unsent,
+uncertain, and rejected listens. Provider usernames, listening metadata, API
+field names, and persisted delivery states retain their original values.
