@@ -98,7 +98,8 @@ struct RootView: View {
     }
 
     private func presentLibraryEditor(_ request: LibraryEditorRequest) {
-        guard session.remoteLibraryEditingEnabled, !session.isEditingLibrary, !session.showsAccount else { return }
+        guard session.account.isSignedIn, request.isEnabled(by: session.libraryEditCapabilities),
+              !session.isEditingLibrary, !session.showsAccount else { return }
         libraryEditor = request
     }
 

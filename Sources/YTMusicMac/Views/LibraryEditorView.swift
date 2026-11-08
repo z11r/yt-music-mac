@@ -12,6 +12,14 @@ enum LibraryEditorRequest: Identifiable {
     case addItems(tracks: [Track])
     case removeItems(playlist: MusicCollection, tracks: [Track], references: [PlaylistItemReference])
 
+    func isEnabled(by capabilities: MusicLibraryEditCapabilities) -> Bool {
+        switch self {
+        case .editDescription: capabilities.playlistDescription
+        case .editPrivacy: capabilities.playlistPrivacy
+        default: capabilities.playlists
+        }
+    }
+
     var id: String {
         switch self {
         case .createPlaylist: "create"
