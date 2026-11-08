@@ -118,10 +118,11 @@ public struct LocalSongRuleSong: Identifiable, Codable, Equatable, Sendable {
     public let duration: TimeInterval?
     public let isExplicit: Bool?
     public let origin: MusicContentOrigin?
+    public let contentKind: MusicContentKind?
     public init(id: UUID = UUID(), videoID: String, title: String? = nil, artist: String? = nil, album: String? = nil,
-                duration: TimeInterval? = nil, isExplicit: Bool? = nil, origin: MusicContentOrigin? = nil) {
+                duration: TimeInterval? = nil, isExplicit: Bool? = nil, origin: MusicContentOrigin? = nil, contentKind: MusicContentKind? = nil) {
         self.id = id; self.videoID = videoID; self.title = title; self.artist = artist; self.album = album
-        self.duration = duration; self.isExplicit = isExplicit; self.origin = origin
+        self.duration = duration; self.isExplicit = isExplicit; self.origin = origin; self.contentKind = contentKind
     }
     public init(track: Track) {
         id = UUID(); videoID = track.id
@@ -132,8 +133,9 @@ public struct LocalSongRuleSong: Identifiable, Codable, Equatable, Sendable {
         duration = track.duration.flatMap { $0.isFinite && (0...604_800).contains($0) ? $0 : nil }
         isExplicit = track.isExplicit
         origin = track.origin
+        contentKind = track.contentKind
     }
-    private enum CodingKeys: String, CodingKey, CaseIterable { case id, videoID, title, artist, album, duration, isExplicit, origin }
+    private enum CodingKeys: String, CodingKey, CaseIterable { case id, videoID, title, artist, album, duration, isExplicit, origin, contentKind }
     public init(from decoder: any Decoder) throws {
         try SongRuleSchema.keys(decoder, allowed: CodingKeys.allCases.map(\.rawValue))
         let values = try decoder.container(keyedBy: CodingKeys.self)
@@ -145,10 +147,11 @@ public struct LocalSongRuleSong: Identifiable, Codable, Equatable, Sendable {
         duration = try values.decodeIfPresent(TimeInterval.self, forKey: .duration)
         isExplicit = try values.decodeIfPresent(Bool.self, forKey: .isExplicit)
         origin = try values.decodeIfPresent(MusicContentOrigin.self, forKey: .origin)
+        contentKind = try values.decodeIfPresent(MusicContentKind.self, forKey: .contentKind)
     }
     public var track: Track {
         Track(id: videoID, title: title ?? "Untitled song", artist: artist ?? "Unknown artist", album: album,
-              duration: duration, isExplicit: isExplicit, origin: origin)
+              duration: duration, isExplicit: isExplicit, origin: origin, contentKind: contentKind)
     }
     private static func knownText(_ value: String?) -> String? {
         guard let value, !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,

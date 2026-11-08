@@ -108,7 +108,7 @@ public actor LocalSongRuleStore {
         var songs: [LocalSongRuleSong] = []
         var skipped = 0
         for track in tracks.prefix(maximumSongs) {
-            if Self.validVideoID(track.id) { songs.append(LocalSongRuleSong(track: track)) }
+            if Self.validVideoID(track.id), track.contentKind != .podcastEpisode && track.episode == nil { songs.append(LocalSongRuleSong(track: track)) }
             else { skipped += 1 }
         }
         archive.snapshot = LocalSongRuleSnapshot(capturedAt: now(), sourceName: sourceName, songs: songs,
@@ -159,7 +159,7 @@ public actor LocalSongRuleStore {
                   (0...1_000_000).contains(snapshot.unavailableCount), snapshot.skippedCount >= 0,
                   snapshot.skippedCount <= maximumSongs - snapshot.songs.count else { throw LocalSongRuleError.invalidSnapshot }
             for song in snapshot.songs {
-                guard Self.validVideoID(song.videoID), [song.title, song.artist, song.album].allSatisfy({ $0.map { validText($0) } ?? true }),
+                guard Self.validVideoID(song.videoID), song.contentKind != .podcastEpisode, [song.title, song.artist, song.album].allSatisfy({ $0.map { validText($0) } ?? true }),
                       song.duration.map({ $0.isFinite && (0...604_800).contains($0) }) ?? true else { throw LocalSongRuleError.invalidSnapshot }
             }
         }

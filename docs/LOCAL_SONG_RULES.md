@@ -39,3 +39,5 @@ song metadata contains no artwork URLs, service parameters, cookies, or audio.
 Sign-out hides the account's rules and snapshot while retaining its files.
 Use **Delete Rule** or **Clear Snapshot** to remove that local data explicitly.
 Unsupported or corrupt files are kept rather than replaced by an edit.
+
+Known podcast episodes are excluded from song snapshots and counted as skipped rows. Known song classification is retained; missing classification stays unknown.

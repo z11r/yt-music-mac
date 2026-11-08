@@ -68,6 +68,21 @@ struct LocalSongRuleStoreTests {
         #expect(cleared.rules.count == 1 && cleared.snapshot == nil)
     }
 
+    @Test func songRulesExcludeEpisodesAndPreserveKnownSongClassification() async throws {
+        let fixture = SongRuleStoreFixture()
+        defer { fixture.remove() }
+        let store = LocalSongRuleStore(directoryURL: fixture.directory)
+        let song = Track(id: "abcDEF12_-3", title: "Song", artist: "Artist", contentKind: .song)
+        let episode = Track(id: "xyzABC34_-5", title: "Episode", artist: "Show", contentKind: .podcastEpisode,
+            episode: .init(identity: .init(browseID: "MPEDfixture")))
+        let archive = try await store.capture(tracks: [episode, song], sourceName: "Mixed loaded page",
+            hasMorePages: false, wasLoading: false, accountKey: fixture.first)
+        #expect(archive.snapshot?.skippedCount == 1)
+        #expect(archive.snapshot?.songs.map(\.track.contentKind) == [.song])
+        let loaded = try await store.load(accountKey: fixture.first)
+        #expect(loaded.snapshot?.songs.map(\.track.contentKind) == [.song])
+    }
+
     @Test func captureBoundsLoadedRowsAndReportsSkippedUnplayableIdentities() async throws {
         let fixture = SongRuleStoreFixture()
         defer { fixture.remove() }
