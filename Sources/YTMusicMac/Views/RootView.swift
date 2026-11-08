@@ -85,6 +85,10 @@ struct RootView: View {
         .background(SearchWindowAnchor(reference: searchWindow).frame(width: 0, height: 0))
         .background(SearchSuggestionsAttachment(session: session))
         .focusedSceneValue(\.focusMusicSearch, searchAction)
+        .focusedSceneValue(\.openQuickCommands, quickCommandsAction)
+        .sheet(isPresented: Binding(get: { session.quickCommands.isPresented }, set: { if !$0 { session.quickCommands.invalidate() } })) {
+            QuickCommandsView(palette: session.quickCommands)
+        }
         .sheet(isPresented: $session.showsAccount, onDismiss: session.closeAccount) {
             AccountView(session: session)
         }
@@ -100,8 +104,14 @@ struct RootView: View {
         .task { await session.start() }
     }
 
+    private var quickCommandsAction: (() -> Void)? {
+        guard !session.showsAccount, libraryEditor == nil, !session.showsLocalFolders, !session.showsSongRules,
+              !session.links.showsSheet, !session.quickCommands.isPresented else { return nil }
+        return { session.quickCommands.present() }
+    }
+
     private var searchAction: (() -> Void)? {
-        guard !session.showsAccount, libraryEditor == nil else { return nil }
+        guard !session.showsAccount, libraryEditor == nil, !session.quickCommands.isPresented else { return nil }
         return { focusSearch() }
     }
 

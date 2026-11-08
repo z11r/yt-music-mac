@@ -86,6 +86,8 @@ struct NavigationCommands: Commands {
 
     var body: some Commands {
         CommandGroup(before: .sidebar) {
+            QuickCommandsMenuButton()
+            Divider()
             NavigationCommandButtons(session: session)
             Divider()
         }
@@ -104,7 +106,7 @@ private struct NavigationCommandButtons: View {
             }
             .keyboardShortcut(item.key, modifiers: .command)
             // The account sheet covers the sidebar; leave navigation to it.
-            .disabled(session.showsAccount)
+            .disabled(session.showsAccount || session.quickCommands.isPresented)
         }
     }
 }

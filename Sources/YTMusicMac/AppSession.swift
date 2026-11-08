@@ -137,6 +137,8 @@ final class AppSession {
     let listenBrainz: ListenBrainzSession
     let lastFM: LastFMSession
     let streamingExport: StreamingMetadataExport?
+    let quickCommands = QuickCommandPalette()
+    @ObservationIgnored var quickCommandProfile: String?
     private(set) var destination: MusicDestination = .home
     private(set) var page: MusicPage?
     private(set) var chartCountries: [MusicChartCountry] = []
@@ -245,6 +247,8 @@ final class AppSession {
             if let snapshot { self.episodePlayback.reportRates(snapshot.rates, current: snapshot.current, occurrence: occurrence) }
             else { self.episodePlayback.clearRates(occurrence: occurrence) }
         }
+        quickCommands.environment = { [weak self] in self?.quickCommandEnvironment }
+        quickCommands.execute = { [weak self] command, environment in self?.executeQuickCommand(command, environment: environment) }
         player.onEnded = { [weak self] occurrence in self?.ended(occurrence) }
         sleepTimer.onExpired = { [weak self] in
             self?.cancelRadio()
@@ -300,6 +304,8 @@ final class AppSession {
         account.onAccountChanged = { [weak self] changed in self?.accountChanged(replacedAccount: changed) }
         account.onAccountConfirmed = { [weak self] hash in
             guard let self else { return }
+            if self.quickCommandProfile != hash { self.quickCommands.invalidate() }
+            self.quickCommandProfile = hash
             self.bindEpisodeAccount(hash)
             self.streamingExport?.bindAccount(hash)
             let generation = self.accountGeneration
@@ -1032,6 +1038,7 @@ final class AppSession {
     }
 
     func openAccount() {
+        quickCommands.invalidate()
         guard !isSceneCheck else { return }
         lyrics.clear()
         player.cancelSessionRestore()
@@ -1113,6 +1120,7 @@ final class AppSession {
     }
 
     func signOut() async {
+        quickCommands.invalidate(); quickCommandProfile = nil
         chartCountries = []; chartCountryLabel = nil
         player.invalidateEpisodeRateControl()
         streamingExport?.bindAccount(nil)
@@ -1181,6 +1189,7 @@ final class AppSession {
     }
 
     private func accountChanged(replacedAccount: Bool) {
+        quickCommands.invalidate(); quickCommandProfile = nil
         chartCountries = []; chartCountryLabel = nil
         if case .chartCountry = destination { destination = .discovery(.charts) }
         player.invalidateEpisodeRateControl()
@@ -1260,6 +1269,7 @@ final class AppSession {
 
     func shutdown() async {
         streamingExport?.disable()
+        quickCommands.invalidate()
         episodeContinuation = nil
         isShuttingDown = true
         queuePlaylistSave.cancel()
