@@ -116,7 +116,8 @@ public actor QueueStore {
         }
     }
 
-    public func save(_ snapshot: QueueSnapshot) throws {
+    public func save(_ snapshot: QueueSnapshot, if permitted: @Sendable () -> Bool = { true }) throws {
+        guard permitted() else { throw CancellationError() }
         try self.checkURL()
         try snapshot.validate()
         let encoder = JSONEncoder()
@@ -128,6 +129,7 @@ public actor QueueStore {
             withIntermediateDirectories: true,
             attributes: [.posixPermissions: 0o700]
         )
+        guard permitted() else { throw CancellationError() }
         try data.write(to: self.fileURL, options: .atomic)
         try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: self.fileURL.path)
     }

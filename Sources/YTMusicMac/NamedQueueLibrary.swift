@@ -12,6 +12,7 @@ final class NamedQueueLibrary {
     private(set) var errorMessage: String?
     private(set) var scope = UUID()
     @ObservationIgnored private let store: NamedQueueStore?
+    @ObservationIgnored let profileOperations = ProfileOperationFence()
     @ObservationIgnored private let sessions: any MusicSessionProviding
 
     init(store: NamedQueueStore?, sessions: any MusicSessionProviding) {
@@ -95,6 +96,8 @@ final class NamedQueueLibrary {
         expectedScope: UUID? = nil,
         _ operation: @Sendable (NamedQueueStore, String) async throws -> Value
     ) async throws -> Value {
+        guard profileOperations.begin() else { throw SavedQueueAccessError.accountChanged }
+        defer { profileOperations.end() }
         guard expectedScope == nil || expectedScope == scope else { throw SavedQueueAccessError.accountChanged }
         guard !isWorking else { throw SavedQueueAccessError.inProgress }
         guard let store else { throw SavedQueueAccessError.unavailable }

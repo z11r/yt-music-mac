@@ -147,6 +147,9 @@ final class AppSession {
     private(set) var isLoading = false
     private(set) var hasFinishedStartup = false
     private(set) var isShuttingDown = false
+    private(set) var isProfileSuspended = false
+    private(set) var persistsLocalQueue = true
+    var acceptsProfileActions: Bool { !isProfileSuspended && !isShuttingDown }
     private(set) var isLoadingMore = false
     private(set) var pageError: String?
     private(set) var queueError: String?
@@ -181,11 +184,12 @@ final class AppSession {
     /// Separate, retained client for explicitly requested disposable checks only.
     @ObservationIgnored let playlistVerificationClient: YouTubeMusicClient
     @ObservationIgnored private let queueStore: QueueStore?
-    @ObservationIgnored private let preferences: UserDefaults
+    @ObservationIgnored let preferences: UserDefaults
     @ObservationIgnored let isSceneCheck: Bool
     @ObservationIgnored private var started = false
     @ObservationIgnored var wantsPlayback = false { didSet { recommendations.discardIfStale() } }
     @ObservationIgnored private(set) var pageTask: Task<Void, Never>?
+    @ObservationIgnored private let queuePersistenceGate = LocalPersistenceGate()
     @ObservationIgnored private var saveTask: Task<Void, Never>?
     @ObservationIgnored private var pageGeneration = UUID()
     @ObservationIgnored var accountGeneration = UUID() { didSet { recommendations.cancel() } }
@@ -194,6 +198,9 @@ final class AppSession {
     @ObservationIgnored private var resumeState = PlaybackResumeState()
     @ObservationIgnored private var volumeState = VolumeState()
     @ObservationIgnored private var systemMedia: SystemMediaControls?
+    @ObservationIgnored private let sessionOperations = ProfileOperationFence()
+    @ObservationIgnored private var libraryEditWaiters: [CheckedContinuation<Void, Never>] = []
+    @ObservationIgnored private var didShutdown = false
     @ObservationIgnored private var scriptingPlayGeneration = UUID() { didSet { recommendations.discardIfStale() } }
     @ObservationIgnored private var libraryEditID: UUID?
     @ObservationIgnored private var spotlightPageSource: SpotlightLibrarySource?
@@ -206,14 +213,17 @@ final class AppSession {
 
     init(configuration: AppSessionConfiguration = .live()) {
         preferences = configuration.preferences
-        episodePlayback = EpisodePlaybackSession(store: configuration.episodeProgressStore)
+        persistsLocalQueue = configuration.preferences.object(forKey: "persistsLocalQueue") as? Bool ?? true
+        let progress = EpisodePlaybackSession(store: configuration.episodeProgressStore)
+        progress.setPersistenceEnabled(configuration.preferences.object(forKey: "persistsEpisodeProgress") as? Bool ?? true)
+        episodePlayback = progress
         radio = RadioSession(preferences: configuration.preferences)
         savedQueues = NamedQueueLibrary(store: configuration.namedQueueStore, sessions: configuration.credentials)
         localCollections = LocalCollectionsLibrary(store: configuration.localCollectionStore, sessions: configuration.credentials)
         storage = StorageController(cache: configuration.metadataCache, inventory: configuration.storageInventory,
                                     sessions: configuration.credentials, preferences: configuration.preferences)
         spotlight = SpotlightLibraryController(index: configuration.spotlightIndex, sessions: configuration.credentials,
-            preferences: configuration.preferences, namespace: AppIdentity.identifier)
+            preferences: configuration.preferences, namespace: configuration.profileNamespace)
         songRules = LocalSongRuleLibrary(store: configuration.localSongRuleStore, sessions: configuration.credentials)
         let recommendationClient = configuration.client
         recommendations = QueueRecommendations(sessions: configuration.credentials) { videoID, scope in
@@ -248,19 +258,20 @@ final class AppSession {
         queueError = configuration.queueStorageError
         episodePlayback.rateController = player
         player.onEpisodeRates = { [weak self] occurrence, snapshot in
-            guard let self, self.queue.accepts(occurrence), self.account.isSignedIn else { return }
+            guard let self, self.acceptsProfileActions, self.queue.accepts(occurrence), self.account.isSignedIn else { return }
             if let snapshot { self.episodePlayback.reportRates(snapshot.rates, current: snapshot.current, occurrence: occurrence) }
             else { self.episodePlayback.clearRates(occurrence: occurrence) }
         }
         quickCommands.environment = { [weak self] in self?.quickCommandEnvironment }
         quickCommands.execute = { [weak self] command, environment in self?.executeQuickCommand(command, environment: environment) }
+        queuePersistenceGate.setEnabled(persistsLocalQueue)
         player.onEnded = { [weak self] occurrence in self?.ended(occurrence) }
         sleepTimer.onExpired = { [weak self] in
             self?.cancelRadio()
             self?.pause()
         }
         player.onVerifiedContentProgress = { [weak self] occurrence, position, duration, ended in
-            guard let self, self.queue.accepts(occurrence), self.account.isSignedIn else { return }
+            guard let self, self.acceptsProfileActions, self.queue.accepts(occurrence), self.account.isSignedIn else { return }
             self.episodePlayback.record(occurrence: occurrence, position: position, duration: duration, confirmedContent: true, ended: ended)
             self.listenBrainz.sample(occurrence: occurrence, position: position, duration: duration, ended: ended)
             self.lastFM.sample(occurrence: occurrence, position: position, duration: duration, ended: ended)
@@ -271,46 +282,45 @@ final class AppSession {
             } else { self.streamingExport?.interrupt(); self.discordPresence?.interrupt() }
         }
         player.onListeningInterrupted = { [weak self] occurrence in
-            guard let self, self.queue.accepts(occurrence) else { return }
+            guard let self, self.acceptsProfileActions, self.queue.accepts(occurrence) else { return }
             self.listenBrainz.interrupt()
             self.lastFM.interrupt()
         }
         player.onPlaybackOutputInterrupted = { [weak self] occurrence in
-            guard let self, self.queue.accepts(occurrence) else { return }
+            guard let self, self.acceptsProfileActions, self.queue.accepts(occurrence) else { return }
             self.streamingExport?.interrupt()
             self.discordPresence?.interrupt()
         }
         player.onRecoveryRequested = { [weak self] occurrence, position in
-            guard let self else { return nil }
+            guard let self, self.acceptsProfileActions else { return nil }
             if let track = self.currentTrack, self.queue.accepts(occurrence) {
                 self.episodePlayback.begin(track: track, occurrence: occurrence)
             }
             return self.resumeState.recover(occurrence, queue: self.queue, playerPosition: position)
         }
         player.onStateChanged = { [weak self] in
-            if let self {
-                if self.wantsPlayback && !self.player.playbackIntent {
-                    self.cancelPendingCollectionRadio()
-                    self.collectionPlayback.cancel()
-                }
-                self.wantsPlayback = self.player.playbackIntent
+            guard let self, self.acceptsProfileActions else { return }
+            if self.wantsPlayback && !self.player.playbackIntent {
+                self.cancelPendingCollectionRadio()
+                self.collectionPlayback.cancel()
             }
-            if let self, !self.player.isPlaying || self.player.isBuffering {
+            self.wantsPlayback = self.player.playbackIntent
+            if !self.player.isPlaying || self.player.isBuffering {
                 self.listenBrainz.interrupt(); self.lastFM.interrupt(); self.streamingExport?.interrupt(); self.discordPresence?.interrupt()
             }
-            self?.systemMedia?.refresh()
-            self?.saveQueue()
+            self.systemMedia?.refresh()
+            self.saveQueue()
         }
         player.onPageReady = { [weak self] view in
             Task { [weak self, weak view] in
-                guard let self, let view else { return }
+                guard let self, self.acceptsProfileActions, let view else { return }
                 await self.account.synchronize(from: view)
             }
         }
         player.onSessionRestoreFailed = { [weak account] in account?.sessionRestoreFailed() }
         account.onAccountChanged = { [weak self] changed in self?.accountChanged(replacedAccount: changed) }
         account.onAccountConfirmed = { [weak self] hash in
-            guard let self else { return }
+            guard let self, self.acceptsProfileActions else { return }
             if self.quickCommandProfile != hash { self.quickCommands.invalidate() }
             self.quickCommandProfile = hash
             self.bindEpisodeAccount(hash)
@@ -363,10 +373,10 @@ final class AppSession {
     var remainingQueuePosition: TimeInterval {
         resumeState.position(for: queue, playerPosition: Double(player.clock.elapsedSeconds))
     }
-    var remoteLibraryEditingEnabled: Bool { account.isSignedIn && client.libraryEditCapabilities.playlists }
+    var remoteLibraryEditingEnabled: Bool { acceptsProfileActions && account.isSignedIn && client.libraryEditCapabilities.playlists }
     var libraryEditCapabilities: MusicLibraryEditCapabilities { client.libraryEditCapabilities }
     func canSubmitLibraryEdit(_ action: MusicLibraryEditAction) -> Bool {
-        account.isSignedIn && client.libraryEditCapabilities.allows(action)
+        acceptsProfileActions && account.isSignedIn && client.libraryEditCapabilities.allows(action)
     }
     func submitLibraryEdit(_ action: MusicLibraryEditAction) {
         let scope = libraryEditingScope
@@ -376,10 +386,10 @@ final class AppSession {
         }
     }
     var hasRatingControls: Bool {
-        account.isSignedIn && (client.libraryEditCapabilities.likes || client.libraryEditCapabilities.dislikes)
+        acceptsProfileActions && account.isSignedIn && (client.libraryEditCapabilities.likes || client.libraryEditCapabilities.dislikes)
     }
     func canEditRating(_ rating: MusicRating) -> Bool {
-        account.isSignedIn && client.libraryEditCapabilities.allows(.setRating(videoID: "", rating: rating))
+        acceptsProfileActions && account.isSignedIn && client.libraryEditCapabilities.allows(.setRating(videoID: "", rating: rating))
     }
     func rating(for track: Track) -> MusicRating? { songRatings.values[track.id] }
     var visibleTracks: [Track] {
@@ -389,21 +399,22 @@ final class AppSession {
     }
 
     func start() async {
-        guard !started else { return }
+        guard !started, acceptsProfileActions else { return }
         started = true
         defer { hasFinishedStartup = true }
         spotlight.start()
         let restoreGeneration = accountGeneration
-        if let queueStore, !preferences.bool(forKey: "sessionRestoreBlocked") {
+        if let queueStore, persistsLocalQueue, !preferences.bool(forKey: "sessionRestoreBlocked") {
             do {
                 if let saved = try await queueStore.load(),
-                   accountGeneration == restoreGeneration, queue.isEmpty,
+                   acceptsProfileActions, accountGeneration == restoreGeneration, queue.isEmpty,
                    !preferences.bool(forKey: "sessionRestoreBlocked") {
                     queue = try PlaybackQueue(snapshot: saved)
                     resumeState.restore(saved)
                 }
             } catch { queueError = AppLocalization.text("The saved queue could not be restored. You can start a new queue.") }
         }
+        guard acceptsProfileActions else { return }
         let volume = preferences.object(forKey: "volume") as? Double ?? 0.7
         setVolume(volume)
         systemMedia?.refresh()
@@ -414,6 +425,7 @@ final class AppSession {
     }
 
     func navigate(to target: MusicDestination, recordHistory: Bool = true) {
+        guard acceptsProfileActions else { return }
         collectionPlayback.cancel()
         if recordHistory, target != destination {
             backHistory.append(destination)
@@ -497,6 +509,7 @@ final class AppSession {
     }
 
     func search() {
+        guard acceptsProfileActions else { return }
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return }
         searchHistory.record(query)
@@ -504,12 +517,14 @@ final class AppSession {
     }
 
     func goBack() {
+        guard acceptsProfileActions else { return }
         guard let target = backHistory.popLast() else { return }
         forwardHistory.append(destination)
         navigate(to: target, recordHistory: false)
     }
 
     func goForward() {
+        guard acceptsProfileActions else { return }
         guard let target = forwardHistory.popLast() else { return }
         backHistory.append(destination)
         navigate(to: target, recordHistory: false)
@@ -521,6 +536,7 @@ final class AppSession {
     /// account, destination, and queue are still current.
     @discardableResult
     func performCollectionAction(_ action: CollectionPlaybackAction) -> Task<Void, Never>? {
+        guard acceptsProfileActions else { return nil }
         guard let page, !isLoadingMore else { return nil }
         guard action == .append || account.isSignedIn else { openAccount(); return nil }
         scriptingPlayGeneration = UUID()
@@ -552,6 +568,7 @@ final class AppSession {
     }
 
     func loadMore() {
+        guard acceptsProfileActions else { return }
         collectionPlayback.cancel()
         guard let initial = page, let continuation = initial.continuation, !isLoadingMore else { return }
         isLoadingMore = true
@@ -596,6 +613,7 @@ final class AppSession {
     }
 
     func activate(_ item: MusicItem) {
+        guard acceptsProfileActions else { return }
         switch item {
         case let .track(track): play(track)
         case let .collection(value): navigate(to: .collection(value))
@@ -612,7 +630,7 @@ final class AppSession {
         return scriptingPlayGeneration
     }
 
-    func acceptsScriptedPlaybackRequest(_ request: UUID) -> Bool { scriptingPlayGeneration == request && !isShuttingDown }
+    func acceptsScriptedPlaybackRequest(_ request: UUID) -> Bool { scriptingPlayGeneration == request && acceptsProfileActions }
 
     func playScriptedVideo(_ videoID: String, requestGeneration: UUID) async throws -> String {
         guard ScriptingInput.videoID(videoID) == videoID else { throw AppScriptingError.invalidVideoID }
@@ -678,6 +696,7 @@ final class AppSession {
     }
 
     func performLibraryEdit(_ action: MusicLibraryEditAction) async -> Bool {
+        guard acceptsProfileActions else { return false }
         guard account.isSignedIn, client.libraryEditCapabilities.allows(action) else {
             libraryEditError = MusicLibraryEditError.featureUnavailable.localizedDescription
             return false
@@ -693,6 +712,7 @@ final class AppSession {
         clearLibraryEditFeedback()
         defer {
             if libraryEditID == id { libraryEditID = nil; isEditingLibrary = false }
+            let waiters = libraryEditWaiters; libraryEditWaiters.removeAll(); waiters.forEach { $0.resume() }
         }
         do {
             let expectedScope = try await client.libraryEditScope()
@@ -778,6 +798,7 @@ final class AppSession {
     }
 
     func playTracks(_ tracks: [Track], startingAt index: Int = 0, origin: QueueEntryOrigin = .manual) {
+        guard acceptsProfileActions else { return }
         collectionPlayback.cancel()
         scriptingPlayGeneration = UUID()
         guard !tracks.isEmpty, tracks.indices.contains(index) else { return }
@@ -793,6 +814,7 @@ final class AppSession {
     }
 
     func play() {
+        guard acceptsProfileActions else { return }
         collectionPlayback.cancel()
         scriptingPlayGeneration = UUID()
         guard !queue.isEmpty else { return }
@@ -829,6 +851,7 @@ final class AppSession {
     }
 
     func next() {
+        guard acceptsProfileActions else { return }
         collectionPlayback.cancel()
         scriptingPlayGeneration = UUID()
         cancelPendingCollectionRadio()
@@ -836,6 +859,7 @@ final class AppSession {
     }
 
     func previous() {
+        guard acceptsProfileActions else { return }
         collectionPlayback.cancel()
         scriptingPlayGeneration = UUID()
         cancelPendingCollectionRadio()
@@ -844,6 +868,7 @@ final class AppSession {
     }
 
     func seek(to value: TimeInterval) {
+        guard acceptsProfileActions else { return }
         collectionPlayback.cancel()
         guard value.isFinite, value >= 0 else { return }
         recommendations.cancel()
@@ -858,12 +883,14 @@ final class AppSession {
         saveQueue()
     }
     func skipEpisode(forward: Bool) {
+        guard acceptsProfileActions else { return }
         guard let track = currentTrack, let target = EpisodeSkip.target(track: track, position: player.clock.position,
             duration: player.clock.duration, offset: forward ? episodePlayback.settings.skipForward : -episodePlayback.settings.skipBackward,
             positionConfirmed: player.hasConfirmedPosition && !player.isBuffering && player.errorMessage == nil) else { return }
         seek(to: target)
     }
     func resumeEpisode() {
+        guard acceptsProfileActions else { return }
         guard let track = currentTrack, track.contentKind == .podcastEpisode, account.isSignedIn else { return }
         let position = episodePlayback.resumePosition(for: track)
         guard position > 0 else { return }
@@ -872,6 +899,7 @@ final class AppSession {
         request(queue.beginPlayback(), resumingAt: position)
     }
     func startEpisodeOver() {
+        guard acceptsProfileActions else { return }
         guard let track = currentTrack, track.contentKind == .podcastEpisode, account.isSignedIn else { return }
         episodePlayback.startOver(track)
         collectionPlayback.cancel(); scriptingPlayGeneration = UUID()
@@ -879,6 +907,7 @@ final class AppSession {
         request(queue.beginPlayback())
     }
     func setVolume(_ value: Double) {
+        guard acceptsProfileActions else { return }
         guard value.isFinite else { return }
         player.setVolume(value)
         volumeState.record(player.volume)
@@ -887,6 +916,7 @@ final class AppSession {
 
     func toggleMute() { setVolume(volumeState.toggledVolume(from: player.volume)) }
     func retryPlayback() {
+        guard acceptsProfileActions else { return }
         collectionPlayback.cancel()
         scriptingPlayGeneration = UUID()
         guard account.isSignedIn else { openAccount(); return }
@@ -898,6 +928,7 @@ final class AppSession {
     }
 
     func selectQueueEntry(_ id: UUID) {
+        guard acceptsProfileActions else { return }
         collectionPlayback.cancel()
         scriptingPlayGeneration = UUID()
         guard account.isSignedIn else { openAccount(); return }
@@ -906,9 +937,10 @@ final class AppSession {
         wantsPlayback = true
         request(queue.select(entryID: id))
     }
-    func playNext(_ tracks: [Track]) { collectionPlayback.cancel(); queue.playNext(tracks); saveQueue() }
-    func addToQueue(_ tracks: [Track]) { collectionPlayback.cancel(); queue.append(tracks); saveQueue() }
+    func playNext(_ tracks: [Track]) { guard acceptsProfileActions else { return }; collectionPlayback.cancel(); queue.playNext(tracks); saveQueue() }
+    func addToQueue(_ tracks: [Track]) { guard acceptsProfileActions else { return }; collectionPlayback.cancel(); queue.append(tracks); saveQueue() }
     func removeQueueEntries(_ ids: Set<UUID>) {
+        guard acceptsProfileActions else { return }
         collectionPlayback.cancel()
         scriptingPlayGeneration = UUID()
         let previous = queue.currentOccurrence
@@ -917,11 +949,13 @@ final class AppSession {
         reconcileQueue(previous: previous)
     }
     func moveQueueEntries(from offsets: IndexSet, to destination: Int) {
+        guard acceptsProfileActions else { return }
         collectionPlayback.cancel()
         queue.move(fromOffsets: offsets, toOffset: destination)
         saveQueue()
     }
     func undoQueueEdit() {
+        guard acceptsProfileActions else { return }
         collectionPlayback.cancel()
         scriptingPlayGeneration = UUID()
         let previous = queue.currentOccurrence
@@ -938,6 +972,7 @@ final class AppSession {
     }
 
     func openSavedQueue(id: UUID, expectedScope: UUID) async -> Bool {
+        guard acceptsProfileActions else { return false }
         guard account.isSignedIn, savedQueues.scope == expectedScope else { return false }
         collectionPlayback.cancel()
         cancelPendingCollectionRadio()
@@ -954,6 +989,7 @@ final class AppSession {
 
     /// Validation precedes mutation, so a corrupt named snapshot cannot erase the current queue.
     func restoreSavedQueueSnapshot(_ snapshot: QueueSnapshot) throws {
+        guard acceptsProfileActions else { throw CancellationError() }
         collectionPlayback.cancel()
         cancelMusicLink()
         let restored = try PlaybackQueue(snapshot: snapshot)
@@ -967,8 +1003,9 @@ final class AppSession {
         saveQueue()
         systemMedia?.refresh()
     }
-    func toggleShuffle() { collectionPlayback.cancel(); queue.setShuffle(!queue.isShuffled); saveQueue() }
+    func toggleShuffle() { guard acceptsProfileActions else { return }; collectionPlayback.cancel(); queue.setShuffle(!queue.isShuffled); saveQueue() }
     func cycleRepeat() {
+        guard acceptsProfileActions else { return }
         collectionPlayback.cancel()
         switch queue.repeatMode {
         case .off: queue.repeatMode = .all
@@ -979,6 +1016,7 @@ final class AppSession {
     }
 
     func setRepeatMode(_ mode: RepeatMode) {
+        guard acceptsProfileActions else { return }
         collectionPlayback.cancel()
         queue.repeatMode = mode
         saveQueue()
@@ -994,6 +1032,7 @@ final class AppSession {
 
     func request(_ occurrence: PlaybackOccurrence?, resumingAt position: TimeInterval = 0,
                          listeningIntent: ListeningStartIntent = .newListen) {
+        guard acceptsProfileActions else { return }
         guard !isSceneCheck else { return }
         streamingExport?.interrupt()
         episodeStartTask?.cancel(); episodeStartTask = nil; pendingEpisodeOccurrence = nil
@@ -1034,7 +1073,7 @@ final class AppSession {
     }
 
     private func ended(_ occurrence: PlaybackOccurrence) {
-        guard queue.accepts(occurrence) else { return }
+        guard acceptsProfileActions, queue.accepts(occurrence) else { return }
         if sleepTimer.consumeEnd(occurrence) {
             // The bridge consumed this ending. A later Play needs a fresh occurrence,
             // while the selection stays on the song the sleep timer finished.
@@ -1049,6 +1088,7 @@ final class AppSession {
     }
 
     func openAccount() {
+        guard acceptsProfileActions else { return }
         quickCommands.invalidate()
         guard !isSceneCheck else { return }
         lyrics.clear()
@@ -1058,6 +1098,7 @@ final class AppSession {
     }
 
     func setSpotlightEnabled(_ enabled: Bool) {
+        guard acceptsProfileActions else { return }
         spotlight.setEnabled(enabled)
         if !enabled { pendingSpotlightResult = nil; return }
         guard destination == .library, let page, let source = spotlightPageSource else { return }
@@ -1065,6 +1106,7 @@ final class AppSession {
     }
 
     func removeSpotlightEntries() {
+        guard acceptsProfileActions else { return }
         pendingSpotlightResult = nil
         spotlight.setEnabled(false)
         spotlight.removeIndexedMetadata()
@@ -1072,20 +1114,20 @@ final class AppSession {
 
     /// Spotlight can open a native collection after automatic session restoration; it never opens Account or starts audio.
     @discardableResult func receiveSpotlightResult(_ identifier: String) -> Bool {
-        guard !isSceneCheck, spotlight.isEnabled, spotlight.policy.accountKey(in: identifier) != nil else { return false }
+        guard acceptsProfileActions, !isSceneCheck, spotlight.isEnabled, spotlight.policy.accountKey(in: identifier) != nil else { return false }
         pendingSpotlightResult = identifier
         Task { await routePendingSpotlightResult() }
         return true
     }
 
     @discardableResult func openSpotlightResult(_ identifier: String) async -> Bool {
-        guard !isSceneCheck, spotlight.isEnabled, spotlight.policy.accountKey(in: identifier) != nil else { return false }
+        guard acceptsProfileActions, !isSceneCheck, spotlight.isEnabled, spotlight.policy.accountKey(in: identifier) != nil else { return false }
         pendingSpotlightResult = identifier
         return await routePendingSpotlightResult()
     }
 
     @discardableResult private func routePendingSpotlightResult() async -> Bool {
-        guard let identifier = pendingSpotlightResult else { return false }
+        guard acceptsProfileActions, let identifier = pendingSpotlightResult else { return false }
         let generation = accountGeneration
         let reference = await spotlight.resolve(identifier)
         guard accountGeneration == generation, pendingSpotlightResult == identifier else { return false }
@@ -1103,7 +1145,7 @@ final class AppSession {
     }
 
     func captureLoadedSongsForRules(expectedScope: UUID) async {
-        guard let page, let source = songRulePageSource, !isShuttingDown else {
+        guard acceptsProfileActions, let page, let source = songRulePageSource, !isShuttingDown else {
             songRules.reportSourceUnavailable(expectedScope: expectedScope); return
         }
         await songRules.capture(tracks: CollectionPresentation.tracks(in: page), sourceName: String(destination.title.prefix(200)),
@@ -1112,12 +1154,12 @@ final class AppSession {
     }
 
     func prepareQueuePlaylistReview(snapshot: QueueSnapshot, expectedAccount: UUID, expectedScope: UUID) async {
-        guard account.isSignedIn, !isShuttingDown, accountGeneration == expectedAccount else { return }
+        guard acceptsProfileActions, account.isSignedIn, !isShuttingDown, accountGeneration == expectedAccount else { return }
         await queuePlaylistSave.prepare(snapshot: snapshot, expectedScope: expectedScope)
     }
 
     func performSongRuleAction(play: Bool, selectedIDs: Set<UUID>?, expectedScope: UUID, expectedRevision: UUID) async {
-        guard account.isSignedIn, !isShuttingDown else { return }
+        guard acceptsProfileActions, account.isSignedIn, !isShuttingDown else { return }
         let accountScope = accountGeneration
         let queueRevision = queue.revision
         scriptingPlayGeneration = UUID()
@@ -1131,6 +1173,8 @@ final class AppSession {
     }
 
     func signOut() async {
+        guard acceptsProfileActions, sessionOperations.begin() else { return }
+        defer { sessionOperations.end() }
         quickCommands.invalidate(); quickCommandProfile = nil
         chartCountries = []; chartCountryLabel = nil
         player.invalidateEpisodeRateControl()
@@ -1192,7 +1236,7 @@ final class AppSession {
         Task { @MainActor [weak self] in
             guard let self else { return }
             await self.episodePlayback.waitUntilLoaded()
-            guard !self.isShuttingDown, self.accountGeneration == generation, self.account.isSignedIn,
+            guard self.acceptsProfileActions, self.accountGeneration == generation, self.account.isSignedIn,
                   self.queue.accepts(continuation.occurrence),
                   self.currentTrack?.episode?.identity.key == continuation.episodeKey else { return }
             self.episodeContinuation = nil
@@ -1202,6 +1246,7 @@ final class AppSession {
     }
 
     private func accountChanged(replacedAccount: Bool) {
+        guard acceptsProfileActions else { return }
         quickCommands.invalidate(); quickCommandProfile = nil
         chartCountries = []; chartCountryLabel = nil
         if case .chartCountry = destination { destination = .discovery(.charts) }
@@ -1257,9 +1302,25 @@ final class AppSession {
         if account.isSignedIn { Task { await routePendingSpotlightResult() } }
     }
 
+    func setPersistsEpisodeProgress(_ enabled: Bool) {
+        guard acceptsProfileActions else { return }
+        preferences.set(enabled, forKey: "persistsEpisodeProgress")
+        episodePlayback.setPersistenceEnabled(enabled)
+    }
+
+    func setPersistsLocalQueue(_ enabled: Bool) {
+        guard acceptsProfileActions else { return }
+        persistsLocalQueue = enabled
+        queuePersistenceGate.setEnabled(enabled)
+        preferences.set(enabled, forKey: "persistsLocalQueue")
+        if enabled { saveQueue() } else { saveTask?.cancel() }
+    }
+
     func saveQueue() {
-        prepareQueueContinuation()
-        guard let queueStore else { return }
+        if acceptsProfileActions { prepareQueueContinuation() }
+        guard started, persistsLocalQueue, let queueStore else { return }
+        let permission = queuePersistenceGate.token
+        let gate = queuePersistenceGate
         let previousTask = saveTask
         previousTask?.cancel()
         let snapshot = resumeState.snapshot(queue: queue, playerPosition: player.clock.position,
@@ -1271,7 +1332,7 @@ final class AppSession {
             do {
                 try await Task.sleep(for: .milliseconds(350))
                 try Task.checkCancellation()
-                try await queueStore.save(snapshot)
+                try await queueStore.save(snapshot, if: { gate.accepts(permission) })
                 if let self, self.accountGeneration == generation { self.queueError = nil }
             } catch is CancellationError { }
             catch {
@@ -1281,39 +1342,79 @@ final class AppSession {
         }
     }
 
-    func shutdown() async {
-        streamingExport?.disable()
-        quickCommands.invalidate()
-        discordPresence?.disable()
-        episodeContinuation = nil
-        isShuttingDown = true
-        queuePlaylistSave.cancel()
-        recommendations.cancel()
-        cancelMusicLink()
-        await listenBrainz.stop()
-        await lastFM.stop()
+    func installSystemMediaOwnership() {
+        guard acceptsProfileActions, !isSceneCheck, systemMedia == nil else { return }
+        systemMedia = SystemMediaControls(session: self)
+    }
+
+    /// Reversible until the owner has prepared and durably selected its replacement.
+    func quiesceForProfileSwitch() {
+        guard !isProfileSuspended else { return }
+        isProfileSuspended = true
+        quickCommands.invalidate(); quickCommandProfile = nil
+        streamingExport?.quiesce(); discordPresence?.quiesce()
+        player.invalidateEpisodeRateControl()
+        chartCountries = []; chartCountryLabel = nil
+        sessionOperations.quiesce()
+        systemMedia?.stop(); systemMedia = nil
+        links.isReady = false
+        account.suspendOwnership()
+        episodePlayback.suspendProfileOwnership()
+        pageGeneration = UUID(); accountGeneration = UUID(); scriptingPlayGeneration = UUID()
+        pageTask?.cancel(); searchSuggestions.close()
+        cancelMusicLink(); queuePlaylistSave.invalidate(); recommendations.cancel()
         episodeStartTask?.cancel(); episodeStartTask = nil; pendingEpisodeOccurrence = nil
-        collectionPlayback.cancel()
-        lyrics.clear()
-        scriptingPlayGeneration = UUID()
-        sleepTimer.cancel()
-        cancelRadio()
-        wantsPlayback = false
-        player.pause()
-        _ = await episodePlayback.flush()
+        collectionPlayback.cancel(); lyrics.clear(); sleepTimer.cancel(); cancelRadio()
+        listenBrainz.quiesceProfileOwnership(); lastFM.quiesceProfileOwnership()
+        spotlight.quiesce()
+        savedQueues.profileOperations.quiesce(); localCollections.profileOperations.quiesce()
+        songRules.profileOperations.quiesce(); storage.profileOperations.quiesce()
+        wantsPlayback = false; player.pause()
+        player.videoPresentation.close()
         saveQueue()
+    }
+
+    func settleForProfileSwitch() async {
+        await sessionOperations.waitForIdle()
+        await pageTask?.value
+        if isEditingLibrary { await withCheckedContinuation { libraryEditWaiters.append($0) } }
+        await listenBrainz.stop(); await lastFM.stop()
+        await streamingExport?.stop(); await discordPresence?.stop()
+        await episodePlayback.waitUntilLoaded()
+        _ = await episodePlayback.flush()
         await saveTask?.value
-        await spotlight.waitForIdle()
-        await queuePlaylistSave.waitForIdle()
-        await streamingExport?.stop()
-        await discordPresence?.stop()
-        player.onStateChanged = nil
-        player.onVerifiedContentProgress = nil
-        player.onEpisodeRates = nil
-        player.onListeningInterrupted = nil
-        player.onPlaybackOutputInterrupted = nil
+        await spotlight.waitForIdle(); await queuePlaylistSave.waitForIdle()
+        await savedQueues.profileOperations.waitForIdle(); await localCollections.profileOperations.waitForIdle()
+        await songRules.profileOperations.waitForIdle(); await storage.profileOperations.waitForIdle()
+    }
+
+    func resumePausedProfileOwnership() {
+        guard isProfileSuspended, !isShuttingDown else { return }
+        isProfileSuspended = false
+        sessionOperations.resume()
+        savedQueues.profileOperations.resume(); localCollections.profileOperations.resume()
+        songRules.profileOperations.resume(); storage.profileOperations.resume()
+        episodePlayback.resumeProfileOwnership()
+        listenBrainz.resumeProfileOwnership(); lastFM.resumeProfileOwnership()
+        account.resumeOwnership()
+        spotlight.start()
+        links.isReady = true
+        if started { reload() }
+    }
+
+    func shutdown() async {
+        guard !didShutdown else { return }
+        didShutdown = true
+        quiesceForProfileSwitch()
+        isShuttingDown = true
+        await settleForProfileSwitch()
+        episodeContinuation = nil
+        player.onStateChanged = nil; player.onVerifiedContentProgress = nil
+        player.onEpisodeRates = nil; player.onPlaybackOutputInterrupted = nil
+        player.onListeningInterrupted = nil; player.onPageReady = nil
+        player.onSessionRestoreFailed = nil; player.onRecoveryRequested = nil; player.onEnded = nil
+        account.onAccountChanged = nil; account.onAccountConfirmed = nil; account.onSignInCompleted = nil
         player.stop()
-        systemMedia?.refresh()
     }
 
     var recommendationContext: QueueRecommendationContext {

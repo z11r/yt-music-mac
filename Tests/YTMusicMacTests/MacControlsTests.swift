@@ -145,6 +145,29 @@ struct SongChangeNotifierTests {
         #expect(fixture.center?.requests == 0)
     }
 
+    @Test func stoppingDuringAuthorizationFencesPostingAndDoesNotAlterTheSavedChoice() async {
+        let fixture = NotifierFixture(status: .allowed, enabled: true)
+        fixture.center?.duringAuthorization = { [unowned fixture] in fixture.notifier.stop() }
+        fixture.state = playing(UUID(), "a")
+        #expect(!(await fixture.notifier.evaluate()))
+        await fixture.notifier.waitForIdle()
+        #expect(fixture.center?.posted.isEmpty == true)
+        #expect(fixture.preferences.bool(forKey: SongChangeNotifier.preferenceKey))
+        fixture.center?.duringAuthorization = nil
+        fixture.notifier.start()
+        fixture.state = playing(UUID(), "b")
+        #expect(await fixture.notifier.evaluate())
+        fixture.notifier.stop()
+    }
+
+    @Test func stoppingBeforePermissionDecisionCannotPromptForAnOldOwner() async {
+        let fixture = NotifierFixture()
+        fixture.center?.duringAuthorization = { [unowned fixture] in fixture.notifier.stop() }
+        await fixture.notifier.setEnabled(true)
+        #expect(fixture.center?.requests == 0)
+        #expect(!fixture.preferences.bool(forKey: SongChangeNotifier.preferenceKey))
+    }
+
     @Test func turningOnAsksOnceAndStoresTheChoice() async {
         let fixture = NotifierFixture()
         await fixture.notifier.setEnabled(true)

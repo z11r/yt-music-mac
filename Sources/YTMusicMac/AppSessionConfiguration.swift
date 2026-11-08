@@ -11,8 +11,9 @@ struct AppSessionConfiguration {
     let client: YouTubeMusicClient
     let queueStore: QueueStore?
     let queueStorageError: String?
-    let installsSystemMedia: Bool
+    var installsSystemMedia: Bool
     let isSceneCheck: Bool
+    var profileNamespace: String = AppIdentity.identifier
     var namedQueueStore: NamedQueueStore? = nil
     var playlistVerificationClient: YouTubeMusicClient? = nil
     var localCollectionStore: LocalCollectionStore? = nil
@@ -25,37 +26,46 @@ struct AppSessionConfiguration {
     var listenBrainzCoordinator: ListenBrainzCoordinator? = nil
     var queuePlaylistJournal: QueuePlaylistJournalStore? = nil
     var lastFMCoordinator: LastFMCoordinator? = nil
-    var profileNamespace: String = AppIdentity.identifier
     var streamingMetadataWriter: (any StreamingMetadataWriting)? = nil
     var discordPresenceClient: (any DiscordPresenceProviding)? = nil
 
+    static func withoutSystemMedia(_ source: Self) -> Self {
+        var result = source; result.installsSystemMedia = false; return result
+    }
+
     static func live() -> Self {
+        live(preferences: AppIdentity.preferences,
+             dataStore: WKWebsiteDataStore(forIdentifier: AppIdentity.websiteDataIdentifier),
+             directory: try? AppIdentity.applicationSupportDirectory(), namespace: AppIdentity.identifier)
+    }
+
+    static func live(preferences: UserDefaults, dataStore: WKWebsiteDataStore,
+                     directory: URL?, namespace: String, installsSystemMedia: Bool = true) -> Self {
         let credentials = MusicSessionStore()
-        let directory = try? AppIdentity.applicationSupportDirectory()
         let queueStore = directory.map {
             QueueStore(fileURL: $0.appendingPathComponent("queue.json"))
         }
-        return Self(preferences: AppIdentity.preferences,
-                    dataStore: WKWebsiteDataStore(forIdentifier: AppIdentity.websiteDataIdentifier),
+        return Self(preferences: preferences,
+                    dataStore: dataStore,
                     credentials: credentials, client: YouTubeMusicClient(sessions: credentials),
                     queueStore: queueStore,
                     queueStorageError: queueStore == nil ? AppLocalization.text("The queue cannot be saved because application storage is unavailable.") : nil,
-                    installsSystemMedia: true, isSceneCheck: false,
+                    installsSystemMedia: installsSystemMedia, isSceneCheck: false, profileNamespace: namespace,
                     namedQueueStore: directory.map { NamedQueueStore(directoryURL: $0.appendingPathComponent("SavedQueues", isDirectory: true)) },
                     localCollectionStore: directory.map { LocalCollectionStore(directoryURL: $0.appendingPathComponent("LocalCollections", isDirectory: true)) },
                     metadataCache: directory.map { LibraryMetadataCache(directoryURL: $0.appendingPathComponent("MetadataCache", isDirectory: true)) },
                     storageInventory: directory.map { ProtectedStorageInventory(directoryURL: $0) },
-                    spotlightIndex: CoreSpotlightLibraryIndex(namespace: AppIdentity.identifier),
+                    spotlightIndex: CoreSpotlightLibraryIndex(namespace: namespace),
                     episodeProgressStore: directory.map { EpisodeProgressStore(directory: $0.appendingPathComponent("episode-progress", isDirectory: true)) },
                     localSongRuleStore: directory.map { LocalSongRuleStore(directoryURL: $0.appendingPathComponent("LocalSongRules", isDirectory: true)) },
                     listenBrainzCoordinator: directory.map { ListenBrainzCoordinator(
                         store: ListenBrainzStore(directory: $0.appendingPathComponent("listenbrainz", isDirectory: true)),
-                        tokens: KeychainListenBrainzTokens(service: AppIdentity.identifier + ".listenbrainz"),
+                        tokens: KeychainListenBrainzTokens(service: namespace + ".listenbrainz"),
                         api: ListenBrainzAPI(transport: ListenBrainzHTTPTransport())) },
                     queuePlaylistJournal: directory.map { QueuePlaylistJournalStore(directoryURL: $0.appendingPathComponent("PendingQueuePlaylists", isDirectory: true)) },
                     lastFMCoordinator: directory.map { LastFMCoordinator(
                         store: LastFMStore(directory: $0.appendingPathComponent("lastfm", isDirectory: true)),
-                        secrets: KeychainLastFMCredentials(service: AppIdentity.identifier + ".lastfm"),
+                        secrets: KeychainLastFMCredentials(service: namespace + ".lastfm"),
                         api: LastFMAPI(transport: LastFMHTTPTransport())) },
                     streamingMetadataWriter: StreamingExportFile(), discordPresenceClient: DiscordPresenceClient())
     }

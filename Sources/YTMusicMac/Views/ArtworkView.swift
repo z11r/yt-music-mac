@@ -9,6 +9,7 @@ struct ArtworkView: View {
     /// A song's video ID, used for YouTube's public frame thumbnail when the
     /// service returned no artwork.
     var videoID: String?
+    @Environment(\.allowsProfileArtworkLoading) private var allowsLoading
     @Environment(\.displayScale) private var displayScale
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var loaded: LoadedArtwork?
@@ -42,14 +43,27 @@ struct ArtworkView: View {
         .frame(width: size, height: size)
         .clipShape(shape)
         .accessibilityHidden(true)
-        .task(id: request) {
-            guard ArtworkCache.cached(request) == nil,
+        .task(id: ProfileArtworkRequest(request: request, allowsLoading: allowsLoading)) {
+            guard allowsLoading, ArtworkCache.cached(request) == nil,
                   let artwork = await ArtworkCache.shared.image(for: request),
                   !Task.isCancelled else { return }
             withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) {
                 loaded = LoadedArtwork(request: request, artwork: artwork)
             }
         }
+    }
+}
+
+private struct ProfileArtworkRequest: Hashable {
+    let request: ArtworkRequest
+    let allowsLoading: Bool
+}
+
+private struct ProfileArtworkLoadingKey: EnvironmentKey { static let defaultValue = true }
+extension EnvironmentValues {
+    var allowsProfileArtworkLoading: Bool {
+        get { self[ProfileArtworkLoadingKey.self] }
+        set { self[ProfileArtworkLoadingKey.self] = newValue }
     }
 }
 
@@ -234,6 +248,12 @@ actor ArtworkCache {
         memory.removeAll()
     }
 
+    func clearForProfileSwitch() async {
+        clear()
+        await ArtworkTransfer.shared.cancelAll()
+        clear()
+    }
+
     nonisolated static func cached(_ request: ArtworkRequest) -> DecodedArtwork? {
         shared.memory.value(for: request.cacheKey)
     }
@@ -311,6 +331,15 @@ private final class ArtworkTransfer: NSObject, URLSessionDataDelegate, @unchecke
         queue.maxConcurrentOperationCount = 1
         queue.qualityOfService = .utility
         session = URLSession(configuration: configuration, delegate: self, delegateQueue: queue)
+    }
+
+    func cancelAll() async {
+        await withCheckedContinuation { continuation in
+            session.getAllTasks { tasks in
+                tasks.forEach { $0.cancel() }
+                continuation.resume()
+            }
+        }
     }
 
     func load(_ url: URL) async throws -> Data {

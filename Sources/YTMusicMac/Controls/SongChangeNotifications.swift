@@ -115,8 +115,11 @@ final class SongChangeNotifier {
     @ObservationIgnored private let center: SongNotificationCenter?
     @ObservationIgnored private let state: @MainActor () -> SongPlaybackState
     @ObservationIgnored private let isAppActive: @MainActor () -> Bool
+    @ObservationIgnored private let operations = ProfileOperationFence()
     @ObservationIgnored private var tracker = SongChangeTracker()
     @ObservationIgnored private var isObserving = false
+    @ObservationIgnored private var isStopped = false
+    @ObservationIgnored private var ownershipID = UUID()
     @ObservationIgnored private var requestID: UUID?
 
     init(preferences: UserDefaults, center: SongNotificationCenter?,
@@ -140,14 +143,27 @@ final class SongChangeNotifier {
     /// Follows playback through Observation; no timer or polling.
     func start() {
         guard !isObserving else { return }
+        operations.resume()
+        isStopped = false
+        ownershipID = UUID()
         isObserving = true
         observe()
     }
 
+    func stop() {
+        operations.quiesce()
+        isStopped = true; isObserving = false; ownershipID = UUID()
+        requestID = nil; isRequesting = false
+        center?.removeDelivered()
+    }
+
+    func waitForIdle() async { await operations.waitForIdle() }
+
     private func observe() {
+        let owner = ownershipID
         withObservationTracking { _ = state() } onChange: { [weak self] in
             Task { @MainActor [weak self] in
-                guard let self else { return }
+                guard let self, !self.isStopped, self.ownershipID == owner else { return }
                 // Register again before posting so later changes are not missed.
                 self.observe()
                 await self.evaluate()
@@ -158,19 +174,24 @@ final class SongChangeNotifier {
     /// Checks the current state and posts when it confirms a new song.
     @discardableResult
     func evaluate() async -> Bool {
+        guard operations.begin() else { return false }
+        defer { operations.end() }
+        let owner = ownershipID
         let current = state()
-        guard let entryID = tracker.update(current), let track = current.track,
+        guard !isStopped, let entryID = tracker.update(current), let track = current.track,
               isEnabled, !isAppActive(), let center else { return false }
         let authorization = await center.authorization()
+        guard !isStopped, ownershipID == owner else { return false }
         if self.authorization != authorization { self.authorization = authorization }
         guard authorization == .allowed else {
             message = Self.deniedMessage
             return false
         }
         // The song may have changed again while permission was checked.
-        guard isEnabled, state().occurrence?.entryID == entryID else { return false }
+        guard !isStopped, ownershipID == owner, isEnabled, state().occurrence?.entryID == entryID else { return false }
         do {
             try await center.post(SongNotificationContent(track))
+            guard !isStopped, ownershipID == owner else { center.removeDelivered(); return false }
             return true
         } catch {
             return false
@@ -178,6 +199,8 @@ final class SongChangeNotifier {
     }
 
     func setEnabled(_ enabled: Bool) async {
+        guard !isStopped, operations.begin() else { return }
+        defer { operations.end() }
         let id = UUID()
         requestID = id
         guard enabled else {
@@ -193,12 +216,13 @@ final class SongChangeNotifier {
         }
         isRequesting = true
         var result = await center.authorization()
+        guard !isStopped, requestID == id else { return }
         if result == .notDetermined {
             do { result = try await center.requestAuthorization() ? .allowed : .denied }
             catch { result = .denied }
         }
         // A later change to the setting replaces this request.
-        guard requestID == id else { return }
+        guard !isStopped, requestID == id else { return }
         isRequesting = false
         authorization = result
         store(result == .allowed)
@@ -207,8 +231,12 @@ final class SongChangeNotifier {
 
     /// Updates the permission shown in Settings, which can change in System Settings.
     func refreshAuthorization() async {
-        guard let center else { return }
+        guard operations.begin() else { return }
+        defer { operations.end() }
+        let owner = ownershipID
+        guard !isStopped, let center else { return }
         let result = await center.authorization()
+        guard !isStopped, ownershipID == owner else { return }
         authorization = result
         if isEnabled, result == .denied { message = Self.deniedMessage }
         else if result == .allowed { message = nil }

@@ -3,7 +3,7 @@ import MusicCore
 
 extension AppSession {
     var canPreviewRecommendations: Bool {
-        account.isSignedIn && !isSceneCheck && !isShuttingDown && !collectionPlayback.isLoading &&
+        acceptsProfileActions && account.isSignedIn && !isSceneCheck && !isShuttingDown && !collectionPlayback.isLoading &&
             !collectionPlayback.canRetry && !radio.isStartingCollectionRadio &&
             queue.entries.count < QueueRecommendations.queueLimit && queue.currentTrack.map(QueueRecommendations.supports) == true
     }

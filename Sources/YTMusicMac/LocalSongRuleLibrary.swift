@@ -20,6 +20,7 @@ final class LocalSongRuleLibrary {
     private(set) var errorMessage: String?
     var selectedRule: LocalSongRule? { archive.rules.first { $0.id == selectedID } }
     @ObservationIgnored private let store: LocalSongRuleStore?
+    @ObservationIgnored let profileOperations = ProfileOperationFence()
     @ObservationIgnored private let sessions: any MusicSessionProviding
     @ObservationIgnored private var archiveAccountKey: String?
 
@@ -90,6 +91,8 @@ final class LocalSongRuleLibrary {
 
     @discardableResult private func update(expectedScope: UUID, source: LocalSongSourceIdentity? = nil,
         _ action: @Sendable (LocalSongRuleStore, String) async throws -> LocalSongRuleArchive) async -> Bool {
+        guard profileOperations.begin() else { return false }
+        defer { profileOperations.end() }
         guard scope == expectedScope, !isWorking else { return false }
         guard let store else { errorMessage = AppLocalization.text("Local song-rule storage is unavailable."); return false }
         isWorking = true; errorMessage = nil

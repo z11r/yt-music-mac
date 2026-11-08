@@ -11,6 +11,43 @@ import Testing
               episode: .init(identity: .init(browseID: "MPEDcanonical"), serviceProgressFraction: 0.9))
     }
 
+    @Test func disabledPersistenceKeepsUsefulSessionProgressWithoutLoadingOrSaving() async {
+        let ledger = ProgressLedger()
+        let session = model(ledger)
+        session.setPersistenceEnabled(false)
+        session.bindAccount(firstHash); await session.waitUntilLoaded()
+        let occurrence = occurrence()
+        session.begin(track: track, occurrence: occurrence)
+        session.record(occurrence: occurrence, position: 70, duration: 3_600, confirmedContent: true)
+        #expect(session.resumePosition(for: track) == 70)
+        #expect(!(await session.flush()))
+        #expect(await ledger.loads == 0)
+        #expect(await ledger.writes.isEmpty)
+        _ = session.detachAccount()
+        #expect(await ledger.writes.isEmpty)
+    }
+
+    @Test func optingInMergesNewMemoryProgressWithRetainedStoredProgress() async {
+        let ledger = ProgressLedger(initial: [firstHash: snapshot(firstHash, position: 30)])
+        let session = model(ledger)
+        session.setPersistenceEnabled(false)
+        session.bindAccount(firstHash)
+        let occurrence = occurrence()
+        session.begin(track: track, occurrence: occurrence)
+        session.record(occurrence: occurrence, position: 80, duration: 3_600, confirmedContent: true)
+        session.setPersistenceEnabled(true)
+        await session.waitUntilLoaded()
+        #expect(session.resumePosition(for: track) == 80)
+        #expect(await session.flush())
+        #expect(await ledger.writes.last?.records.first?.position == 80)
+        session.setPersistenceEnabled(false)
+        session.record(occurrence: occurrence, position: 90, duration: 3_600, confirmedContent: true)
+        #expect(session.resumePosition(for: track) == 90)
+        let count = await ledger.writes.count
+        #expect(!(await session.flush()))
+        #expect(await ledger.writes.count == count)
+    }
+
     @Test func sameAccountRebindWaitsForFinalSaveAndContinuesWithoutABookmarkSeek() async throws {
         let store = RebindProgressLedger(snapshot(firstHash, position: 120))
         let session = EpisodePlaybackSession(load: { await store.load($0) }, save: { await store.save($0) }, saveDelay: .seconds(60))
@@ -236,8 +273,9 @@ import Testing
 private actor ProgressLedger {
     let initial: [String: EpisodeProgressSnapshot]
     private(set) var writes: [EpisodeProgressSnapshot] = []
+    private(set) var loads = 0
     init(initial: [String: EpisodeProgressSnapshot] = [:]) { self.initial = initial }
-    func load(_ hash: String) -> EpisodeProgressSnapshot? { initial[hash] }
+    func load(_ hash: String) -> EpisodeProgressSnapshot? { loads += 1; return initial[hash] }
     func save(_ snapshot: EpisodeProgressSnapshot) { writes.append(snapshot) }
 }
 private actor DeferredProgressLoader {

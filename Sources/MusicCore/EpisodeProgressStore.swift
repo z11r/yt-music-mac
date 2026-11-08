@@ -77,7 +77,8 @@ public actor EpisodeProgressStore {
             [NSFileNoSuchFileError, NSFileReadNoSuchFileError].contains(error.code) { return nil }
     }
 
-    public func save(_ snapshot: EpisodeProgressSnapshot) throws {
+    public func save(_ snapshot: EpisodeProgressSnapshot, if permitted: @Sendable () -> Bool = { true }) throws {
+        guard permitted() else { throw CancellationError() }
         let url = try fileURL(snapshot.accountHash)
         try snapshot.validate()
         if let current = try load(accountHash: snapshot.accountHash), current.version != 1 { throw EpisodeProgressError.unsupportedVersion }
@@ -85,6 +86,7 @@ public actor EpisodeProgressStore {
         let data = try encoder.encode(snapshot)
         guard data.count <= maximumFileSize else { throw EpisodeProgressError.fileTooLarge }
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        guard permitted() else { throw CancellationError() }
         try data.write(to: url, options: .atomic)
         try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
     }

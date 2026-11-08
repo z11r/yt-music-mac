@@ -71,6 +71,12 @@ final class SpotlightLibraryController {
         }
     }
 
+    func quiesce() {
+        scope = UUID(); revision = UUID(); pending = nil
+        reconciliation?.cancel(); reconciliation = nil
+        references.removeAll()
+    }
+
     func start() {
         guard !receiptUnavailable else { return }
         if receipt?.pendingRemoval == true || (!isEnabled && receipt != nil) { enqueueCleanup() }

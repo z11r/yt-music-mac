@@ -22,6 +22,7 @@ final class StorageController {
     private(set) var metadataEnabled: Bool
     @ObservationIgnored private let cache: LibraryMetadataCache?
     @ObservationIgnored private let inventory: ProtectedStorageInventory?
+    @ObservationIgnored let profileOperations = ProfileOperationFence()
     @ObservationIgnored private let sessions: any MusicSessionProviding
     @ObservationIgnored private let preferences: UserDefaults?
     @ObservationIgnored private var latestCapture = UUID()
@@ -66,6 +67,8 @@ final class StorageController {
     }
 
     func capture(_ page: MusicPage, context: LibraryMetadataCaptureContext) async {
+        guard profileOperations.begin() else { return }
+        defer { profileOperations.end() }
         guard scope == context.scope, metadataEnabled, let cache, !Task.isCancelled else { return }
         let session = await sessions.snapshot()
         guard accepts(session, context: context), metadataEnabled, !Task.isCancelled else { return }
@@ -89,6 +92,8 @@ final class StorageController {
     }
 
     func refresh(expectedScope: UUID) async {
+        guard profileOperations.begin() else { return }
+        defer { profileOperations.end() }
         guard scope == expectedScope, !isWorking, cache != nil || inventory != nil else { return }
         isWorking = true
         errorMessage = nil
@@ -115,6 +120,8 @@ final class StorageController {
     }
 
     func clearMetadata(expectedScope: UUID) async {
+        guard profileOperations.begin() else { return }
+        defer { profileOperations.end() }
         guard scope == expectedScope, !isWorking, let cache else { return }
         latestCapture = UUID()
         isWorking = true

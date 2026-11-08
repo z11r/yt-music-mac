@@ -4,15 +4,25 @@ struct SettingsView: View {
     @Bindable var session: AppSession
     var songNotifications: SongChangeNotifier? = nil
     var playbackBindings: PlaybackShortcutBindings? = nil
-    @AppStorage("appearance", store: AppIdentity.preferences)
-    private var appearance = "system"
+    var profiles: AppProfileOwner<NativeAppProfileRuntime>? = nil
+    @AppStorage("appearance") private var appearance = "system"
     @Environment(\.openWindow) private var openWindow
     @State private var isSigningOut = false
     @State private var showsStorage = false
     @State private var showsKeyboardSettings = false
 
+    init(session: AppSession, songNotifications: SongChangeNotifier? = nil,
+         playbackBindings: PlaybackShortcutBindings? = nil,
+         profiles: AppProfileOwner<NativeAppProfileRuntime>? = nil) {
+        self.session = session; self.songNotifications = songNotifications
+        self.playbackBindings = playbackBindings; self.profiles = profiles
+        _appearance = AppStorage(wrappedValue: "system", "appearance", store: session.preferences)
+    }
+
     var body: some View {
         Form {
+            if let profiles { AppProfilesSection(owner: profiles) }
+            LocalPrivacySection(session: session)
             Section("Startup") { StartupSettings() }
             Section("Appearance") {
                 Picker("Appearance", selection: $appearance) {
@@ -30,7 +40,7 @@ struct SettingsView: View {
                     Text("When the queue ends with repeat off, keep playing related songs.")
                 }
                 Button("Open Mini-Player", systemImage: "pip") { openWindow(id: "mini-player") }
-                KeepMiniPlayerOnTopToggle()
+                KeepMiniPlayerOnTopToggle(preferences: session.preferences)
             }
             if playbackBindings != nil {
                 Section("Keyboard") {

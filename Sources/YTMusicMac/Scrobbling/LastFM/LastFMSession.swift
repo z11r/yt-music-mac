@@ -7,6 +7,8 @@ final class LastFMSession {
     private(set) var state = LastFMViewState()
     private(set) var scope = UUID()
     @ObservationIgnored private let coordinator: LastFMCoordinator?
+    @ObservationIgnored private let profileOperations = ProfileOperationFence()
+    @ObservationIgnored private var bindingTasks: [UUID: Task<Void, Never>] = [:]
     @ObservationIgnored private var profile: String?
     @ObservationIgnored private var continuity: UInt64 = 0
     @ObservationIgnored private var playGeneration: UInt64 = 0
@@ -32,7 +34,9 @@ final class LastFMSession {
         guard let coordinator else { return }
         let expected = scope
         coordinator.gate.revoke(to: expected)
-        Task { [weak self] in
+        let bindingID = UUID()
+        bindingTasks[bindingID] = Task { [weak self] in
+            defer { self?.bindingTasks[bindingID] = nil }
             let state = await coordinator.bind(profile: profile, scope: expected)
             guard let self, self.scope == expected else { return }
             self.state = state
@@ -43,30 +47,40 @@ final class LastFMSession {
     }
 
     func configure(apiKey: String, sharedSecret: String, expectedScope: UUID) async {
+        guard profileOperations.begin() else { return }
+        defer { profileOperations.end() }
         guard scope == expectedScope, let coordinator,
               let revision = coordinator.gate.changeIntent(scope: expectedScope) else { return }
         let state = await coordinator.configure(application: .init(apiKey: apiKey, sharedSecret: sharedSecret), expectedScope: expectedScope, revision: revision)
         accept(state, scope: expectedScope, revision: revision)
     }
     func beginAuthorization(expectedScope: UUID) async {
+        guard profileOperations.begin() else { return }
+        defer { profileOperations.end() }
         guard scope == expectedScope, let coordinator,
               let revision = coordinator.gate.changeIntent(scope: expectedScope) else { return }
         let state = await coordinator.beginAuthorization(expectedScope: expectedScope, revision: revision)
         accept(state, scope: expectedScope, revision: revision)
     }
     func approvalURL(expectedScope: UUID, authorizationID: UUID) async -> URL? {
+        guard profileOperations.begin() else { return nil }
+        defer { profileOperations.end() }
         guard scope == expectedScope, let coordinator else { return nil }
         let value = await coordinator.approvalURL(expectedScope: expectedScope, authorizationID: authorizationID)
         guard scope == expectedScope, state.authorizationID == authorizationID else { return nil }
         return value
     }
     func completeAuthorization(expectedScope: UUID, authorizationID: UUID) async {
+        guard profileOperations.begin() else { return }
+        defer { profileOperations.end() }
         guard scope == expectedScope, state.authorizationID == authorizationID, let coordinator,
               let revision = coordinator.gate.changeIntent(scope: expectedScope) else { return }
         let state = await coordinator.completeAuthorization(expectedScope: expectedScope, authorizationID: authorizationID, revision: revision)
         accept(state, scope: expectedScope, revision: revision)
     }
     func cancelAuthorization(expectedScope: UUID) async {
+        guard profileOperations.begin() else { return }
+        defer { profileOperations.end() }
         guard scope == expectedScope, let coordinator,
               let revision = coordinator.gate.changeIntent(scope: expectedScope) else { return }
         let state = await coordinator.cancelAuthorization(expectedScope: expectedScope, revision: revision)
@@ -76,28 +90,38 @@ final class LastFMSession {
         if self.scope == scope, coordinator?.gate.matches(scope: scope, revision: revision) == true { self.state = state }
     }
     func setEnabled(_ enabled: Bool, expectedScope: UUID) async {
+        guard profileOperations.begin() else { return }
+        defer { profileOperations.end() }
         guard scope == expectedScope, let coordinator else { return }
         guard let revision = coordinator.gate.changeIntent(scope: expectedScope) else { return }
         let state = await coordinator.setEnabled(enabled, expectedScope: expectedScope, revision: revision)
         if scope == expectedScope, coordinator.gate.matches(scope: expectedScope, revision: revision) { self.state = state }
     }
     func disconnect(expectedScope: UUID) async {
+        guard profileOperations.begin() else { return }
+        defer { profileOperations.end() }
         guard scope == expectedScope, let coordinator else { return }
         guard let revision = coordinator.gate.changeIntent(scope: expectedScope) else { return }
         let state = await coordinator.disconnect(expectedScope: expectedScope, revision: revision)
         if scope == expectedScope, coordinator.gate.matches(scope: expectedScope, revision: revision) { self.state = state }
     }
     func discardPending(expectedScope: UUID) async {
+        guard profileOperations.begin() else { return }
+        defer { profileOperations.end() }
         guard scope == expectedScope, let coordinator else { return }
         let state = await coordinator.discardPending(expectedScope: expectedScope)
         if scope == expectedScope { self.state = state }
     }
     func sendUnsent(expectedScope: UUID) async {
+        guard profileOperations.begin() else { return }
+        defer { profileOperations.end() }
         guard scope == expectedScope, let coordinator else { return }
         let state = await coordinator.sendUnsent(expectedScope: expectedScope)
         if scope == expectedScope { self.state = state }
     }
     func retryRefused(expectedScope: UUID) async {
+        guard profileOperations.begin() else { return }
+        defer { profileOperations.end() }
         guard scope == expectedScope, let coordinator else { return }
         let state = await coordinator.retryRefused(expectedScope: expectedScope)
         if scope == expectedScope { self.state = state }
@@ -129,10 +153,18 @@ final class LastFMSession {
         Task { await coordinator.sample(occurrence: occurrence, position: position, duration: duration, ended: ended,
                                         expectedScope: expected, continuity: stamp, playGeneration: generation, observedTime: time, observedWallTime: wallTime) }
     }
+    func quiesceProfileOwnership() {
+        profileOperations.quiesce()
+        bindAccount(nil)
+    }
+    func resumeProfileOwnership() { profileOperations.resume() }
     func stop() async {
+        for task in Array(bindingTasks.values) { await task.value }
+        await profileOperations.waitForIdle()
         guard let coordinator else { return }
         let expected = scope
         _ = coordinator.gate.changeIntent(scope: expected)
         await coordinator.stop(expectedScope: expected)
+        await coordinator.waitForDeliveries()
     }
 }

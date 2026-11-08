@@ -5,6 +5,7 @@ import YouTubeMusic
 extension AppSession {
     /// Searches for the highlighted suggestion, or for the typed text when none is highlighted.
     func submitSearch() {
+        guard acceptsProfileActions else { return }
         if let suggestion = searchSuggestions.highlighted {
             search(for: suggestion)
             return
@@ -14,6 +15,7 @@ extension AppSession {
     }
 
     func search(for suggestion: MusicSearchSuggestion) {
+        guard acceptsProfileActions else { return }
         // Filling in the field must not reopen the list it was chosen from.
         searchSuggestions.close(ignoringNextChangeTo: suggestion.query)
         searchText = suggestion.query
@@ -21,6 +23,7 @@ extension AppSession {
     }
 
     func searchTextChanged() {
+        guard acceptsProfileActions else { return }
         searchSuggestions.textChanged(searchText)
     }
 

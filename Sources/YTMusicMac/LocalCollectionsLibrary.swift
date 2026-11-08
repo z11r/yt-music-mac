@@ -44,6 +44,7 @@ final class LocalCollectionsLibrary {
     private(set) var activeFilterID: UUID?
     var activeFilter: LocalSavedCollectionFilter? { organization.savedFilters.first { $0.id == activeFilterID } }
     @ObservationIgnored private let store: LocalCollectionStore?
+    @ObservationIgnored let profileOperations = ProfileOperationFence()
     @ObservationIgnored private let sessions: any MusicSessionProviding
 
     init(store: LocalCollectionStore?, sessions: any MusicSessionProviding) {
@@ -129,6 +130,8 @@ final class LocalCollectionsLibrary {
 
     private func update(expectedScope: UUID?,
                         _ action: @Sendable (LocalCollectionStore, String) async throws -> LocalCollectionOrganization) async {
+        guard profileOperations.begin() else { return }
+        defer { profileOperations.end() }
         let request = expectedScope ?? scope
         guard scope == request else { return }
         guard !isWorking else { return }

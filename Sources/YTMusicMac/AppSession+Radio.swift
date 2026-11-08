@@ -54,6 +54,7 @@ extension AppSession {
 
     /// Replaces the queue with the song and plays it, then appends its radio when it arrives.
     func startRadio(from track: Track) {
+        guard acceptsProfileActions else { return }
         guard track.origin != .upload, track.contentKind != .podcastEpisode else { return }
         guard account.isSignedIn else { openAccount(); return }
         playTracks([track])
@@ -67,6 +68,7 @@ extension AppSession {
 
     /// Replaces the queue with the radio the service offered for the collection, once it loads.
     func startRadio(from collection: MusicCollection) {
+        guard acceptsProfileActions else { return }
         guard !collection.isUploaded, collection.kind != .podcast, let playlistID = collection.radioPlaylistID else { return }
         guard account.isSignedIn else { openAccount(); return }
         collectionPlayback.cancel()
@@ -78,6 +80,7 @@ extension AppSession {
     // MARK: Autoplay
 
     func setAutoplayEnabled(_ value: Bool) {
+        guard acceptsProfileActions else { return }
         radio.setAutoplay(value)
         if value {
             prepareQueueContinuation()
@@ -94,11 +97,13 @@ extension AppSession {
 
     /// Continues after the accepted ending of `occurrence`: the next entry, related songs, or a stop.
     func continueQueue(after occurrence: PlaybackOccurrence) {
+        guard acceptsProfileActions else { return }
         apply(radio.state.handleEnd(of: occurrence, in: &queue, account: accountGeneration, autoplay: autoplayAllowed))
     }
 
     /// Loads related songs ahead of the queue end. Called whenever the queue or playback state is saved.
     func prepareQueueContinuation() {
+        guard acceptsProfileActions else { return }
         if let request = radio.state.prefetch(for: queue, account: accountGeneration, autoplay: autoplayAllowed) {
             loadRadio(request)
         } else {
@@ -107,6 +112,7 @@ extension AppSession {
     }
 
     func retryRadio() {
+        guard acceptsProfileActions else { return }
         collectionPlayback.cancel()
         guard let retry = radio.status?.retry else { return }
         radio.show(nil)

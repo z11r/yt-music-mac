@@ -14,6 +14,7 @@ final class MusicLinkState {
 
 extension AppSession {
     func receiveMusicLink(_ url: URL) {
+        guard acceptsProfileActions else { return }
         guard MusicLink(url: url) != nil else {
             links.error = AppLocalization.text("Open a YouTube Music song, album, artist, or playlist link.")
             return
@@ -23,6 +24,7 @@ extension AppSession {
     }
 
     func processPendingMusicLink() {
+        guard acceptsProfileActions else { return }
         guard links.isReady, let url = links.pending, let link = MusicLink(url: url) else { return }
         links.pending = nil
         links.task?.cancel()

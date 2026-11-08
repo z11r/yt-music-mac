@@ -277,8 +277,13 @@ private struct PlaybackStateMark: ViewModifier {
 struct MiniPlayerView: View {
     @Bindable var session: AppSession
     @Environment(\.openWindow) private var openWindow
-    @AppStorage(MiniPlayerWindowLevel.preferenceKey, store: AppIdentity.preferences)
+    @AppStorage(MiniPlayerWindowLevel.preferenceKey)
     private var keepsOnTop = false
+
+    init(session: AppSession) {
+        self.session = session
+        _keepsOnTop = AppStorage(wrappedValue: false, MiniPlayerWindowLevel.preferenceKey, store: session.preferences)
+    }
 
     var body: some View {
         VStack(spacing: 16) {

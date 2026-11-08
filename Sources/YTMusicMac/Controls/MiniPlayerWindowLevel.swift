@@ -35,8 +35,12 @@ struct WindowLevelSetter: NSViewRepresentable {
 
 /// Settings and menu control for the mini-player's window level.
 struct KeepMiniPlayerOnTopToggle: View {
-    @AppStorage(MiniPlayerWindowLevel.preferenceKey, store: AppIdentity.preferences)
+    @AppStorage(MiniPlayerWindowLevel.preferenceKey)
     private var keepsOnTop = false
+
+    init(preferences: UserDefaults = AppIdentity.preferences) {
+        _keepsOnTop = AppStorage(wrappedValue: false, MiniPlayerWindowLevel.preferenceKey, store: preferences)
+    }
 
     var body: some View {
         Toggle("Keep Mini Player on Top", isOn: $keepsOnTop)

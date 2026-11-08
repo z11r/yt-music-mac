@@ -25,6 +25,16 @@ final class SystemMediaControls {
         refresh()
     }
 
+    func stop() {
+        guard session != nil else { return }
+        // Remove precisely this owner's tokens, never another owner's targets.
+        for (command, token) in registrations { command.removeTarget(token) }
+        registrations.removeAll()
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+        MPNowPlayingInfoCenter.default().playbackState = .stopped
+        session = nil
+    }
+
     private func register(_ command: MPRemoteCommand, action: @escaping @MainActor (AppSession) -> Void) {
         let token = command.addTarget { [weak self] _ in
             Task { @MainActor [weak self] in

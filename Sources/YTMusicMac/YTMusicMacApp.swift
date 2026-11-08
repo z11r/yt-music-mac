@@ -6,12 +6,11 @@ import SwiftUI
 @main @MainActor
 struct YTMusicMacApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
-    @State private var session: AppSession
+    @State private var profiles: AppProfileOwner<NativeAppProfileRuntime>
     @State private var keyboardFocus: KeyboardFocusMonitor
-    @State private var playbackBindings: PlaybackShortcutBindings
-    @State private var songNotifications: SongChangeNotifier
     private let sceneCheck: SceneCheckDriver?
-    @AppStorage("appearance", store: AppIdentity.preferences) private var appearance = "system"
+    private var session: AppSession { profiles.current.session }
+    private var playbackBindings: PlaybackShortcutBindings { profiles.current.bindings }
 
     init() {
         if CommandLine.arguments.contains("--check-bundle") {
@@ -39,76 +38,91 @@ struct YTMusicMacApp: App {
         }
         let sceneCheck = SceneCheckLaunch.isRequested ? SceneCheckDriver() : nil
         self.sceneCheck = sceneCheck
-        let session: AppSession
+        let initialConfiguration: AppSessionConfiguration
         if let sceneCheck {
-            session = AppSession(configuration: .sceneCheck(preferences: SceneCheckPreferences.current.defaults,
-                                                            transport: sceneCheck.transport))
-        } else { session = AppSession() }
+            initialConfiguration = .sceneCheck(preferences: SceneCheckPreferences.current.defaults,
+                                                transport: sceneCheck.transport)
+        } else {
+            var configuration = AppSessionConfiguration.live()
+            // Ownership is installed only after the registry has been read.
+            configuration = AppSessionConfiguration.withoutSystemMedia(configuration)
+            initialConfiguration = configuration
+        }
+        let initial = NativeAppProfileRuntime(profile: .original, configuration: initialConfiguration)
+        let directory = sceneCheck == nil ? try? AppIdentity.applicationSupportDirectory() : nil
+        let registry: any AppProfileRegistry = directory.map {
+            AppProfileRegistryStore(io: FileAppProfileRegistryIO(file: $0.appendingPathComponent("app-profiles.json")))
+        } ?? InitialOnlyAppProfileRegistry()
+        let owner = AppProfileOwner(initial: initial, registry: registry, prepare: { profile, allowCreation in
+            guard let directory, sceneCheck == nil else { throw AppProfileError.unavailable }
+            return try await NativeAppProfileFactory(legacyDirectory: directory).prepare(profile, allowCreation: allowCreation)
+        }, bind: { runtime, _ in
+            AppScripting.session = sceneCheck == nil ? runtime?.session : nil
+        })
+        _profiles = State(initialValue: owner)
         sceneCheck?.record("sessionCreated")
-        _session = State(initialValue: session)
         let keyboardFocus = KeyboardFocusMonitor()
         keyboardFocus.start()
         _keyboardFocus = State(initialValue: keyboardFocus)
-        _playbackBindings = State(initialValue: PlaybackShortcutBindings(
-            preferences: sceneCheck == nil ? AppIdentity.preferences : SceneCheckPreferences.current.defaults))
-        let songNotifications = SongChangeNotifier(session: session, preferences: AppIdentity.preferences)
-        if sceneCheck == nil { songNotifications.start() }
-        _songNotifications = State(initialValue: songNotifications)
-        AppScripting.session = sceneCheck == nil ? session : nil
+        AppScripting.session = nil
         if sceneCheck == nil { MusicShortcutRegistration.register() }
     }
 
-    private var colorScheme: ColorScheme? {
-        appearance == "dark" ? .dark : appearance == "light" ? .light : nil
+    private func surface<Content: View>(@ViewBuilder content: @escaping () -> Content) -> some View {
+        AppProfileSurface(runtime: profiles.current, activationID: profiles.activationID,
+                          isSwitching: profiles.isSwitching || profiles.isLoading, content: content)
+            .id(profiles.activationID)
     }
 
     var body: some Scene {
         Window(AppIdentity.displayName, id: "main") {
-            MainSceneView(session: session, delegate: delegate, sceneCheck: sceneCheck)
-                .preferredColorScheme(colorScheme)
-                .frame(minWidth: 860, minHeight: 600)
+            surface {
+                MainSceneView(session: session, profiles: profiles, delegate: delegate, sceneCheck: sceneCheck)
+                    .frame(minWidth: 860, minHeight: 600)
+            }
         }
         .defaultSize(width: 1180, height: 780)
         .commands {
             SidebarCommands()
             CommandGroup(replacing: .newItem) { }
             CommandGroup(after: .newItem) {
-                Button("Open Music Link…") { session.links.showsSheet = true }
+                Button("Open Music Link…") { if session.acceptsProfileActions { session.links.showsSheet = true } }
                     .keyboardShortcut("o", modifiers: .command)
             }
             PlaybackCommands(session: session, keyboardFocus: keyboardFocus, bindings: playbackBindings)
             NavigationCommands(session: session)
             CommandGroup(after: .sidebar) {
-                Button(session.showsQueue ? "Hide Queue" : "Show Queue") { session.showsQueue.toggle() }
+                Button(session.showsQueue ? "Hide Queue" : "Show Queue") { if session.acceptsProfileActions { session.showsQueue.toggle() } }
                     .keyboardShortcut("u", modifiers: [.command, .shift])
-                PlayerWindowCommands()
+                PlayerWindowCommands(preferences: session.preferences)
             }
             MusicSearchCommands()
         }
         Window("Mini Player", id: "mini-player") {
-            MiniPlayerView(session: session).preferredColorScheme(colorScheme)
+            surface { MiniPlayerView(session: session) }
         }
         .defaultSize(width: 360, height: 180)
         .windowResizability(.contentSize)
         Window("Now Playing", id: "now-playing") {
-            ExpandedPlayerView(session: session).preferredColorScheme(colorScheme)
+            surface { ExpandedPlayerView(session: session) }
         }
         .defaultSize(width: 520, height: 700)
         Window("Lyrics", id: "lyrics") {
-            LyricsPanel(session: session).preferredColorScheme(colorScheme)
+            surface { LyricsPanel(session: session) }
         }
         .defaultSize(width: 560, height: 620)
         Window("Queue", id: "queue") {
-            QueueView(session: session).preferredColorScheme(colorScheme)
-                .frame(minWidth: 300, minHeight: 360)
+            surface { QueueView(session: session).frame(minWidth: 300, minHeight: 360) }
         }
         .defaultSize(width: 380, height: 640)
         MenuBarExtra("YT Music for Mac", systemImage: "music.note") {
-            MenuBarPlayerView(session: session).preferredColorScheme(colorScheme)
+            surface { MenuBarPlayerView(session: session) }
         }.menuBarExtraStyle(.window)
         Settings {
-            SettingsView(session: session, songNotifications: songNotifications, playbackBindings: playbackBindings)
-                .preferredColorScheme(colorScheme)
+            surface {
+                SettingsView(session: session, songNotifications: profiles.current.notifications,
+                             playbackBindings: playbackBindings, profiles: sceneCheck == nil ? profiles : nil)
+            }
         }
     }
 }
@@ -127,12 +141,23 @@ private struct MusicSearchCommands: Commands {
 
 private struct MainSceneView: View {
     let session: AppSession
+    let profiles: AppProfileOwner<NativeAppProfileRuntime>
     let delegate: AppDelegate
     let sceneCheck: SceneCheckDriver?
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         RootView(session: session)
+            .safeAreaInset(edge: .top) {
+                if let error = profiles.errorMessage {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Local Profile Notice").font(.headline)
+                        Text(error).font(.callout)
+                    }.frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(12).background(.bar)
+                        .accessibilityElement(children: .combine)
+                }
+            }
             .onOpenURL { url in
                 openWindow(id: "main")
                 session.receiveMusicLink(url)
@@ -158,15 +183,22 @@ private struct MainSceneView: View {
                         .frame(width: 0, height: 0)
                 }
             }
-            .task {
+            .task(id: "\(profiles.activationID)-\(profiles.isSwitching)") {
+                delegate.sessionProvider = { profiles.accepts(profiles.activationID) ? profiles.current.session : nil }
+                delegate.shutdownOwner = { await profiles.shutdown() }
+                let activation = profiles.activationID
+                await profiles.start()
+                guard profiles.accepts(activation), profiles.current.session === session else { return }
                 delegate.session = session
                 delegate.openMainWindow = { openWindow(id: "main") }
                 let open = openWindow
                 session.player.videoPresentation.didReturnToMain = { [weak session = session] in
+                    guard profiles.accepts(activation), profiles.current.session === session else { return }
                     session?.showsWebPlayer = true
                     open(id: "main")
                 }
                 await session.start()
+                guard profiles.accepts(activation), profiles.current.session === session else { return }
                 session.links.isReady = sceneCheck == nil
                 session.processPendingMusicLink()
                 sceneCheck?.start(session: session)
@@ -175,6 +207,7 @@ private struct MainSceneView: View {
 }
 
 private struct PlayerWindowCommands: View {
+    let preferences: UserDefaults
     @Environment(\.openWindow) private var openWindow
     var body: some View {
         Button("Show Main Window") { openWindow(id: "main") }
@@ -184,13 +217,16 @@ private struct PlayerWindowCommands: View {
         Button("Show Now Playing") { openWindow(id: "now-playing") }
         Button("Show Lyrics") { openWindow(id: "lyrics") }
         Button("Open Queue Window") { openWindow(id: "queue") }
-        KeepMiniPlayerOnTopToggle()
+        KeepMiniPlayerOnTopToggle(preferences: preferences)
     }
 }
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     weak var session: AppSession?
+    var sessionProvider: (() -> AppSession?)?
+    var shutdownOwner: (() async -> Void)?
+    private var activeSession: AppSession? { sessionProvider.map { $0() } ?? session }
     var openMainWindow: (() -> Void)?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -201,9 +237,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        guard let session else { return .terminateNow }
+        guard shutdownOwner != nil || activeSession != nil else { return .terminateNow }
         Task {
-            await session.shutdown()
+            if let shutdownOwner { await shutdownOwner() }
+            else { await activeSession?.shutdown() }
             sender.reply(toApplicationShouldTerminate: true)
         }
         return .terminateLater
@@ -218,7 +255,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
         let menu = NSMenu()
         let entries: [(String, Selector)] = [
-            (session?.player.isPlaying == true ? AppLocalization.text("Pause") : AppLocalization.text("Play"), #selector(togglePlayback)),
+            (activeSession?.player.isPlaying == true ? AppLocalization.text("Pause") : AppLocalization.text("Play"), #selector(togglePlayback)),
             (AppLocalization.text("Next Song"), #selector(nextSong)),
             (AppLocalization.text("Show Main Window"), #selector(showMainWindow)),
         ]
@@ -230,7 +267,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return menu
     }
 
-    @objc private func togglePlayback() { session?.togglePlayback() }
-    @objc private func nextSong() { session?.next() }
+    @objc private func togglePlayback() { activeSession?.togglePlayback() }
+    @objc private func nextSong() { activeSession?.next() }
     @objc private func showMainWindow() { openMainWindow?(); NSApp.activate(ignoringOtherApps: true) }
 }

@@ -18,6 +18,7 @@ extension AppSession {
     var canSeek: Bool { currentTrack != nil && player.clock.duration > 0 }
 
     func seekBy(_ seconds: TimeInterval) {
+        guard acceptsProfileActions else { return }
         guard canSeek, seconds.isFinite else { return }
         let duration = player.clock.duration
         let target = min(duration, max(0, player.clock.position + seconds))

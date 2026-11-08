@@ -25,6 +25,7 @@ final class EpisodePlaybackSession {
         var occurrence: PlaybackOccurrence { active.occurrence }
         var episodeKey: String { active.episode.key }
     }
+    private(set) var persistenceEnabled = true
     private(set) var isLoading = false
     private(set) var errorMessage: String?
     private(set) var settings = EpisodePlaybackSettings()
@@ -34,12 +35,16 @@ final class EpisodePlaybackSession {
     private(set) var rateMessage: String?
     @ObservationIgnored private var rateRequest = UUID()
     @ObservationIgnored weak var rateController: (any EpisodeRateControlling)?
+    @ObservationIgnored private let persistenceGate: LocalPersistenceGate
+    @ObservationIgnored private var writeBarrier: Task<Void, Never>?
     @ObservationIgnored private let load: @Sendable (String) async throws -> EpisodeProgressSnapshot?
     @ObservationIgnored private let save: @Sendable (EpisodeProgressSnapshot) async throws -> Void
     @ObservationIgnored private let now: @Sendable () -> Date
     @ObservationIgnored private let saveDelay: Duration
     @ObservationIgnored private var accountHash: String?
     @ObservationIgnored private var scope = UUID()
+    @ObservationIgnored private var ownershipID = UUID()
+    @ObservationIgnored private var isProfileSuspended = false
     private var records: [String: EpisodeProgressRecord] = [:]
     @ObservationIgnored private var active: Active?
     @ObservationIgnored private var verifiedOccurrence: PlaybackOccurrence?
@@ -50,33 +55,60 @@ final class EpisodePlaybackSession {
     @ObservationIgnored private var detachingSave: Task<Bool, Never>?
 
     convenience init(store: EpisodeProgressStore?, now: @escaping @Sendable () -> Date = { Date() }) {
+        let gate = LocalPersistenceGate()
         self.init(load: { hash in
             guard let store else { throw EpisodeProgressError.invalidStorageURL }
             return try await store.load(accountHash: hash)
         }, save: { snapshot in
             guard let store else { throw EpisodeProgressError.invalidStorageURL }
-            try await store.save(snapshot)
-        }, now: now)
+            let token = gate.token
+            try await store.save(snapshot, if: { gate.accepts(token) })
+        }, now: now, persistenceGate: gate)
     }
 
     init(load: @escaping @Sendable (String) async throws -> EpisodeProgressSnapshot?,
          save: @escaping @Sendable (EpisodeProgressSnapshot) async throws -> Void,
-         now: @escaping @Sendable () -> Date = { Date() }, saveDelay: Duration = .seconds(5)) {
+         now: @escaping @Sendable () -> Date = { Date() }, saveDelay: Duration = .seconds(5),
+         persistenceGate: LocalPersistenceGate = LocalPersistenceGate()) {
         self.load = load; self.save = save; self.now = now; self.saveDelay = saveDelay
+        self.persistenceGate = persistenceGate
     }
 
-    @discardableResult func bindAccount(_ hash: String?) -> Bool {
+    func setPersistenceEnabled(_ enabled: Bool) {
+        guard enabled != persistenceEnabled else { return }
+        persistenceEnabled = enabled; persistenceGate.setEnabled(enabled)
+        let prior = saveTask; prior?.cancel(); saveTask = nil
+        let earlier = writeBarrier
+        writeBarrier = Task { await earlier?.value; await prior?.value }
+        if enabled {
+            let previous = accountHash, memoryRecords = records
+            let playback = active, verified = verifiedOccurrence
+            let rates = availableRates, rate = currentRate
+            accountHash = nil
+            _ = bindAccount(previous, merging: memoryRecords)
+            active = playback; verifiedOccurrence = verified
+            availableRates = rates; currentRate = rate
+        } else {
+            scope = UUID(); loadTask?.cancel()
+            isLoading = false; writable = accountHash != nil; errorMessage = nil
+        }
+    }
+
+    @discardableResult func bindAccount(_ hash: String?, merging memoryRecords: [String: EpisodeProgressRecord] = [:]) -> Bool {
         let hash = hash.flatMap { EpisodeProgressSnapshot.validAccountHash($0) ? $0 : nil }
         guard hash != accountHash else { return false }
         scope = UUID(); loadTask?.cancel(); saveTask?.cancel(); saveTask = nil
         accountHash = hash; records = [:]; settings = .init(); active = nil; verifiedOccurrence = nil
         availableRates = []; currentRate = nil; rateRequest = UUID(); isRatePending = false; rateMessage = nil; errorMessage = nil; writable = false; isLoading = hash != nil
         guard let hash else { return true }
+        guard persistenceEnabled else { isLoading = false; writable = true; return true }
         let expected = scope
         let pendingSave = detachingSave
+        let barrier = writeBarrier
         loadTask = Task { [weak self, load] in
             do {
                 _ = await pendingSave?.value
+                await barrier?.value
                 try Task.checkCancellation()
                 let snapshot = try await load(hash)
                 try Task.checkCancellation()
@@ -87,11 +119,16 @@ final class EpisodePlaybackSession {
                     self.records = Dictionary(uniqueKeysWithValues: snapshot.records.map { ($0.episode.key, $0) })
                     self.settings = snapshot.settings
                 }
+                for (key, record) in memoryRecords where self.records[key].map({ $0.updatedAt <= record.updatedAt }) ?? true {
+                    self.records[key] = record
+                }
                 self.writable = true; self.isLoading = false
+                if !memoryRecords.isEmpty { self.revision += 1; self.scheduleSave() }
             } catch is CancellationError { }
             catch {
                 guard let self, self.scope == expected else { return }
                 self.isLoading = false
+                self.records = memoryRecords
                 self.errorMessage = AppLocalization.text("Local episode progress could not be loaded. Existing data has been retained.")
             }
         }
@@ -100,7 +137,11 @@ final class EpisodePlaybackSession {
 
     func waitUntilLoaded() async { await loadTask?.value }
 
+    func suspendProfileOwnership() { isProfileSuspended = true; ownershipID = UUID() }
+    func resumeProfileOwnership() { isProfileSuspended = false; ownershipID = UUID() }
+
     func begin(track: Track, occurrence: PlaybackOccurrence) {
+        guard !isProfileSuspended else { return }
         availableRates = []; currentRate = nil; verifiedOccurrence = nil; rateRequest = UUID(); isRatePending = false; rateMessage = nil
         guard track.contentKind == .podcastEpisode, let episode = track.episode?.identity,
               EpisodeProgressSnapshot.validEpisode(episode), occurrence.trackID == track.id else { active = nil; return }
@@ -130,7 +171,7 @@ final class EpisodePlaybackSession {
 
     func record(occurrence: PlaybackOccurrence, position: TimeInterval, duration: TimeInterval,
                 confirmedContent: Bool, ended: Bool = false) {
-        guard confirmedContent, var active,
+        guard !isProfileSuspended, confirmedContent, var active,
               active.occurrence == occurrence, position.isFinite, position > 0, duration.isFinite, duration > 0,
               position <= duration + 2 else { return }
         verifiedOccurrence = occurrence
@@ -149,14 +190,14 @@ final class EpisodePlaybackSession {
 
     func allowExplicitSeek() { active?.protectsBookmark = false }
     func startOver(_ track: Track) {
-        guard writable, let episode = track.episode?.identity else { return }
+        guard !isProfileSuspended, writable, let episode = track.episode?.identity else { return }
         records[episode.key] = nil
         if active?.episode.key == episode.key { active?.protectsBookmark = false }
         revision += 1; scheduleSave()
     }
 
     func setSkipIntervals(backward: TimeInterval, forward: TimeInterval) {
-        guard writable, [backward, forward].allSatisfy({ $0.isFinite && (5...120).contains($0) }) else { return }
+        guard !isProfileSuspended, writable, [backward, forward].allSatisfy({ $0.isFinite && (5...120).contains($0) }) else { return }
         settings = .init(skipBackward: backward, skipForward: forward); revision += 1; scheduleSave()
     }
 
@@ -179,12 +220,12 @@ final class EpisodePlaybackSession {
         availableRates = Array(Set(rates)).sorted(); currentRate = current; rateMessage = nil
     }
     @discardableResult func setRate(_ rate: Double, expectedOccurrence: PlaybackOccurrence? = nil) async -> Bool {
-        guard canControlRate, availableRates.contains(rate), let active, let rateController,
+        guard !isProfileSuspended, canControlRate, availableRates.contains(rate), let active, let rateController,
               expectedOccurrence == nil || expectedOccurrence == active.occurrence else { return false }
-        let expected = scope
+        let expected = scope, owner = ownershipID
         let request = UUID(); rateRequest = request; isRatePending = true; rateMessage = nil
         let confirmed = await rateController.setEpisodeRate(rate, occurrence: active.occurrence)
-        guard scope == expected, rateRequest == request, self.active?.occurrence == active.occurrence,
+        guard !isProfileSuspended, ownershipID == owner, scope == expected, rateRequest == request, self.active?.occurrence == active.occurrence,
               verifiedOccurrence == active.occurrence else { return false }
         isRatePending = false
         guard confirmed else {
@@ -199,7 +240,8 @@ final class EpisodePlaybackSession {
         let expected = scope
         let prior = saveTask; prior?.cancel(); saveTask = nil
         await prior?.value
-        guard expected == scope, writable, let snapshot = snapshot() else { return false }
+        await writeBarrier?.value
+        guard persistenceEnabled, expected == scope, writable, let snapshot = snapshot() else { return false }
         do {
             try await save(snapshot)
             guard expected == scope else { return false }
@@ -216,7 +258,7 @@ final class EpisodePlaybackSession {
     /// Fence immediately, then finish writing only the captured old account's
     /// confirmed data. A later account cannot change this task's destination.
     func detachAccount() -> Task<Bool, Never>? {
-        let snapshot = writable ? snapshot() : nil
+        let snapshot = persistenceEnabled && writable ? snapshot() : nil
         let prior = saveTask
         bindAccount(nil)
         guard let snapshot else { return detachingSave }
@@ -235,7 +277,7 @@ final class EpisodePlaybackSession {
         accountHash.map { EpisodeProgressSnapshot(accountHash: $0, records: records.values.sorted { $0.episode.key < $1.episode.key }, settings: settings) }
     }
     private func scheduleSave() {
-        guard saveTask == nil else { return }
+        guard persistenceEnabled, saveTask == nil else { return }
         let expected = scope
         saveTask = Task { [weak self] in
             do {
