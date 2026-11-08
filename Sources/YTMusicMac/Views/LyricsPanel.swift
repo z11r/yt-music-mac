@@ -4,6 +4,7 @@ import YouTubeMusic
 struct LyricsPanel: View {
     let session: AppSession
     @Environment(\.dismissWindow) private var dismissWindow
+    @State private var translationPresentation: LyricsTranslationTarget?
 
     private struct Target: Hashable {
         let videoID: String?
@@ -40,8 +41,15 @@ struct LyricsPanel: View {
                          accountScope: session.libraryEditingScope)) {
             session.lyrics.load(track: session.currentTrack)
         }
-        .onDisappear { session.lyrics.clear() }
+        .onDisappear { session.lyrics.clear(); translationPresentation = nil }
+        .sheet(item: $translationPresentation) { target in
+            if #available(macOS 15.0, *) {
+                NativeLyricsTranslationView(controller: session.lyrics.translation, target: target).id(target.id)
+            }
+        }
     }
+
+    private var translationIsSupported: Bool { if #available(macOS 15.0, *) { true } else { false } }
 
     @ViewBuilder private var content: some View {
         switch visibleState {
@@ -61,6 +69,18 @@ struct LyricsPanel: View {
             .padding(20)
         case let .available(lyrics):
             VStack(spacing: 0) {
+                let candidate = session.lyricsTranslationTarget
+                HStack {
+                    Button(LyricsTranslationText.text("Translate Lyrics")) {
+                        if let candidate, session.openLyricsTranslation(candidate) { translationPresentation = candidate }
+                    }.disabled(!translationIsSupported || candidate == nil)
+                    if !translationIsSupported {
+                        Text(LyricsTranslationText.text("Requires macOS 15 or later.")).font(.caption).foregroundStyle(.secondary)
+                    } else if candidate == nil {
+                        Text(LyricsTranslationText.text("Translation requires a current service source of at most 16 KiB and 500 lines.")).font(.caption).foregroundStyle(.secondary)
+                    }
+                }.frame(maxWidth: .infinity, alignment: .leading).padding(14)
+                Divider()
                 switch lyrics {
                 case let .plain(text, _):
                     ScrollView {

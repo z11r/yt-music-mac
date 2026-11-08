@@ -1,6 +1,13 @@
 // swift-tools-version: 6.2
 import PackageDescription
 
+// Both the provider and its SwiftUI cross-import overlay must remain optional
+// when the universal app or its tests run on the macOS 14 baseline.
+let optionalTranslationFrameworks: [LinkerSetting] = [.unsafeFlags([
+    "-Xlinker", "-weak_framework", "-Xlinker", "Translation",
+    "-Xlinker", "-weak_framework", "-Xlinker", "_Translation_SwiftUI",
+], .when(platforms: [.macOS]))]
+
 let package = Package(
     name: "YTMusicMac",
     defaultLocalization: "en",
@@ -15,7 +22,8 @@ let package = Package(
         .executableTarget(
             name: "YTMusicMac",
             dependencies: ["MusicCore", "YouTubeMusic"],
-            resources: [.process("Resources")]
+            resources: [.process("Resources")],
+            linkerSettings: optionalTranslationFrameworks
         ),
         .testTarget(name: "MusicCoreTests", dependencies: ["MusicCore"]),
         .testTarget(
@@ -23,7 +31,7 @@ let package = Package(
             dependencies: ["YouTubeMusic", "MusicCore"],
             resources: [.process("Fixtures")]
         ),
-        .testTarget(name: "YTMusicMacTests", dependencies: ["YTMusicMac", "MusicCore"]),
+        .testTarget(name: "YTMusicMacTests", dependencies: ["YTMusicMac", "MusicCore"], linkerSettings: optionalTranslationFrameworks),
     ],
     swiftLanguageModes: [.v6]
 )

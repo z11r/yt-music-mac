@@ -13,6 +13,7 @@ final class LyricsSession {
         case failed(String)
     }
 
+    let translation = LyricsTranslationController()
     private(set) var state: State = .idle
     private(set) var videoID: String?
     @ObservationIgnored private let fetch: @Sendable (String) async throws -> MusicLyrics
@@ -50,9 +51,16 @@ final class LyricsSession {
         }
     }
 
+    var translationSource: LyricsTranslationSource? {
+        guard let videoID, case let .available(lyrics) = state else { return nil }
+        return .capture(requestID: generation, videoID: videoID, lyrics: lyrics)
+    }
+    func acceptsTranslationSource(_ source: LyricsTranslationSource) -> Bool { translationSource == source }
+
     func retry() { load(videoID: videoID) }
 
     func clear() {
+        translation.clear()
         generation = UUID()
         task?.cancel()
         task = nil
