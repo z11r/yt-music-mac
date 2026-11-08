@@ -189,7 +189,9 @@ final class WebPlayer: NSObject {
         configuration.mediaTypesRequiringUserActionForPlayback = []
         configuration.allowsAirPlayForMediaPlayback = true
         configuration.preferences.isElementFullscreenEnabled = true
-        return WKWebView(frame: .zero, configuration: configuration)
+        let view = WKWebView(frame: .zero, configuration: configuration)
+        ProfileStoreLeaseRetention.attachView(view, from: dataStore)
+        return view
     }
 
     private func configure(_ webView: WKWebView) {

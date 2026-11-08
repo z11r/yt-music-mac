@@ -58,7 +58,10 @@ existing profile's missing website store is reported rather than recreated
 silently. On switch preparation or selection-save failure, the prior usable session stays
 paused, the saved selection is retained, and the main window and Settings show
 the failure. Reload Profiles re-reads the registry; it does not erase it.
-Profile deletion is unavailable pending a journaled cleanup workflow.
+[Additional-profile deletion](PROFILE_DELETION.md) uses explicit review and a
+bounded cleanup journal. Default, current and saved-selected profiles are
+protected. Populated or unsupported data remains pending rather than being
+removed by an unverified cleanup path.
 
 The separate website-store implementation uses the macOS 14
 [WebKit profile APIs](https://webkit.org/blog/14423/building-profiles-with-new-webkit-api/).

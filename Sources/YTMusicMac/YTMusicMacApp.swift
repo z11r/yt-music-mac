@@ -55,10 +55,11 @@ struct YTMusicMacApp: App {
         } ?? InitialOnlyAppProfileRegistry()
         let owner = AppProfileOwner(initial: initial, registry: registry, prepare: { profile, allowCreation in
             guard let directory, sceneCheck == nil else { throw AppProfileError.unavailable }
-            return try await NativeAppProfileFactory(legacyDirectory: directory).prepare(profile, allowCreation: allowCreation)
+            return try await NativeAppProfileFactory(legacyDirectory: directory, registry: registry).prepare(profile, allowCreation: allowCreation)
         }, bind: { runtime, _ in
             AppScripting.session = sceneCheck == nil ? runtime?.session : nil
         })
+        if let directory, sceneCheck == nil { owner.installDeletionAdapter(NativeProfileCleanup(root: directory)) }
         _profiles = State(initialValue: owner)
         sceneCheck?.record("sessionCreated")
         let keyboardFocus = KeyboardFocusMonitor()

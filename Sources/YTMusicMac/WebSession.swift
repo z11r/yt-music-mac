@@ -112,6 +112,7 @@ final class WebSession: NSObject {
             configuration.websiteDataStore = dataStore
             configuration.mediaTypesRequiringUserActionForPlayback = .all
             let view = WKWebView(frame: .zero, configuration: configuration)
+            ProfileStoreLeaseRetention.attachView(view, from: dataStore)
             view.customUserAgent = Self.userAgent
             view.navigationDelegate = self
             view.uiDelegate = self

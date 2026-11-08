@@ -33,7 +33,11 @@ final class NativeAppProfileRuntime: AppProfileRuntime {
 @MainActor
 struct NativeAppProfileFactory {
     let legacyDirectory: URL
+    let registry: any AppProfileRegistry
     func prepare(_ profile: AppProfile, allowCreation: Bool) async throws -> PreparedAppProfile<NativeAppProfileRuntime> {
+        let lease = try profile.isDefault ? nil : ProfileLifecycleLease(root: legacyDirectory, profileID: profile.id, exclusive: false)
+        let latest = try await registry.load()
+        guard latest.archive.profiles.contains(profile), !latest.archive.deletions.contains(where: { $0.target.id == profile.id }) else { throw AppProfileError.stale }
         let context = try AppProfileContext(profile: profile, appIdentifier: AppIdentity.identifier,
             legacyDirectory: legacyDirectory, legacyWebsiteDataIdentifier: AppIdentity.websiteDataIdentifier)
         // WebKit's initializer creates a missing store. Existing profiles must
@@ -41,11 +45,10 @@ struct NativeAppProfileFactory {
         if !context.isDefault && !allowCreation {
             let identifiers = await WKWebsiteDataStore.allDataStoreIdentifiers
             guard identifiers.contains(context.websiteDataIdentifier) else { throw AppProfileError.missingStore }
-            var directory: ObjCBool = false
-            guard FileManager.default.fileExists(atPath: context.dataDirectory.path, isDirectory: &directory), directory.boolValue else {
-                throw AppProfileError.missingStore
-            }
         }
+        let confirmed = try await registry.load()
+        guard confirmed.archive.profiles.contains(profile), !confirmed.archive.deletions.contains(where: { $0.target.id == profile.id }) else { throw AppProfileError.stale }
+        if !context.isDefault { try ProfileSafeDirectories.admitProfile(root: legacyDirectory, id: profile.id, creating: allowCreation) }
         let preferences: UserDefaults
         if context.isDefault { preferences = AppIdentity.preferences }
         else {
@@ -55,12 +58,14 @@ struct NativeAppProfileFactory {
             // copying the default profile's preferences into a new namespace.
             preferences.register(defaults: ["cacheLibraryMetadata": false, "persistsLocalQueue": false, "autoplay": false, "persistsEpisodeProgress": false])
         }
-        if allowCreation {
+        if allowCreation && context.isDefault {
             try FileManager.default.createDirectory(at: context.dataDirectory, withIntermediateDirectories: true,
                                                    attributes: [.posixPermissions: 0o700])
         }
+        let store = WKWebsiteDataStore(forIdentifier: context.websiteDataIdentifier)
+        if let lease { ProfileStoreLeaseRetention.attach(lease, to: store) }
         let configuration = AppSessionConfiguration.live(preferences: preferences,
-            dataStore: WKWebsiteDataStore(forIdentifier: context.websiteDataIdentifier),
+            dataStore: store,
             directory: context.dataDirectory, namespace: context.namespace, installsSystemMedia: false)
         return PreparedAppProfile { NativeAppProfileRuntime(profile: profile, configuration: configuration) }
     }

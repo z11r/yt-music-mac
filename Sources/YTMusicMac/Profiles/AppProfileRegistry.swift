@@ -14,6 +14,11 @@ protocol AppProfileRegistry: Sendable {
 protocol AppProfileRegistryIO: Sendable {
     func read() throws -> Data?
     func replace(_ data: Data, expected: Data?) throws
+    func replaceDurably(_ data: Data, expected: Data?) throws
+}
+
+extension AppProfileRegistryIO {
+    func replaceDurably(_ data: Data, expected: Data?) throws { try replace(data, expected: expected) }
 }
 
 actor AppProfileRegistryStore: AppProfileRegistry {
@@ -32,7 +37,8 @@ actor AppProfileRegistryStore: AppProfileRegistry {
         let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys]
         let data = try encoder.encode(archive)
         guard data.count <= Self.byteLimit else { throw AppProfileError.tooLarge }
-        try io.replace(data, expected: current)
+        if archive.version == 2 { try io.replaceDurably(data, expected: current) }
+        else { try io.replace(data, expected: current) }
         return .init(archive: archive, revision: data)
     }
     private func decode(_ data: Data?) throws -> AppProfileArchive {
@@ -69,7 +75,9 @@ struct FileAppProfileRegistryIO: AppProfileRegistryIO {
         } catch let error as NSError where error.domain == NSCocoaErrorDomain &&
             [NSFileNoSuchFileError, NSFileReadNoSuchFileError].contains(error.code) { return nil }
     }
-    func replace(_ data: Data, expected: Data?) throws {
+    func replace(_ data: Data, expected: Data?) throws { try replace(data, expected: expected, directorySync: false) }
+    func replaceDurably(_ data: Data, expected: Data?) throws { try replace(data, expected: expected, directorySync: true) }
+    private func replace(_ data: Data, expected: Data?, directorySync: Bool) throws {
         guard file.isFileURL, data.count <= AppProfileRegistryStore.byteLimit else { throw AppProfileError.unavailable }
         try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true,
                                                attributes: [.posixPermissions: 0o700])
@@ -95,5 +103,11 @@ struct FileAppProfileRegistryIO: AppProfileRegistryIO {
             }
         }
         guard Darwin.fsync(output) == 0, Darwin.rename(temporary.path, file.path) == 0 else { throw AppProfileError.unavailable }
+        if directorySync {
+            let parent = Darwin.open(file.deletingLastPathComponent().path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+            guard parent >= 0 else { throw AppProfileError.unavailable }
+            defer { Darwin.close(parent) }
+            guard Darwin.fsync(parent) == 0 else { throw AppProfileError.unavailable }
+        }
     }
 }

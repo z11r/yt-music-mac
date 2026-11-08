@@ -51,23 +51,44 @@ struct AppProfileArchive: Codable, Equatable, Sendable {
     let version: Int
     var selectedID: String
     var profiles: [AppProfile]
+    var deletions: [ProfileDeletionJournal]
     static let original = Self(version: 1, selectedID: AppProfile.defaultID, profiles: [.original])
 
     func validate() throws {
-        guard version == 1 else { throw AppProfileError.unsupportedVersion }
+        guard [1, 2].contains(version) else { throw AppProfileError.unsupportedVersion }
         guard (1...Self.maximumProfiles).contains(profiles.count), Set(profiles.map(\.id)).count == profiles.count,
               profiles.filter(\.isDefault).count == 1, profiles.contains(where: { $0.id == selectedID && $0.isInitialized }) else { throw AppProfileError.invalidRegistry }
+        guard deletions.count <= 1, version == 2 || deletions.isEmpty else { throw AppProfileError.invalidRegistry }
+        for deletion in deletions {
+            try deletion.validate()
+            guard deletion.target.id != selectedID, profiles.contains(deletion.target) else { throw AppProfileError.invalidRegistry }
+        }
         for profile in profiles { try profile.validate() }
         let names = profiles.compactMap(\.name).map { $0.folding(options: [.caseInsensitive], locale: Locale(identifier: "en_US_POSIX")) }
         guard Set(names).count == names.count else { throw AppProfileError.duplicateName }
     }
-    private enum CodingKeys: String, CodingKey { case version, selectedID, profiles }
-    init(version: Int, selectedID: String, profiles: [AppProfile]) { self.version = version; self.selectedID = selectedID; self.profiles = profiles }
+    private enum CodingKeys: String, CodingKey { case version, selectedID, profiles, deletions }
+    init(version: Int, selectedID: String, profiles: [AppProfile], deletions: [ProfileDeletionJournal] = []) {
+        self.version = version; self.selectedID = selectedID; self.profiles = profiles; self.deletions = deletions
+    }
+    func encode(to encoder: any Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(version, forKey: .version); try c.encode(selectedID, forKey: .selectedID); try c.encode(profiles, forKey: .profiles)
+        if version == 2 { try c.encode(deletions, forKey: .deletions) }
+    }
     init(from decoder: any Decoder) throws {
-        try ProfileSchema.keys(decoder, ["version", "selectedID", "profiles"])
         let values = try decoder.container(keyedBy: CodingKeys.self)
         version = try values.decode(Int.self, forKey: .version)
-        guard version == 1 else { throw AppProfileError.unsupportedVersion }
+        guard [1, 2].contains(version) else { throw AppProfileError.unsupportedVersion }
+        try ProfileSchema.keys(decoder, version == 1 ? ["version", "selectedID", "profiles"] : ["version", "selectedID", "profiles", "deletions"])
+        if version == 2 {
+            var pending = try values.nestedUnkeyedContainer(forKey: .deletions)
+            if pending.isAtEnd { deletions = [] }
+            else {
+                deletions = [try pending.decode(ProfileDeletionJournal.self)]
+                guard pending.isAtEnd else { throw AppProfileError.invalidRegistry }
+            }
+        } else { deletions = [] }
         selectedID = try values.decode(String.self, forKey: .selectedID)
         var items = try values.nestedUnkeyedContainer(forKey: .profiles)
         guard items.count.map({ $0 <= Self.maximumProfiles }) ?? true else { throw AppProfileError.capacityReached }
@@ -126,7 +147,7 @@ enum AppProfileError: Error, Equatable, LocalizedError {
     }
 }
 
-private enum ProfileSchema {
+enum ProfileSchema {
     private struct Key: CodingKey {
         let stringValue: String
         var intValue: Int? { nil }

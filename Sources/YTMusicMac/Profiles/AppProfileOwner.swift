@@ -23,6 +23,8 @@ final class AppProfileOwner<Runtime: AppProfileRuntime> {
     private(set) var current: Runtime
     private(set) var activationID = UUID()
     private(set) var profiles: [AppProfile] = [.original]
+    private(set) var deletion: AppProfileDeletionController?
+    private(set) var deletionJournals: [ProfileDeletionJournal] = []
     private(set) var savedSelectionID = AppProfile.defaultID
     private(set) var isLoading = true
     private(set) var isSwitching = false
@@ -44,6 +46,13 @@ final class AppProfileOwner<Runtime: AppProfileRuntime> {
         current = initial; self.registry = registry; self.identifier = identifier
         self.prepare = prepare; self.bind = bind
     }
+
+    func installDeletionAdapter(_ adapter: any ProfileCleanupPreparing) {
+        guard deletion == nil else { return }
+        deletion = AppProfileDeletionController(registry: registry, adapter: adapter) { [weak self] in self?.install($0) }
+    }
+    var canManageProfiles: Bool { deletion?.isWorking != true }
+    func isPendingDeletion(_ id: String) -> Bool { deletionJournals.contains { $0.target.id == id } }
 
     func start() async {
         guard !started else { return }
@@ -73,7 +82,7 @@ final class AppProfileOwner<Runtime: AppProfileRuntime> {
     }
 
     func reload() async {
-        guard !isLoading, !isSwitching else { return }
+        guard canManageProfiles, !isLoading, !isSwitching else { return }
         isLoading = true
         do { install(try await registry.load()); errorMessage = nil }
         catch { canEdit = false; errorMessage = error.localizedDescription }
@@ -81,7 +90,7 @@ final class AppProfileOwner<Runtime: AppProfileRuntime> {
     }
 
     func create(name: String) async {
-        guard canEdit, !isSwitching, !isLoading, let snapshot else { return }
+        guard canManageProfiles, canEdit, !isSwitching, !isLoading, let snapshot else { return }
         do {
             guard snapshot.archive.profiles.count < AppProfileArchive.maximumProfiles else { throw AppProfileError.capacityReached }
             let profile = try AppProfile.additional(name: name, identifier: identifier())
@@ -92,7 +101,7 @@ final class AppProfileOwner<Runtime: AppProfileRuntime> {
     }
 
     func rename(_ id: String, name: String) async {
-        guard canEdit, !isSwitching, !isLoading, transition == nil, let snapshot else { return }
+        guard canManageProfiles, !isPendingDeletion(id), canEdit, !isSwitching, !isLoading, transition == nil, let snapshot else { return }
         isLoading = true
         defer { isLoading = false }
         do {
@@ -108,7 +117,7 @@ final class AppProfileOwner<Runtime: AppProfileRuntime> {
     }
 
     func switchTo(_ id: String, automatic: Bool = false) async {
-        guard canEdit, !isSwitching, !isLoading, !quitting, let snapshot,
+        guard canManageProfiles, !isPendingDeletion(id), canEdit, !isSwitching, !isLoading, !quitting, let snapshot,
               let profile = snapshot.archive.profiles.first(where: { $0.id == id }) else { return }
         if profile.id == current.profile.id {
             // Explicitly choosing the fallback profile also persists that choice.
@@ -120,8 +129,11 @@ final class AppProfileOwner<Runtime: AppProfileRuntime> {
     func shutdown() async {
         quitting = true
         bind(nil, activationID)
+        let initial = current
+        initial.quiesce()
         await transition?.value
-        current.quiesce()
+        if current !== initial { current.quiesce() }
+        await deletion?.stopAndWait()
         await current.settle()
         await current.shutdown()
     }
@@ -173,6 +185,7 @@ final class AppProfileOwner<Runtime: AppProfileRuntime> {
 
     private func install(_ value: AppProfileRegistrySnapshot) {
         snapshot = value; profiles = value.archive.profiles
+        deletionJournals = value.archive.deletions
         savedSelectionID = value.archive.selectedID; canEdit = true
     }
 }
