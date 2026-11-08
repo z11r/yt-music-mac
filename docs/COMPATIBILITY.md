@@ -8,7 +8,7 @@ checks, playback, and performance are separate checks.
 
 | Check | Status |
 | --- | --- |
-| Local deterministic suite on Apple silicon, macOS 26.6, Xcode 27.2 | Checkpoint `8282d73` passed 907 checks; four opt-in live checks skipped |
+| Local automated suite on Apple silicon, macOS 26.6, Xcode 27.2 | Checkpoint `170a0a6` passed 1,021 checks in three consecutive combined runs; four opt-in live checks skipped. An earlier intermittent TXT-export error remains under investigation; see [export verification](STREAMING_METADATA_EXPORT.md#verification). |
 | Anonymous home, explore, search, album, artist, and playlist requests through the native service client | Passed locally |
 | Debug arm64 bundle and release universal bundle | Built locally; arm64 and x86_64 slices declare macOS 14 |
 | Relocated debug and release bundle diagnostics on Apple silicon/macOS 26.6 | Passed identity, resources, runtime paths, and ad-hoc signature checks |

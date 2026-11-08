@@ -73,3 +73,13 @@ a file update and its receipt update may require choosing a new target; the
 app refuses an uncertain receipt rather than overwriting an unrecognized file.
 Cache clearing does not delete export targets. Native dialogs, layout,
 VoiceOver, local-profile switching, and OBS use still require runtime checks.
+
+## Verification
+
+One combined test run reported an unexpected ownership error while clearing an
+unchanged temporary TXT file. Ten focused runs and three combined runs then
+passed. Additional instrumented temporary-file probes did not reproduce it.
+The cause remains unresolved; the ownership checks remain enforced, and export
+remains off by default. This result does not establish native file or OBS
+acceptance. An unconfirmed TXT clear can leave old text visible, as described
+above.
