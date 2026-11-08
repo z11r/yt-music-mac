@@ -220,3 +220,33 @@ Actual inactive-profile cleanup remains a separate runtime acceptance check.
 Verify the selected-profile protection and retained native-resource lease gates,
 then inspect the explicit review and each confirmed outcome in a disposable
 profile. Local audio files and external exports must remain intact.
+
+## Startup, episode details and playlist contributors
+
+Run the focused deterministic checks with isolated preferences, service fixtures
+and injected lifecycle controls:
+
+```sh
+Scripts/with-xcode.sh swift test --jobs 1 --filter 'StartupWindow|AppAutomation|EpisodeDetails|PlaylistCollaboration'
+```
+
+[Startup checks](STARTUP_WINDOWS.md) cover launch ownership, presentation
+requests, stale profile/account requests and shutdown. Packaged scene checks use
+disposable preferences and synthetic queue changes with playback output disabled.
+They do not establish login approval, system restoration or foreground focus.
+
+[Episode details](EPISODE_DETAILS.md) use bounded service text and exact current
+queue, occurrence, profile and account targets. Fixtures hold credential and
+fetch work across cancellation and owner changes. Timestamp references retain
+their numeric source position; they do not seek playback.
+
+[Playlist contributors](COLLABORATIVE_PLAYLISTS.md) come only from a recognized
+current header. Fixtures cover bounded labels and portraits, unrelated headers,
+and keeping contributor channels out of track artist metadata across pages.
+They do not establish membership or edit permission.
+
+In a packaged app, verify these panels with keyboard navigation, VoiceOver,
+long text and right-to-left text. Change accounts, profiles and the selected
+track or playlist while a read is pending; the previous owner's content must
+stop displaying. Signed-in response coverage and image delivery remain separate
+from synthetic parsing and lifecycle checks.

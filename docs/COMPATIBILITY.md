@@ -10,16 +10,16 @@ Checks name the exact source checkpoint; later feature work can follow it.
 
 | Check | Status |
 | --- | --- |
-| Local automated suite on Apple silicon, macOS 26.6, Xcode 27.2 | Checkpoint `0e75e56` passed 1,145 checks; four opt-in live checks skipped. The later brand-label change in `6f39db1` passed 60 focused checks and full compiler-key localization coverage. An earlier intermittent TXT-export error remains under investigation; see [export verification](STREAMING_METADATA_EXPORT.md#verification). |
+| Local automated suite on Apple silicon, macOS 26.6, Xcode 27.2 | Checkpoint `1e1ad01` passed 1,420 deterministic checks; four opt-in live checks skipped. The earlier `378d938` checkpoint passed full compiler-key localization coverage. An earlier intermittent TXT-export error remains under investigation; see [export verification](STREAMING_METADATA_EXPORT.md#verification). |
 | Anonymous home, explore, search, album, artist, and playlist requests through the native service client | Passed locally |
-| Local release universal bundle | Checkpoint `6f39db1` built locally; arm64 and x86_64 slices declare macOS 14 |
-| Relocated release bundle diagnostics on Apple silicon/macOS 26.6 | Checkpoint `6f39db1` passed identity, resources, runtime paths, shortcut metadata and ad-hoc signature checks |
-| CI tests and host app builds on Intel/macOS 15 and Apple silicon/macOS 26 | Feature checkpoint [6f39db1](https://github.com/z11r/yt-music-mac/actions/runs/42500304558) passed tests, release packaging and relocated-bundle checks on both architectures with Xcode 26.2 |
-| Release window and menu scenes with isolated synthetic data | Checkpoint `6f39db1` passed 100 rendered queue-state changes locally |
+| Local release universal bundle | Checkpoint `378d938` built locally; arm64 and x86_64 slices declare macOS 14 |
+| Relocated release bundle diagnostics on Apple silicon/macOS 26.6 | Checkpoint `378d938` passed identity, resources, runtime paths, shortcut metadata and ad-hoc signature checks |
+| CI tests and host app builds on Intel/macOS 15 and Apple silicon/macOS 26 | Feature checkpoint [62b6457](https://github.com/z11r/yt-music-mac/actions/runs/42519020381) passed tests, release packaging and relocated-bundle checks on both architectures with Xcode 26.2 |
+| Release window and menu scenes with isolated synthetic data | Checkpoint `378d938` passed 100 synthetic rendered queue-state changes locally. The report recorded `windowVisible=false`; this does not establish visible layout, focus or VoiceOver behavior |
 | Packaged app on macOS 14, physical Intel and Apple silicon | Pending |
 | Initial Premium sign-in and playback on the development Mac | Manually reported working; extended cases pending |
 | Packaged release: retained sign-in, queue restore without autoplay, saved-position playback, pause, and resume | Verified through native commands on the development Mac |
-| Premium library and playlist pagination | Local release completed 44 library collections across two pages, 124 liked songs across two pages, and another playlist with 618 playable occurrences across seven pages; live failed-page recovery and count reconciliation pending |
+| Premium library and playlist pagination | Earlier local release `68ee772` completed 44 library collections across two pages, 124 liked songs across two pages, and another playlist with 618 playable occurrences across seven pages; live failed-page recovery and count reconciliation pending |
 | Signed-in playback, session restoration, and library browsing across the OS matrix | Pending |
 | Short background playback and paused resource comparison with Kaset on the development Mac | [Measured](PERFORMANCE.md#november-6-2026-comparison); battery and AC results kept separate |
 | Long listening sessions and memory growth | Pending |
