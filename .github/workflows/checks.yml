@@ -40,6 +40,8 @@ jobs:
         run: |
           test "$(uname -m)" = "${{ matrix.arch }}"
           Scripts/doctor.sh
+      - name: Check localization tables
+        run: python3 Scripts/check-localizations.py
       - name: Run isolated tests
         run: Scripts/with-xcode.sh swift test --jobs 2
       - name: Build release app for the host architecture
