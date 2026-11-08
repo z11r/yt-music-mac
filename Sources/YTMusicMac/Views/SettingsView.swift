@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @Bindable var session: AppSession
+    var songNotifications: SongChangeNotifier? = nil
     @AppStorage("appearance", store: AppIdentity.preferences)
     private var appearance = "system"
     @Environment(\.openWindow) private var openWindow
@@ -20,6 +21,13 @@ struct SettingsView: View {
             Section("Playback") {
                 LabeledContent("Volume") { VolumeView(session: session).frame(width: 190) }
                 Button("Open Mini-Player", systemImage: "pip") { openWindow(id: "mini-player") }
+                KeepMiniPlayerOnTopToggle()
+            }
+            if let songNotifications {
+                Section("Notifications") {
+                    SongNotificationSettings(notifier: songNotifications)
+                }
+                .task { await songNotifications.refreshAuthorization() }
             }
             Section("Account") {
                 LabeledContent("YouTube Music", value: session.account.isSignedIn ? "Signed in" : "Not signed in")
@@ -42,6 +50,6 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         .padding(10)
-        .frame(width: 470, height: 400)
+        .frame(width: 470, height: 520)
     }
 }

@@ -39,6 +39,7 @@ struct PlayerBar: View {
                             .disabled(session.currentTrack == nil)
                         Button("Mini-Player", systemImage: "pip") { openWindow(id: "mini-player") }
                             .help("Open Mini-Player")
+                        AudioOutputPicker().frame(width: 20, height: 20)
                         Button(session.showsQueue ? "Hide Queue" : "Show Queue", systemImage: "list.bullet") { session.showsQueue.toggle() }
                             .foregroundStyle(session.showsQueue ? Color.accentColor : Color.secondary)
                             .accessibilityValue(session.showsQueue ? "Shown" : "Hidden")
@@ -255,12 +256,15 @@ private struct PlaybackStateMark: ViewModifier {
 struct MiniPlayerView: View {
     @Bindable var session: AppSession
     @Environment(\.openWindow) private var openWindow
+    @AppStorage(MiniPlayerWindowLevel.preferenceKey, store: AppIdentity.preferences)
+    private var keepsOnTop = false
 
     var body: some View {
         VStack(spacing: 16) {
             HStack {
                 TrackIdentityView(session: session, artworkSize: 64)
                 Spacer(minLength: 4)
+                AudioOutputPicker().frame(width: 20, height: 20)
                 Button("Open Main Window", systemImage: "arrow.up.left.and.arrow.down.right") {
                     openWindow(id: "main")
                 }.labelStyle(.iconOnly).buttonStyle(.borderless)
@@ -281,6 +285,7 @@ struct MiniPlayerView: View {
         .padding(20)
         .frame(minWidth: 350, idealWidth: 390, maxWidth: 520)
         .background(Color(nsColor: .windowBackgroundColor))
+        .background(WindowLevelSetter(level: MiniPlayerWindowLevel.level(keepsOnTop: keepsOnTop)).frame(width: 0, height: 0))
     }
 }
 
