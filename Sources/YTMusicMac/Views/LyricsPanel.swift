@@ -98,6 +98,7 @@ private struct TimedLyricsView: View {
     }
 
     var body: some View {
+        let currentLine = activeLine
         VStack(spacing: 0) {
             Toggle("Follow Playback", isOn: $followsPlayback)
                 .toggleStyle(.switch).controlSize(.small)
@@ -112,15 +113,15 @@ private struct TimedLyricsView: View {
                                 session.seek(to: line.startTime)
                             } label: {
                                 Text(line.text.isEmpty ? " " : line.text)
-                                    .font(.title3.weight(index == activeLine ? .semibold : .regular))
-                                    .foregroundStyle(index == activeLine ? Color.accentColor : .primary)
+                                    .font(.title3.weight(index == currentLine ? .semibold : .regular))
+                                    .foregroundStyle(index == currentLine ? Color.accentColor : .primary)
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                     .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
                             .disabled(!canSeek || line.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                             .accessibilityLabel(line.text)
-                            .accessibilityValue(index == activeLine ? "Current lyric" : "")
+                            .accessibilityValue(index == currentLine ? "Current lyric" : "")
                             .accessibilityHint(canSeek ? "Seeks to this lyric line" : "")
                             .id(index)
                         }
@@ -128,15 +129,15 @@ private struct TimedLyricsView: View {
                     .padding(24)
                 }
                 .onAppear {
-                    if followsPlayback, let activeLine { proxy.scrollTo(activeLine, anchor: .center) }
+                    if followsPlayback, let currentLine { proxy.scrollTo(currentLine, anchor: .center) }
                 }
-                .onChange(of: activeLine) {
-                    guard followsPlayback, let activeLine else { return }
-                    if reduceMotion { proxy.scrollTo(activeLine, anchor: .center) }
-                    else { withAnimation(.easeInOut(duration: 0.2)) { proxy.scrollTo(activeLine, anchor: .center) } }
+                .onChange(of: currentLine) {
+                    guard followsPlayback, let currentLine else { return }
+                    if reduceMotion { proxy.scrollTo(currentLine, anchor: .center) }
+                    else { withAnimation(.easeInOut(duration: 0.2)) { proxy.scrollTo(currentLine, anchor: .center) } }
                 }
                 .onChange(of: followsPlayback) {
-                    if followsPlayback, let activeLine { proxy.scrollTo(activeLine, anchor: .center) }
+                    if followsPlayback, let currentLine { proxy.scrollTo(currentLine, anchor: .center) }
                 }
             }
         }
