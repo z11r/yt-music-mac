@@ -158,6 +158,11 @@ private struct MainSceneView: View {
             .task {
                 delegate.session = session
                 delegate.openMainWindow = { openWindow(id: "main") }
+                let open = openWindow
+                session.player.videoPresentation.didReturnToMain = { [weak session = session] in
+                    session?.showsWebPlayer = true
+                    open(id: "main")
+                }
                 await session.start()
                 session.links.isReady = sceneCheck == nil
                 session.processPendingMusicLink()

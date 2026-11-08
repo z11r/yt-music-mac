@@ -20,6 +20,9 @@ struct PlayerBar: View {
                 InlineMessage(message: message, actionTitle: "Retry", action: session.retryPlayback)
             }
             RadioStatusView(session: session)
+            if let message = session.player.videoPresentation.message {
+                InlineMessage(message: message, actionTitle: "Dismiss", action: session.player.videoPresentation.clearMessage)
+            }
             HStack(spacing: 20) {
                 TrackIdentityView(session: session, artworkSize: 50)
                     .frame(width: 215, alignment: .leading)
@@ -36,10 +39,7 @@ struct PlayerBar: View {
                     HStack(spacing: 14) {
                         Button("Lyrics", systemImage: "text.quote") { openWindow(id: "lyrics") }
                             .help("Show lyrics").disabled(session.currentTrack == nil)
-                        Button(session.showsWebPlayer ? "Hide Web Player" : "Show Web Player", systemImage: "play.rectangle") { session.showsWebPlayer.toggle() }
-                            .accessibilityValue(session.showsWebPlayer ? "Shown" : "Hidden")
-                            .help(session.showsWebPlayer ? "Hide Web Player" : "Show Web Player")
-                            .disabled(session.currentTrack == nil)
+                        VideoPresentationMenu(session: session)
                         Button("Now Playing", systemImage: "arrow.up.left.and.arrow.down.right") { openWindow(id: "now-playing") }
                             .help("Open Now Playing")
                         Button("Mini-Player", systemImage: "pip") { openWindow(id: "mini-player") }

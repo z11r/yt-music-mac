@@ -9,6 +9,7 @@
     let sequence = 0;
     let commandRevision = 0;
     let navigationRevision = 0;
+    let presentationRevision = 0;
     let wantsPlaying = false;
     let intentSource = "native";
     let desiredVolume = 1;
@@ -37,6 +38,81 @@
         return Number.isFinite(value) && value >= 0 ? value : 0;
     }
 
+    function pictureInPictureActive() {
+        return !!video && (video.webkitPresentationMode === "picture-in-picture"
+            || document.pictureInPictureElement === video);
+    }
+
+    function presentationSnapshot() {
+        const hasVideo = !!video && matchesTarget() && contentReady && video.readyState >= 1
+            && !adShowing() && !adInThisMedia && Number.isFinite(video.videoWidth) && video.videoWidth > 0
+            && Number.isFinite(video.videoHeight) && video.videoHeight > 0;
+        let supported = false;
+        try {
+            if (hasVideo && video.disablePictureInPicture !== true) {
+                supported = typeof video.webkitSupportsPresentationMode === "function"
+                    ? typeof video.webkitSetPresentationMode === "function" && video.webkitSupportsPresentationMode("picture-in-picture")
+                    : document.pictureInPictureEnabled === true && typeof video.requestPictureInPicture === "function";
+            }
+        } catch (_) { supported = false; }
+        return {hasVideo, supportsPictureInPicture: supported, isPictureInPictureActive: pictureInPictureActive()};
+    }
+
+    function samePresentationTarget(value, target) {
+        const expected = context && context.identity;
+        const identity = value && value.identity;
+        return !!expected && !!identity && target === video && video.isConnected && matchesTarget()
+            && value.loadID === context.loadID && value.documentID === documentID
+            && value.mediaGeneration === mediaGeneration && identity.sessionID === expected.sessionID
+            && identity.entryID === expected.entryID && identity.trackID === expected.trackID
+            && identity.generation === expected.generation && contentReady && video.readyState >= 1
+            && !adShowing() && !adInThisMedia;
+    }
+
+    function requestPresentation(value) {
+        const target = video;
+        const response = (accepted, reason) => ({accepted, reason, active: pictureInPictureActive()});
+        if (!value || !samePresentationTarget(value, target) || typeof value.active !== "boolean"
+            || !Number.isInteger(value.revision) || value.revision <= presentationRevision) {
+            return Promise.resolve(response(false, "stale"));
+        }
+        presentationRevision = value.revision;
+        if (pictureInPictureActive() === value.active) return Promise.resolve(response(true, "confirmed"));
+        if (value.active && !presentationSnapshot().supportsPictureInPicture) return Promise.resolve(response(false, "unsupported"));
+        return new Promise(resolve => {
+            let complete = false;
+            let timer;
+            const events = ["webkitpresentationmodechanged", "enterpictureinpicture", "leavepictureinpicture"];
+            const finish = (accepted, reason) => {
+                if (complete) return;
+                complete = true;
+                if (timer !== undefined) clearTimeout(timer);
+                events.forEach(name => target.removeEventListener(name, changed));
+                resolve(response(accepted, reason));
+            };
+            const changed = () => {
+                if (!samePresentationTarget(value, target) || value.revision !== presentationRevision) { finish(false, "stale"); return; }
+                if (pictureInPictureActive() === value.active) finish(true, "confirmed");
+            };
+            events.forEach(name => target.addEventListener(name, changed));
+            timer = setTimeout(() => finish(false, samePresentationTarget(value, target) ? "rejected" : "stale"), 1500);
+            try {
+                let transition;
+                if (typeof target.webkitSetPresentationMode === "function") {
+                    target.webkitSetPresentationMode(value.active ? "picture-in-picture" : "inline");
+                } else if (value.active && typeof target.requestPictureInPicture === "function") {
+                    transition = target.requestPictureInPicture();
+                } else if (!value.active && typeof document.exitPictureInPicture === "function") {
+                    transition = document.exitPictureInPicture();
+                } else { finish(false, "unsupported"); return; }
+                if (transition && typeof transition.then === "function") {
+                    transition.then(changed, () => finish(false, samePresentationTarget(value, target) ? "rejected" : "stale"));
+                }
+                changed();
+            } catch (_) { finish(false, "rejected"); }
+        });
+    }
+
     function snapshot(kind, errorCode) {
         return {
             kind,
@@ -56,7 +132,8 @@
             isBuffering: buffering,
             isAd: adShowing() || adInThisMedia,
             mediaReady: !!video && video.readyState >= 1 && contentReady,
-            errorCode: errorCode || null
+            errorCode: errorCode || null,
+            videoPresentation: presentationSnapshot()
         };
     }
 
@@ -191,7 +268,8 @@
         if (!video) return;
         const events = ["play", "pause", "playing", "waiting", "stalled", "canplay",
             "loadedmetadata", "durationchange", "timeupdate", "seeking", "seeked",
-            "emptied", "loadstart", "error", "ended", "volumechange"];
+            "emptied", "loadstart", "error", "ended", "volumechange", "resize",
+            "webkitpresentationmodechanged", "enterpictureinpicture", "leavepictureinpicture"];
         events.forEach(name => {
             const target = video;
             target.addEventListener(name, onMediaEvent);
@@ -250,12 +328,14 @@
             hasPlayedCurrentMedia = false;
             desiredVolume = Math.min(1, Math.max(0, value.volume));
             commandRevision = 0;
+            presentationRevision = 0;
             pendingSeek = null;
             endedGeneration = -1;
             attach();
             applyIntent();
             return report("ready");
         },
+        presentation(value) { return requestPresentation(value); },
         command(value) {
             if (!context || value.loadID !== context.loadID
                 || !Number.isInteger(value.revision) || value.revision <= commandRevision) return false;

@@ -204,22 +204,16 @@ private struct EmbeddedPlayerPanel: View {
                 }
                 .padding(12)
             }
-            // Keep one host attached for the lifetime of the main window. Its
-            // player owns the WebKit view; secondary windows never host it.
-            // The player replaces the view to unload an idle page; the host
-            // swaps it in place.
-            // WebKit judges page visibility by the view's hidden state and its
-            // window, not by size or opacity. A hidden page stops rendering and
-            // slows its timers. The page stays visible while a song starts,
-            // because WebKit can refuse to start media in a hidden page.
+            // The controller moves one host between this anchor and the video
+            // window; no secondary window creates another playback web view.
             let player = session.player
-            ExistingWebView(webView: { [weak player] in player?.webView },
-                            identity: player.webViewGeneration,
-                            isHidden: !session.showsWebPlayer && !player.isStartingPlayback)
-                .frame(width: session.showsWebPlayer ? nil : 1, height: session.showsWebPlayer ? 320 : 1)
-                .opacity(session.showsWebPlayer ? 1 : 0)
-                .allowsHitTesting(session.showsWebPlayer)
-                .accessibilityHidden(!session.showsWebPlayer)
+            let embedded = session.showsWebPlayer && !player.videoPresentation.isWindowPresented
+            PlaybackWebViewAnchor(presentation: player.videoPresentation,
+                                  generation: player.webViewGeneration, visible: session.showsWebPlayer)
+                .frame(width: embedded ? nil : 1, height: embedded ? 320 : 1)
+                .opacity(embedded ? 1 : 0)
+                .allowsHitTesting(embedded)
+                .accessibilityHidden(!embedded)
         }
     }
 }
@@ -249,6 +243,9 @@ struct ExistingWebView: NSViewRepresentable {
 /// removes the previous view, so nothing in the window keeps its page alive.
 final class WebViewHost: NSView {
     func show(_ webView: WKWebView?, hidden: Bool) {
+        // WebKit owns the temporary placeholder while an element is fullscreen.
+        // Reattaching the web view here would steal it from WebKit's window.
+        if let webView, webView.fullscreenState != .notInFullscreen { return }
         guard let webView else {
             subviews.forEach { $0.removeFromSuperview() }
             return

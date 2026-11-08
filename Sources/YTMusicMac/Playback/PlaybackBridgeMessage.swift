@@ -39,6 +39,7 @@ struct PlaybackBridgeMessage: Decodable {
     let isAd: Bool
     let mediaReady: Bool
     let errorCode: String?
+    let videoPresentation: VideoPresentationSnapshot?
 
     static func decode(_ body: Any) -> Self? {
         guard JSONSerialization.isValidJSONObject(body),
@@ -76,7 +77,7 @@ struct PlaybackEventGate {
     private(set) var identity: PlaybackBridgeIdentity?
     private(set) var documentID: UUID?
     private var sequence = 0
-    private var mediaGeneration = 0
+    private(set) var mediaGeneration = 0
     private var consumedEnd = false
 
     mutating func activate(loadID: UUID, occurrence: PlaybackOccurrence) {

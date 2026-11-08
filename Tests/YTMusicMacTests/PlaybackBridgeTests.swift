@@ -194,18 +194,30 @@ private final class BridgeFixture {
     let blockError = 'NotAllowedError';
     const timers = [];
     globalThis.setTimeout = action => timers.push(action);
+    globalThis.clearTimeout = id => {timers[id - 1] = null;};
     const media = {
         tagName: 'VIDEO', isConnected: true, currentTime: 0, duration: 180,
         paused: true, ended: false, readyState: 1, volume: 1, listeners: {},
-        addEventListener(name, action) {this.listeners[name] = action;},
-        removeEventListener(name) {delete this.listeners[name];},
+        extraListeners: {},
+        addEventListener(name, action) {
+            if (!this.listeners[name]) this.listeners[name] = action;
+            else (this.extraListeners[name] = this.extraListeners[name] || []).push(action);
+        },
+        removeEventListener(name, action) {
+            if (this.listeners[name] === action) delete this.listeners[name];
+            this.extraListeners[name] = (this.extraListeners[name] || []).filter(value => value !== action);
+        },
         pause() {this.paused = true;},
         play() {
             if (blockPlay) return {catch(handler) {handler(Object.assign(new Error(blockError), {name: blockError}));}};
             this.paused = false;
             return {catch() {}};
         },
-        emit(name) {if (this.listeners[name]) this.listeners[name]({type: name, target: this});}
+        emit(name) {
+            const event = {type: name, target: this};
+            if (this.listeners[name]) this.listeners[name](event);
+            (this.extraListeners[name] || []).slice().forEach(action => action(event));
+        }
     };
     globalThis.document = {
         visibilityState: 'visible', listeners: {},
@@ -424,5 +436,114 @@ struct PlaybackScriptTests {
         fixture.run("YTMusicNativePlayer.command({loadID: binding.loadID, revision: 1, name: 'pause'})")
         fixture.run("blockPlay = false; document.visibilityState = 'visible'; document.emit('visibilitychange')")
         #expect(fixture.run("media.paused").toBool())
+    }
+}
+
+@MainActor @Suite("Fenced video presentation bridge")
+struct VideoPresentationBridgeTests {
+    private func fixture(supported: Bool = true, delayed: Bool = false) throws -> BridgeFixture {
+        let fixture = try BridgeFixture()
+        fixture.run("""
+        const presentationCalls = [];
+        let pipSupported = \(supported ? "true" : "false");
+        let delayedPresentation = \(delayed ? "true" : "false");
+        media.videoWidth = 1280; media.videoHeight = 720; media.currentTime = 42;
+        media.webkitPresentationMode = 'inline';
+        media.webkitSupportsPresentationMode = () => pipSupported;
+        media.webkitSetPresentationMode = mode => {
+            presentationCalls.push(mode);
+            if (!delayedPresentation) {media.webkitPresentationMode = mode; media.emit('webkitpresentationmodechanged');}
+        };
+        function presentationRequest(active, revision = 1) {
+            const state = messages[messages.length - 1];
+            return {loadID: binding.loadID, identity: binding.identity, documentID: state.documentID,
+                    mediaGeneration: state.mediaGeneration, revision, active};
+        }
+        YTMusicNativePlayer.bind(binding);
+        """)
+        return fixture
+    }
+
+    @Test func entryAndExitKeepTheExactRecordingClockAndTransportRevision() throws {
+        let fixture = try fixture()
+        fixture.run("YTMusicNativePlayer.presentation(presentationRequest(true)).then(value => globalThis.reply = value)")
+        #expect(fixture.run("reply.accepted && reply.active").toBool())
+        #expect(fixture.run("messages[messages.length - 1].videoPresentation.isPictureInPictureActive").toBool())
+        fixture.run("YTMusicNativePlayer.presentation(presentationRequest(false, 2)).then(value => globalThis.reply = value)")
+        #expect(fixture.run("reply.accepted && !reply.active").toBool())
+        #expect(fixture.run("presentationCalls.join(',')").toString() == "picture-in-picture,inline")
+        #expect(fixture.run("media.currentTime").toDouble() == 42)
+        #expect(!fixture.run("media.paused").toBool())
+        #expect(fixture.run("messages[messages.length - 1].commandRevision").toInt32() == 0)
+        #expect(fixture.run("YTMusicNativePlayer.command({loadID: binding.loadID, revision: 1, name: 'pause'})").toBool())
+    }
+
+    @Test func unsupportedVideoNeverCallsPresentationOrReportsAudioFailure() throws {
+        let fixture = try fixture(supported: false)
+        fixture.run("YTMusicNativePlayer.presentation(presentationRequest(true)).then(value => globalThis.reply = value)")
+        #expect(fixture.run("!reply.accepted && reply.reason === 'unsupported'").toBool())
+        #expect(fixture.run("presentationCalls.length").toInt32() == 0)
+        #expect(fixture.run("messages.every(value => value.errorCode === null)").toBool())
+    }
+
+    @Test func staleLoadDocumentOccurrenceMediaAndWrongTrackCannotPresent() throws {
+        let fixture = try fixture()
+        fixture.run("""
+        const invalid = [
+            {...presentationRequest(true), loadID: 'old-load'},
+            {...presentationRequest(true), documentID: 'old-document'},
+            {...presentationRequest(true), identity: {...binding.identity, entryID: 'other-occurrence'}},
+            {...presentationRequest(true), mediaGeneration: -1}
+        ];
+        const replies = [];
+        invalid.forEach(value => YTMusicNativePlayer.presentation(value).then(reply => replies.push(reply)));
+        """)
+        #expect(fixture.run("replies.length === 4 && replies.every(reply => !reply.accepted && reply.reason === 'stale')").toBool())
+        fixture.run("location.href = 'https://music.youtube.com/watch?v=other'; YTMusicNativePlayer.presentation(presentationRequest(true)).then(value => globalThis.reply = value)")
+        #expect(fixture.run("reply.reason === 'stale' && presentationCalls.length === 0").toBool())
+    }
+
+    @Test func advertisementsAndAudioOnlyMediaDoNotGrantVideoCapability() throws {
+        let fixture = try fixture()
+        fixture.run("media.videoWidth = 0; media.videoHeight = 0; media.emit('resize')")
+        #expect(!fixture.run("messages[messages.length - 1].videoPresentation.hasVideo").toBool())
+        fixture.run("YTMusicNativePlayer.presentation(presentationRequest(true)).then(value => globalThis.reply = value)")
+        #expect(fixture.run("reply.reason === 'unsupported'").toBool())
+        fixture.run("media.videoWidth = 1280; media.videoHeight = 720; ad = true; media.emit('loadstart'); media.emit('loadedmetadata')")
+        fixture.run("YTMusicNativePlayer.presentation(presentationRequest(true)).then(value => globalThis.reply = value)")
+        #expect(fixture.run("reply.reason === 'stale' && presentationCalls.length === 0").toBool())
+    }
+
+    @Test func successRequiresAnObservedTransitionAndTheSameMediaGeneration() throws {
+        let fixture = try fixture(delayed: true)
+        fixture.run("YTMusicNativePlayer.presentation(presentationRequest(true)).then(value => globalThis.reply = value)")
+        #expect(fixture.run("typeof reply === 'undefined'").toBool())
+        fixture.run("media.webkitPresentationMode = 'picture-in-picture'; media.emit('webkitpresentationmodechanged')")
+        #expect(fixture.run("reply.accepted && reply.active").toBool())
+        fixture.run("YTMusicNativePlayer.presentation(presentationRequest(false, 2)).then(value => globalThis.reply2 = value)")
+        fixture.run("media.emit('loadstart'); media.webkitPresentationMode = 'inline'; media.emit('webkitpresentationmodechanged')")
+        #expect(fixture.run("!reply2.accepted && reply2.reason === 'stale'").toBool())
+    }
+
+    @Test func aRefusedOrTimedOutPresentationDoesNotStopAudioOrAdvanceTheQueue() throws {
+        let fixture = try fixture(delayed: true)
+        fixture.run("YTMusicNativePlayer.presentation(presentationRequest(true)).then(value => globalThis.reply = value)")
+        fixture.run("timers.filter(Boolean).forEach(action => action())")
+        #expect(fixture.run("!reply.accepted && reply.reason === 'rejected'").toBool())
+        #expect(!fixture.run("media.paused").toBool())
+        #expect(fixture.run("messages.every(value => value.kind !== 'ended' && value.errorCode === null)").toBool())
+        fixture.run("media.webkitSetPresentationMode = () => {throw new Error('NotAllowedError')}; YTMusicNativePlayer.presentation(presentationRequest(true, 2)).then(value => globalThis.reply2 = value)")
+        #expect(fixture.run("!reply2.accepted && reply2.reason === 'rejected'").toBool())
+        #expect(!fixture.run("media.paused").toBool())
+    }
+
+    @Test func replayedPresentationRequestsCannotOverrideAUserTransportCommand() throws {
+        let fixture = try fixture()
+        fixture.run("YTMusicNativePlayer.presentation(presentationRequest(true, 100)).then(value => globalThis.reply = value)")
+        fixture.run("YTMusicNativePlayer.presentation(presentationRequest(false, 99)).then(value => globalThis.reply2 = value)")
+        #expect(fixture.run("reply.accepted && !reply2.accepted && reply2.reason === 'stale'").toBool())
+        #expect(fixture.run("YTMusicNativePlayer.command({loadID: binding.loadID, revision: 1, name: 'pause'})").toBool())
+        #expect(fixture.run("media.paused").toBool())
+        #expect(fixture.run("presentationCalls.length").toInt32() == 1)
     }
 }

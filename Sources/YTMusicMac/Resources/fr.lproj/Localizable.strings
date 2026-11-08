@@ -65,6 +65,7 @@
 "Artwork disk cache" = "Cache des illustrations sur disque";
 "At least %@ remaining · %lld unknown" = "Au moins %@ restantes · %lld durées inconnues";
 "Audio Output" = "Sortie audio";
+"Audio/video switching is unavailable. Open an exact video from search to choose a different recording." = "Le passage entre audio et vidéo est indisponible. Ouvrez une vidéo précise depuis la recherche pour choisir un autre enregistrement.";
 "Autoplay" = "Lecture automatique";
 "Autoplay could not load related songs. %@" = "La lecture automatique n’a pas pu charger de titres similaires. %@";
 "Autoplay found no new related songs, so playback stopped." = "La lecture automatique n’a trouvé aucun nouveau titre similaire. La lecture s’est arrêtée.";
@@ -88,6 +89,7 @@
 "Choose a song" = "Choisir un titre";
 "Choose a song before starting playback." = "Choisissez un titre avant de lancer la lecture.";
 "Choose a song in the app before resuming playback." = "Choisissez un titre dans l’app avant de reprendre la lecture.";
+"Choose a song or video first." = "Choisissez d’abord un titre ou une vidéo.";
 "Choose up to 100 songs for one change." = "Choisissez jusqu’à 100 titres par modification.";
 "Clear Artwork Cache" = "Effacer le cache des illustrations";
 "Clear Cached Artwork…" = "Effacer les illustrations en cache…";
@@ -157,6 +159,8 @@
 "Enter a search of up to 500 characters without control characters." = "Saisissez une recherche de 500 caractères maximum, sans caractères de contrôle.";
 "Episode" = "Épisode";
 "Episode Options" = "Options de l’épisode";
+"Exit Picture in Picture" = "Quitter l’image dans l’image";
+"Exit the current full-screen presentation before moving the player." = "Quittez la présentation en plein écran avant de déplacer le lecteur.";
 "Explicit content" = "Contenu explicite";
 "Explore" = "Explorer";
 "Export Metadata…" = "Exporter les métadonnées…";
@@ -179,6 +183,7 @@
 "Follow Playback" = "Suivre la lecture";
 "Forward" = "Suivant";
 "Forward %lld seconds" = "Avancer de %lld secondes";
+"Full Screen Player" = "Lecteur en plein écran";
 "Go to Album: %@" = "Aller à l’album : %@";
 "Go to Artist: %@" = "Aller à l’artiste : %@";
 "Hidden" = "Masqué";
@@ -292,6 +297,7 @@
 "Open Notification Settings" = "Ouvrir les réglages des notifications";
 "Open Now Playing" = "Ouvrir À l’écoute";
 "Open Queue Window" = "Ouvrir la fenêtre de la file d’attente";
+"Open Video Window" = "Ouvrir la fenêtre vidéo";
 "Open Web Player" = "Ouvrir le lecteur web";
 "Open YT Music for Mac" = "Ouvrir YT Music for Mac";
 "Open YT Music for Mac before running this action." = "Ouvrez YT Music for Mac avant d’exécuter cette action.";
@@ -311,6 +317,9 @@
 "Pause Music" = "Mettre la musique en pause";
 "Pause playback after a timer or at the end of the current song." = "Mettez la lecture en pause après un délai ou à la fin du titre actuel.";
 "Pause playback in YT Music for Mac." = "Mettez la lecture en pause dans YT Music for Mac.";
+"Picture in Picture" = "Image dans l’image";
+"Picture in Picture could not open. Try the video window or the web player's controls." = "Impossible d’ouvrir l’image dans l’image. Essayez la fenêtre vidéo ou les commandes du lecteur web.";
+"Picture in Picture is unavailable for this recording." = "L’image dans l’image est indisponible pour cet enregistrement.";
 "Pin Locally" = "Épingler localement";
 "Pinned collections remain pinned. This removes only local organization; service playlists are unchanged." = "Les collections épinglées le restent. Seule l’organisation locale est supprimée ; les playlists du service restent inchangées.";
 "Play" = "Lire";
@@ -391,6 +400,7 @@
 "Resume the selected song in YT Music for Mac. Sign in in the app first." = "Reprenez le titre sélectionné dans YT Music for Mac. Connectez-vous d’abord dans l’app.";
 "Retry" = "Réessayer";
 "Retry Playback" = "Réessayer la lecture";
+"Return to Main Window" = "Revenir à la fenêtre principale";
 "Right Arrow" = "Flèche droite";
 "Save" = "Enregistrer";
 "Save Album to Library" = "Enregistrer l’album dans la bibliothèque";
@@ -583,7 +593,10 @@
 "Use an exact 11-character YouTube video ID." = "Utilisez un identifiant vidéo YouTube exact de 11 caractères.";
 "Use matching songs from the pages already loaded" = "Utiliser les titres correspondants des pages déjà chargées";
 "Use off, all, or one for repeat." = "Utilisez off, all ou one pour la répétition.";
+"Video" = "Vidéo";
 "Video ID" = "Identifiant vidéo";
+"Video Player" = "Lecteur vidéo";
+"Video presentation options" = "Options de présentation vidéo";
 "Videos" = "Vidéos";
 "View cache usage, clear cached artwork and library metadata, and read your last library snapshot." = "Consultez l’utilisation du cache, effacez les illustrations et métadonnées en cache et lisez le dernier instantané de votre bibliothèque.";
 "View saved-data usage and clear artwork kept in memory." = "Consultez l’espace des données enregistrées et effacez les illustrations en mémoire.";

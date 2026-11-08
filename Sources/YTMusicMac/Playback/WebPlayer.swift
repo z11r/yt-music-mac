@@ -55,6 +55,10 @@ final class WebPlayer: NSObject {
     /// Increases whenever `webView` is replaced.
     private(set) var webViewGeneration = 0
     let clock = PlaybackClock()
+    @ObservationIgnored let videoPresentation = VideoPresentationController()
+    @ObservationIgnored private var presentationRevision = 0
+    @ObservationIgnored private var externalPresentation = false
+    @ObservationIgnored private var acceptedPresentationContent = false
     private(set) var isPlaying = false
     private(set) var isBuffering = false
     private(set) var errorMessage: String?
@@ -111,11 +115,7 @@ final class WebPlayer: NSObject {
     @ObservationIgnored var isPresented = false {
         didSet {
             guard self.isPresented != oldValue else { return }
-            // Showing the panel after an unload loads the song again, paused.
-            if self.isPresented, self.isPageUnloaded, self.track != nil, self.occurrence != nil {
-                self.retry()
-            }
-            self.updateIdleUnload()
+            self.updatePresentationVisibility(wasVisible: oldValue || self.externalPresentation)
         }
     }
 
@@ -131,6 +131,15 @@ final class WebPlayer: NSObject {
         super.init()
         handler.owner = self
         self.configure(self.webView)
+        self.videoPresentation.bind(view: { [weak self] in self?.webView },
+            hasSelection: { [weak self] in self?.track != nil },
+            execute: { [weak self] active in await self?.requestPictureInPicture(active) ?? .stale },
+            visibilityChanged: { [weak self] value in self?.setExternalPresentation(value) },
+            closeMedia: { [weak self] in
+                guard let self else { return }
+                self.presentationRevision += 1
+                self.webView.closeAllMediaPresentations(completionHandler: nil)
+            })
     }
 
     private static func makeWebView(dataStore: WKWebsiteDataStore, handler: PlayerMessageHandler,
@@ -150,6 +159,7 @@ final class WebPlayer: NSObject {
         configuration.userContentController = controller
         configuration.mediaTypesRequiringUserActionForPlayback = []
         configuration.allowsAirPlayForMediaPlayback = true
+        configuration.preferences.isElementFullscreenEnabled = true
         return WKWebView(frame: .zero, configuration: configuration)
     }
 
@@ -165,6 +175,9 @@ final class WebPlayer: NSObject {
             self.fail(AppLocalization.text("The selected song no longer matches the playback request."), reason: .selectionMismatch)
             return
         }
+        self.videoPresentation.invalidate()
+        self.acceptedPresentationContent = false
+        self.webView.closeAllMediaPresentations(completionHandler: nil)
         self.cancelSessionRestore()
         if self.sessionMediaSuspended {
             self.webView.setAllMediaPlaybackSuspended(false)
@@ -268,6 +281,7 @@ final class WebPlayer: NSObject {
     }
 
     func stop() {
+        self.videoPresentation.close()
         self.cancelSessionRestore()
         self.deadline?.cancel()
         self.deadline = nil
@@ -437,6 +451,10 @@ final class WebPlayer: NSObject {
         if let occurrence, !message.confirmsEpisodeProgress || (message.kind != .progress && message.kind != .ended) {
             self.onListeningInterrupted?(occurrence)
         }
+        self.acceptedPresentationContent = message.kind != .error && message.mediaReady && !message.isAd
+        var presentation = message.videoPresentation ?? .init()
+        if !self.acceptedPresentationContent { presentation.hasVideo = false; presentation.supportsPictureInPicture = false }
+        self.videoPresentation.accept(presentation)
         if message.kind == .error {
             let description: String
             switch message.errorCode {
@@ -502,6 +520,8 @@ final class WebPlayer: NSObject {
     private func fail(_ message: String, reason: PlaybackFailureReason = .bridgeUnavailable) {
         guard !self.failureReported else { return }
         self.failureReported = true
+        self.acceptedPresentationContent = false
+        self.videoPresentation.invalidate()
         self.deadline?.cancel()
         self.deadline = nil
         self.errorMessage = message
@@ -518,7 +538,7 @@ final class WebPlayer: NSObject {
 
     private var isIdle: Bool {
         !self.wantsPlaying && !self.isStartingPlayback && self.sessionRestore.id == nil
-            && !self.isPresented && !self.isPageUnloaded
+            && !self.isPresented && !self.externalPresentation && !self.isPageUnloaded
     }
 
     /// Schedules an unload while idle and cancels it once anything starts.
@@ -567,6 +587,11 @@ final class WebPlayer: NSObject {
     private func swapWebView() {
         self.usesLaunchWebView = false
         let previous = self.webView
+        let mediaWasPresented = previous.fullscreenState != .notInFullscreen || self.videoPresentation.capabilities.isPictureInPictureActive
+        previous.pauseAllMediaPlayback(completionHandler: nil)
+        self.videoPresentation.retireWebView(previous, needsMediaClose: mediaWasPresented) { completion in
+            previous.closeAllMediaPresentations(completionHandler: completion)
+        }
         previous.navigationDelegate = nil
         previous.uiDelegate = nil
         previous.stopLoading()
@@ -577,11 +602,14 @@ final class WebPlayer: NSObject {
             before.nextKeyView = after.map { $0.isDescendant(of: previous) } ?? true ? nil : after
         }
         previous.nextKeyView = nil
-        previous.removeFromSuperview()
+        if !mediaWasPresented { previous.removeFromSuperview() }
         let replacement = Self.makeWebView(dataStore: self.dataStore, handler: self.messageHandler,
                                            bridgeSource: self.bridgeSource)
         self.configure(replacement)
         self.webView = replacement
+        self.acceptedPresentationContent = false
+        self.presentationRevision = 0
+        self.videoPresentation.webViewChanged()
         self.webViewGeneration += 1
     }
 
@@ -589,6 +617,52 @@ final class WebPlayer: NSObject {
     /// avoid invalidating the host view on each progress message.
     private func setStartingPlayback(_ value: Bool) {
         if self.isStartingPlayback != value { self.isStartingPlayback = value }
+        self.videoPresentation.setStartingPlayback(value)
+    }
+
+    private func setExternalPresentation(_ value: Bool) {
+        guard value != self.externalPresentation else { return }
+        let wasVisible = self.isPresented || self.externalPresentation
+        self.externalPresentation = value
+        self.updatePresentationVisibility(wasVisible: wasVisible)
+    }
+
+    private func updatePresentationVisibility(wasVisible: Bool) {
+        if !wasVisible, self.isPresented || self.externalPresentation,
+           self.isPageUnloaded, self.track != nil, self.occurrence != nil { self.retry() }
+        self.updateIdleUnload()
+    }
+
+    private func requestPictureInPicture(_ active: Bool) async -> VideoPresentationResult {
+        guard self.acceptedPresentationContent, !self.failureReported,
+              let loadID = self.gate.loadID, let identity = self.gate.identity,
+              let documentID = self.gate.documentID else { return .unsupported }
+        let media = self.gate.mediaGeneration
+        let generation = self.webViewGeneration
+        let view = self.webView
+        self.presentationRevision += 1
+        let revision = self.presentationRevision
+        let request: [String: Any] = ["loadID": loadID.uuidString, "documentID": documentID.uuidString,
+            "identity": ["sessionID": identity.sessionID.uuidString, "entryID": identity.entryID.uuidString,
+                         "trackID": identity.trackID, "generation": identity.generation],
+            "mediaGeneration": media, "revision": revision, "active": active]
+        let reply = VideoPresentationReply()
+        return await withTaskCancellationHandler {
+            await reply.wait { finish in
+                view.callAsyncJavaScript("return await globalThis.YTMusicNativePlayer?.presentation(request) ?? null;",
+                    arguments: ["request": request], in: nil, in: .defaultClient) { [weak self, weak view] result in
+                    guard let self, self.webView === view, self.webViewGeneration == generation,
+                          self.presentationRevision == revision, self.gate.loadID == loadID,
+                          self.gate.identity == identity, self.gate.documentID == documentID,
+                          self.gate.mediaGeneration == media, !self.failureReported else { finish(.stale); return }
+                    guard case let .success(value) = result, let body = value as? [String: Any] else { finish(.rejected); return }
+                    if body["reason"] as? String == "stale" { finish(.stale); return }
+                    if body["reason"] as? String == "unsupported" { finish(.unsupported); return }
+                    guard body["accepted"] as? Bool == true, body["active"] as? Bool == active else { finish(.rejected); return }
+                    finish(.confirmed(active: active))
+                }
+            }
+        } onCancel: { Task { @MainActor in reply.finish(.cancelled) } }
     }
 }
 

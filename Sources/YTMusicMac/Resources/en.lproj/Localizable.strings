@@ -65,6 +65,7 @@
 "Artwork disk cache" = "Artwork disk cache";
 "At least %@ remaining · %lld unknown" = "At least %@ remaining · %lld unknown";
 "Audio Output" = "Audio Output";
+"Audio/video switching is unavailable. Open an exact video from search to choose a different recording." = "Audio/video switching is unavailable. Open an exact video from search to choose a different recording.";
 "Autoplay" = "Autoplay";
 "Autoplay could not load related songs. %@" = "Autoplay could not load related songs. %@";
 "Autoplay found no new related songs, so playback stopped." = "Autoplay found no new related songs, so playback stopped.";
@@ -88,6 +89,7 @@
 "Choose a song" = "Choose a song";
 "Choose a song before starting playback." = "Choose a song before starting playback.";
 "Choose a song in the app before resuming playback." = "Choose a song in the app before resuming playback.";
+"Choose a song or video first." = "Choose a song or video first.";
 "Choose up to 100 songs for one change." = "Choose up to 100 songs for one change.";
 "Clear Artwork Cache" = "Clear Artwork Cache";
 "Clear Cached Artwork…" = "Clear Cached Artwork…";
@@ -157,6 +159,8 @@
 "Enter a search of up to 500 characters without control characters." = "Enter a search of up to 500 characters without control characters.";
 "Episode" = "Episode";
 "Episode Options" = "Episode Options";
+"Exit Picture in Picture" = "Exit Picture in Picture";
+"Exit the current full-screen presentation before moving the player." = "Exit the current full-screen presentation before moving the player.";
 "Explicit content" = "Explicit content";
 "Explore" = "Explore";
 "Export Metadata…" = "Export Metadata…";
@@ -179,6 +183,7 @@
 "Follow Playback" = "Follow Playback";
 "Forward" = "Forward";
 "Forward %lld seconds" = "Forward %lld seconds";
+"Full Screen Player" = "Full Screen Player";
 "Go to Album: %@" = "Go to Album: %@";
 "Go to Artist: %@" = "Go to Artist: %@";
 "Hidden" = "Hidden";
@@ -292,6 +297,7 @@
 "Open Notification Settings" = "Open Notification Settings";
 "Open Now Playing" = "Open Now Playing";
 "Open Queue Window" = "Open Queue Window";
+"Open Video Window" = "Open Video Window";
 "Open Web Player" = "Open Web Player";
 "Open YT Music for Mac" = "Open YT Music for Mac";
 "Open YT Music for Mac before running this action." = "Open YT Music for Mac before running this action.";
@@ -311,6 +317,9 @@
 "Pause Music" = "Pause Music";
 "Pause playback after a timer or at the end of the current song." = "Pause playback after a timer or at the end of the current song.";
 "Pause playback in YT Music for Mac." = "Pause playback in YT Music for Mac.";
+"Picture in Picture" = "Picture in Picture";
+"Picture in Picture could not open. Try the video window or the web player's controls." = "Picture in Picture could not open. Try the video window or the web player's controls.";
+"Picture in Picture is unavailable for this recording." = "Picture in Picture is unavailable for this recording.";
 "Pin Locally" = "Pin Locally";
 "Pinned collections remain pinned. This removes only local organization; service playlists are unchanged." = "Pinned collections remain pinned. This removes only local organization; service playlists are unchanged.";
 "Play" = "Play";
@@ -391,6 +400,7 @@
 "Resume the selected song in YT Music for Mac. Sign in in the app first." = "Resume the selected song in YT Music for Mac. Sign in in the app first.";
 "Retry" = "Retry";
 "Retry Playback" = "Retry Playback";
+"Return to Main Window" = "Return to Main Window";
 "Right Arrow" = "Right Arrow";
 "Save" = "Save";
 "Save Album to Library" = "Save Album to Library";
@@ -583,7 +593,10 @@
 "Use an exact 11-character YouTube video ID." = "Use an exact 11-character YouTube video ID.";
 "Use matching songs from the pages already loaded" = "Use matching songs from the pages already loaded";
 "Use off, all, or one for repeat." = "Use off, all, or one for repeat.";
+"Video" = "Video";
 "Video ID" = "Video ID";
+"Video Player" = "Video Player";
+"Video presentation options" = "Video presentation options";
 "Videos" = "Videos";
 "View cache usage, clear cached artwork and library metadata, and read your last library snapshot." = "View cache usage, clear cached artwork and library metadata, and read your last library snapshot.";
 "View saved-data usage and clear artwork kept in memory." = "View saved-data usage and clear artwork kept in memory.";
