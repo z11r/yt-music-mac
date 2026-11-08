@@ -75,7 +75,7 @@ private struct SponsorBlockControls: View {
                 Text(SponsorBlockText.text("Uses SponsorBlock contributor data under CC BY-NC-SA 4.0. Provider terms govern that data; this app keeps its own license. No submissions, votes, or skip tracking are sent."))
                     .font(.caption).foregroundStyle(.secondary)
                 HStack {
-                    Link("SponsorBlock", destination: URL(string: "https://sponsor.ajay.app/")!)
+                    Link(destination: URL(string: "https://sponsor.ajay.app/")!) { Text(verbatim: "SponsorBlock") }
                     Link(SponsorBlockText.text("Data License"), destination: URL(string: "https://creativecommons.org/licenses/by-nc-sa/4.0/")!)
                     Link(SponsorBlockText.text("Privacy"), destination: URL(string: "https://gist.github.com/ajayyy/aa9f8ded2b573d4f73a3ffa0ef74f796")!)
                     Link(SponsorBlockText.text("Provider Terms"), destination: URL(string: "https://gist.github.com/ajayyy/9e8100f069348e0bc062641f34d6af12")!)
