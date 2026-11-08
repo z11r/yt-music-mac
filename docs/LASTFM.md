@@ -1,69 +1,99 @@
-# Last.fm scrobbling feasibility
+# Last.fm scrobbling
 
-Last.fm reporting is not implemented or enabled. No application API key or shared
-secret is configured. ListenBrainz support does not establish a Last.fm
-connection, authorize Last.fm writes, or complete this part of the feature plan.
+The Last.fm client and native Settings flow are implemented behind optional,
+user-supplied registered-app credentials. Reporting remains off by default for
+each confirmed YouTube Music profile. No application key or shared secret ships
+with the app. Real registration, credentials, authorization, and submission
+verification remain acceptance gates.
 
-## Authentication requirements
+## Setup and authorization
+
+For this development app, enter your registered Last.fm API key and shared secret
+under “Registered app credentials,” then save them. The app stores them and any
+subsequent user session in a separate Keychain service. Listening-data files
+contain credential fingerprints and revisions, never credentials or signatures.
+A secret distributed inside a desktop binary is recoverable, so release
+credential distribution still needs an explicit project-owner decision.
 
 Last.fm's [desktop authentication guide](https://www.last.fm/api/desktopauth)
-requires a registered application API key and shared secret. The documented flow
-requests an application-specific token, opens Last.fm for user authorization,
-and exchanges the authorized token through `auth.getSession` for a session key.
-Tokens expire after sixty minutes and are consumed by the session exchange.
-Session keys can be revoked from the user's Last.fm settings.
+requires an application key and shared secret. The app requests an unauthorized
+token, then provides an explicit “Open Last.fm Approval” button. Approve the
+registered app in the browser, return to Settings, and choose “Complete
+Authorization.” That single explicit exchange obtains the user session. No
+callback scheme, automatic browser opening, password collection, or polling is
+used. Tokens expire after one hour and are consumed on successful session
+creation.
 
-Authenticated calls carry `api_key`, `api_sig`, and `sk`. The signature is an MD5
-hash of sorted parameter names and values followed by the shared secret. The
-[authentication specification](https://www.last.fm/api/authspec) defines this
-protocol; it does not specify an OAuth 2 bearer-token and refresh-token flow.
-A ListenBrainz user token cannot substitute for these credentials.
+The [authentication specification](https://www.last.fm/api/authspec) requires
+signed `api_key`, `api_sig`, and session-key parameters. Signatures hash sorted
+raw UTF-8 parameter names and values followed by the secret with MD5; `format`,
+`callback`, and `api_sig` are excluded. This is a separate protocol from OAuth 2
+bearer and refresh tokens. A ListenBrainz token cannot substitute for it.
 
-Before implementation, the project owner must register the application, settle
-its distribution and credential configuration, and review the applicable API
-terms. A secret distributed inside a desktop app is recoverable; Keychain can
-protect a user's local session but cannot make a distributed application secret
-private. No credentials should be committed to this repository.
+Authorization still leaves scrobbling off. Enable it separately after reviewing
+the metadata disclosure. Account changes, cancellation, credential changes, and
+opting out fence stale results. Approval URLs are available only for the current
+profile, app configuration, and unexpired token. A refused, not-yet-approved
+exchange can be completed again explicitly. An ambiguous exchange is consumed
+locally and requires a fresh authorization attempt.
 
-## Submission behavior to implement
+## Listening and delivery
 
-The official [scrobbling guide](https://www.last.fm/api/scrobbling) requires a
-track longer than thirty seconds and at least half its duration or four minutes
-of listening. Now Playing is optional. Explicit errors 11 and 16 permit later
-retry; error 9 requires reauthentication. Other malformed-request errors should
-not be blindly repeated.
+The [scrobbling guide](https://www.last.fm/api/scrobbling) requires a song longer
+than thirty seconds and half its duration or four minutes of listening. The app
+uses verified adjacent wall/media intervals. Seeks, pauses, ads, buffering,
+recovery, stale occurrences, and unknown restored plays cannot fabricate elapsed
+listening. Only identified catalog songs with known title and artist qualify;
+uploads, podcasts, unknown content, artwork, YouTube IDs, and YouTube credentials
+are excluded. Now Playing is not sent.
 
-[`track.scrobble`](https://www.last.fm/api/show/track.scrobble) is a signed POST
-with artist, title, and UTC listening-start timestamp. Album and duration are
-optional. Its response distinguishes accepted and ignored items, including
-metadata-filter outcomes. HTTP 200 alone cannot establish that a listen was
-added. The `chosenByUser` field must reflect the actual selection source when
-known; queue origin should supply that distinction.
+[`track.scrobble`](https://www.last.fm/api/show/track.scrobble) receives artist,
+title, original UTC listening-start timestamp, duration, and optional album in a
+signed POST. The response must confirm one accepted item and its timestamp;
+ignored items remain visibly distinct from accepted listens. HTTP 200 alone is
+insufficient. Selection provenance is optional: explicit manual selection maps to true, radio or
+autoplay to false, and unknown origin is omitted. The native integration supplies
+this value when available; it stays with the logical listen through restoration.
 
-The native implementation should reuse verified playback samples and the
-listening ledger, with independent Last.fm consent, credentials, receipts, and
-outbox. It should exclude uploads, podcasts, and unknown metadata by default;
-start with new plays after opting in; and disclose the exact transmitted fields.
-Neither provider's opt-in should enable the other.
+Last.fm has its own ledger, consent, queue-entry receipts, and outbox; enabling
+ListenBrainz does not enable Last.fm or suppress its independent listens. Pause,
+retry, and restoration retain logical identity. New plays and natural repeats
+qualify only through their own listening time. Changing consent suppresses the
+old partial play. Starting a replacement authorization blocks the old saved
+session until a new exchange and credential save succeed.
 
-## Remaining implementation and acceptance gates
+Each attempt is saved before its POST. Ambiguous or interrupted attempts remain
+uncertain across restart and are never selected by either send button. “Send
+Unsent Listens” selects only never-attempted items. “Retry Explicitly Refused
+Requests” allows an explicit retry after service errors 11 or 16, or after a new
+session resolves error 9 for the same account. Other malformed-request refusals
+are held. Rejected sessions stay blocked across restart; an old session's error
+cannot invalidate a newer authorization.
 
-1. Add a default-off, credential-aware configuration and explicit native Settings
-   flow. Use the provider's browser authorization page only after user action;
-   reject stale account, application, token, and authorization results.
-2. Implement the exact signing and UTF-8 form encoding rules, a separate bounded
-   HTTPS transport, and a Keychain adapter for the returned user session. Preserve
-   cookie isolation and cancellation on account changes and opting out.
-3. Save each attempt before its POST, classify accepted, ignored, authentication,
-   explicit retryable, and uncertain outcomes, and keep the original timestamp.
-   Hold lost or ambiguous replies until their replay safety is established;
-   retryable response codes do not establish safety for every lost response.
-4. Add synthetic signature fixtures, accepted/ignored and error fixtures,
-   temporary-store recovery tests, account and consent races, and duplicate-play
-   tests. Never log secrets, signed bodies, or raw listening metadata.
-5. Separately verify registration, authorization, secure credential storage,
-   submission, revocation, and disconnect with an explicitly approved test
-   account before marking the provider complete.
+## Bounds, removal, and verification
 
-No Last.fm authorization, token exchange, account access, credential write, or
-submission has been performed for this investigation.
+A profile file holds at most 100 pending items, 50 recent accepted/ignored
+results, and 400 logical receipts within 512 KiB. Each run attempts at most five
+items. A separate ephemeral HTTPS transport caps response data at 64 KiB and
+request data at 16 KiB, with ten-second request and fifteen-second resource
+timeouts. It permits only the two auth methods and scrobble endpoint, strips
+unrelated headers, disables shared cookies/credentials/cache, and refuses
+redirects.
+
+“Discard Pending” affects local metadata. Disconnect removes that profile's local
+configuration, credentials, session, pending items, and receipts. These actions
+do not remove provider history or revoke an already granted provider permission.
+Known late replies cannot recreate explicitly disconnected local data. Sign-out
+hides and retains the original profile's files for its next confirmed session.
+
+English and French Settings resources are included. Deterministic tests use fake
+keys, signatures, transports, credential stores, clocks, and temporary files.
+They cover explicit authorization steps, expiry, refused and ambiguous replies,
+account/consent/session fences, independent providers, outbox recovery, encoding,
+request isolation, and response limits.
+
+Before calling the integration verified, complete real app registration and
+credential-distribution decisions, then explicitly verify browser approval,
+session storage, submission, provider-side acceptance, revocation, and disconnect
+with an approved test account. No real browser authorization, Keychain operation,
+Last.fm account access, or API submission has been performed here.

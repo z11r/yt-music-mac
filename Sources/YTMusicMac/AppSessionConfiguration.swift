@@ -24,6 +24,7 @@ struct AppSessionConfiguration {
     var localSongRuleStore: LocalSongRuleStore? = nil
     var listenBrainzCoordinator: ListenBrainzCoordinator? = nil
     var queuePlaylistJournal: QueuePlaylistJournalStore? = nil
+    var lastFMCoordinator: LastFMCoordinator? = nil
 
     static func live() -> Self {
         let credentials = MusicSessionStore()
@@ -48,7 +49,11 @@ struct AppSessionConfiguration {
                         store: ListenBrainzStore(directory: $0.appendingPathComponent("listenbrainz", isDirectory: true)),
                         tokens: KeychainListenBrainzTokens(service: AppIdentity.identifier + ".listenbrainz"),
                         api: ListenBrainzAPI(transport: ListenBrainzHTTPTransport())) },
-                    queuePlaylistJournal: directory.map { QueuePlaylistJournalStore(directoryURL: $0.appendingPathComponent("PendingQueuePlaylists", isDirectory: true)) })
+                    queuePlaylistJournal: directory.map { QueuePlaylistJournalStore(directoryURL: $0.appendingPathComponent("PendingQueuePlaylists", isDirectory: true)) },
+                    lastFMCoordinator: directory.map { LastFMCoordinator(
+                        store: LastFMStore(directory: $0.appendingPathComponent("lastfm", isDirectory: true)),
+                        secrets: KeychainLastFMCredentials(service: AppIdentity.identifier + ".lastfm"),
+                        api: LastFMAPI(transport: LastFMHTTPTransport())) })
     }
 
     static func sceneCheck(preferences: UserDefaults, transport: SceneCheckTransport) -> Self {

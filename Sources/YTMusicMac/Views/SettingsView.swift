@@ -68,6 +68,7 @@ struct SettingsView: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
             ListenBrainzSettings(session: session)
+            LastFMSettings(session: session)
         }
         .formStyle(.grouped)
         .padding(10)
