@@ -627,7 +627,7 @@ final class AppSession {
                     unavailableItemCount: initial.unavailableItemCount + next.unavailableItemCount,
                     hasUnsupportedContent: initial.hasUnsupportedContent || next.hasUnsupportedContent,
                     playlistDetails: initial.playlistDetails, albumLibraryState: initial.albumLibraryState,
-                    artistSubscription: initial.artistSubscription)
+                    artistSubscription: initial.artistSubscription, collectionHeader: initial.collectionHeader)
                 self.songRatings.observe(next.ratings, from: ratingsRead)
                 self.page = combined
                 self.spotlightPageSource = spotlightSource

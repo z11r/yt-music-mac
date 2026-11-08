@@ -30,6 +30,7 @@ indirect enum JSONNode: Decodable {
 
 struct ParsedMusicPage {
     var title: String?
+    var collectionHeader: MusicCollectionHeader?
     var sections: [MusicSection] = []
     var token: String?
     var recognized = false
@@ -72,6 +73,7 @@ enum MusicResponseParser {
         }
         var result = ParsedMusicPage()
         result.title = headerTitle(root["header"])
+        result.collectionHeader = MusicCollectionHeaderParser.parse(root)
         playlistControls(root["header"], result: &result)
         let contents = root["contents"]
         try visit(contents, result: &result, path: "content", preservesOccurrences: preservesOccurrences)

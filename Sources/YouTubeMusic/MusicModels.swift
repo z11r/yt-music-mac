@@ -139,6 +139,7 @@ public struct MusicPage: Sendable {
     public let playlistDetails: MusicPlaylistDetails?
     public let albumLibraryState: MusicAlbumLibraryState?
     public let artistSubscription: MusicArtistSubscription?
+    public let collectionHeader: MusicCollectionHeader?
     public var tracks: [Track] { items.compactMap { if case let .track(track) = $0 { track } else { nil } } }
 
     public init(title: String, sections: [MusicSection], items: [MusicItem], continuation: MusicContinuation? = nil,
@@ -147,7 +148,7 @@ public struct MusicPage: Sendable {
                 likeStates: [String: Bool] = [:], ratings: [String: MusicRating] = [:],
                 unavailableItemCount: Int = 0, hasUnsupportedContent: Bool = false,
                 playlistDetails: MusicPlaylistDetails? = nil, albumLibraryState: MusicAlbumLibraryState? = nil,
-                artistSubscription: MusicArtistSubscription? = nil) {
+                artistSubscription: MusicArtistSubscription? = nil, collectionHeader: MusicCollectionHeader? = nil) {
         self.title = title
         self.sections = sections
         self.items = items
@@ -157,6 +158,7 @@ public struct MusicPage: Sendable {
         self.playlistDetails = playlistDetails
         self.albumLibraryState = albumLibraryState
         self.artistSubscription = artistSubscription
+        self.collectionHeader = collectionHeader
         self.ratings = likeStates.compactMapValues { $0 ? .liked : nil }.merging(ratings) { _, explicit in explicit }
         self.likeStates = likeStates.merging(self.ratings.mapValues { $0 == .liked }) { _, explicit in explicit }
         self.unavailableItemCount = max(0, unavailableItemCount)

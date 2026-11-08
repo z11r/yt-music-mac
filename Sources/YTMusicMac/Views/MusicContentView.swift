@@ -311,6 +311,7 @@ private struct CollectionTracksView: View {
     let page: MusicPage
     let presentEditor: (LibraryEditorRequest) -> Void
     @State private var selection: Set<Int> = []
+    @State private var showsDescription = false
 
     private typealias Row = CollectionDisplayRow
     private var allTracks: [Track] { CollectionPresentation.tracks(in: page) }
@@ -445,7 +446,8 @@ private struct CollectionTracksView: View {
             PaginationView(session: session).padding(12)
         }
         .onChange(of: session.collectionFilter) { selection.removeAll() }
-        .onChange(of: session.destination) { selection.removeAll() }
+        .onChange(of: session.destination) { selection.removeAll(); showsDescription = false }
+        .onChange(of: session.accountGeneration) { showsDescription = false }
         .onChange(of: session.collectionDisplayOrder) { selection.removeAll() }
     }
 
@@ -549,22 +551,40 @@ private struct CollectionTracksView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(session.destination.title).font(.largeTitle.bold()).lineLimit(3)
                 .accessibilityAddTraits(.isHeader).help(session.destination.title)
-            if case let .collection(value) = session.destination, let subtitle = value.subtitle {
-                Text(subtitle).foregroundStyle(.secondary).lineLimit(2)
+            if let subtitle = collectionSubtitle {
+                Text(verbatim: subtitle).foregroundStyle(.secondary).lineLimit(2)
             }
-            Text(contentCountDescription)
-                .foregroundStyle(.secondary)
+            if let summary = page.collectionHeader?.summary {
+                LabeledContent("Service summary") { Text(verbatim: summary).lineLimit(3).textSelection(.enabled).help(summary) }
+                    .font(.subheadline).foregroundStyle(.secondary)
+            }
+            Text(loadedSummary.countDescription(episodes: isEpisodeCollection)).foregroundStyle(.secondary)
+            if let duration = loadedSummary.durationDescription {
+                Text(duration).font(.caption).foregroundStyle(.secondary)
+                    .help("Known duration of loaded playable items; unavailable rows and unloaded pages are excluded.")
+            }
+            if let description = page.collectionHeader?.description {
+                Button("Description…", systemImage: "text.alignleft") { showsDescription = true }
+                    .buttonStyle(.borderless)
+                    .popover(isPresented: $showsDescription) {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Description").font(.headline)
+                            ScrollView {
+                                Text(verbatim: description).font(.subheadline).textSelection(.enabled)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                        }.padding(16).frame(width: 420, height: 280)
+                    }
+            }
             UnavailableMusicNotice(page: page)
         }
     }
 
-    private var contentCountDescription: String {
-        if isEpisodeCollection {
-            return page.continuation == nil ? AppLocalization.format("%lld episodes", allTracks.count)
-                : AppLocalization.format("%lld episodes loaded", allTracks.count)
-        }
-        return page.continuation == nil ? AppLocalization.format("%lld songs", allTracks.count)
-            : AppLocalization.format("%lld songs loaded", allTracks.count)
+    private var loadedSummary: CollectionLoadedSummary { .init(page: page) }
+    private var collectionSubtitle: String? {
+        if let subtitle = page.collectionHeader?.subtitle { return subtitle }
+        if case let .collection(value) = session.destination { return value.subtitle }
+        return nil
     }
 
     private var isEpisodeCollection: Bool {

@@ -45,9 +45,11 @@ struct CollectionPlaybackTests {
         let transport = CollectionTransport([.page(collectionData(["a"], next: "second"))])
         let first = try await collectionClient(transport).playlist(id: "PLfixture")
         let initial = MusicPage(title: "Collection", sections: [], items: [.track(collectionTrack("a"))],
-            continuation: first.continuation, ratings: ["a": .disliked], unavailableItemCount: 2)
+            continuation: first.continuation, ratings: ["a": .disliked], unavailableItemCount: 2,
+            collectionHeader: .init(summary: "Original service summary", description: "Original description"))
         let next = MusicPage(title: "Collection", sections: [], items: [.track(collectionTrack("b"))],
-            ratings: ["b": .neutral], unavailableItemCount: 1, hasUnsupportedContent: true)
+            ratings: ["b": .neutral], unavailableItemCount: 1, hasUnsupportedContent: true,
+            collectionHeader: .init(summary: "A continuation cannot replace the header"))
         let operation = CollectionPlayback { _ in next }
         var result: MusicPage?
         await operation.start(page: initial, action: .append, isCurrent: { true }) { page, _ in
@@ -57,6 +59,7 @@ struct CollectionPlaybackTests {
         #expect(complete.ratings == ["a": .disliked, "b": .neutral])
         #expect(complete.unavailableItemCount == 3)
         #expect(complete.hasUnsupportedContent)
+        #expect(complete.collectionHeader == initial.collectionHeader)
         #expect(complete.tracks.map(\.id) == ["a", "b"])
     }
 

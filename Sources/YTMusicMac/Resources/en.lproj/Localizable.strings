@@ -1004,3 +1004,12 @@
 "Local status does not change YouTube Music history or measured listening." = "Local status does not change YouTube Music history or measured listening.";
 "Playback continues. Local progress tracking resumes after an explicit seek or new playback." = "Playback continues. Local progress tracking resumes after an explicit seek or new playback.";
 "Local episode changes have reached their limit. Save the pending changes before clearing more progress." = "Local episode changes have reached their limit. Save the pending changes before clearing more progress.";
+
+/* Collection header metadata and loaded durations. */
+"Loaded duration unknown" = "Loaded duration unknown";
+"Loaded playable duration: %@" = "Loaded playable duration: %@";
+"At least %@ loaded · %lld durations unknown" = "At least %@ loaded · %lld durations unknown";
+"Service summary" = "Service summary";
+"Known duration of loaded playable items; unavailable rows and unloaded pages are excluded." = "Known duration of loaded playable items; unavailable rows and unloaded pages are excluded.";
+"Description…" = "Description…";
+"Description" = "Description";

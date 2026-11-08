@@ -526,5 +526,15 @@
 			<string>%lld with issues</string>
 		</dict>
 	</dict>
+	<key>At least %@ loaded · %lld durations unknown</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key><string>At least %1$@ loaded · %2$#@unknown@</string>
+		<key>unknown</key><dict>
+			<key>NSStringFormatSpecTypeKey</key><string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key><string>lld</string>
+			<key>one</key><string>%lld duration unknown</string>
+			<key>other</key><string>%lld durations unknown</string>
+		</dict>
+	</dict>
 </dict>
 </plist>

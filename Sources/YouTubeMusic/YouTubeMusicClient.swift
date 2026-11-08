@@ -233,7 +233,7 @@ public actor YouTubeMusicClient {
                          unavailableItemCount: parsed.unavailableItemCount,
                          hasUnsupportedContent: parsed.hasUnsupportedContent,
                          playlistDetails: parsed.playlistDetails, albumLibraryState: parsed.albumLibraryState,
-                         artistSubscription: parsed.artistSubscription)
+                         artistSubscription: parsed.artistSubscription, collectionHeader: parsed.collectionHeader)
     }
 
     private func validateUploadTracks(_ page: ParsedMusicPage, origin: MusicContentOrigin?) throws {

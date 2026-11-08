@@ -138,7 +138,7 @@ final class CollectionPlayback {
                   continuation: page.continuation, playlistItems: page.playlistItems,
                   playlistCapabilities: page.playlistCapabilities, likeStates: page.likeStates, ratings: page.ratings,
                   unavailableItemCount: page.unavailableItemCount, hasUnsupportedContent: page.hasUnsupportedContent,
-                  playlistDetails: page.playlistDetails, albumLibraryState: page.albumLibraryState, artistSubscription: page.artistSubscription)
+                  playlistDetails: page.playlistDetails, albumLibraryState: page.albumLibraryState, artistSubscription: page.artistSubscription, collectionHeader: page.collectionHeader)
     }
 
     private static func append(_ next: MusicPage, to previous: MusicPage) -> MusicPage {
@@ -152,6 +152,6 @@ final class CollectionPlayback {
                          unavailableItemCount: previous.unavailableItemCount + next.unavailableItemCount,
                          hasUnsupportedContent: previous.hasUnsupportedContent || next.hasUnsupportedContent,
                          playlistDetails: previous.playlistDetails, albumLibraryState: previous.albumLibraryState,
-                         artistSubscription: previous.artistSubscription)
+                         artistSubscription: previous.artistSubscription, collectionHeader: previous.collectionHeader)
     }
 }
