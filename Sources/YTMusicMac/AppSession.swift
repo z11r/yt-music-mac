@@ -115,6 +115,7 @@ final class AppSession {
     let sleepTimer = SleepTimer()
     let savedQueues: NamedQueueLibrary
     let localCollections: LocalCollectionsLibrary
+    let storage: StorageController
     var queue = PlaybackQueue()
     let collectionPlayback: CollectionPlayback
     let songRatings = SongRatings()
@@ -177,6 +178,7 @@ final class AppSession {
         radio = RadioSession(preferences: configuration.preferences)
         savedQueues = NamedQueueLibrary(store: configuration.namedQueueStore, sessions: configuration.credentials)
         localCollections = LocalCollectionsLibrary(store: configuration.localCollectionStore, sessions: configuration.credentials)
+        storage = StorageController(inventory: configuration.storageInventory, sessions: configuration.credentials)
         isSceneCheck = configuration.isSceneCheck
         account = WebSession(dataStore: configuration.dataStore, credentials: configuration.credentials,
                              preferences: configuration.preferences)
@@ -854,6 +856,7 @@ final class AppSession {
         searchHistory.clear()
         savedQueues.invalidate()
         localCollections.invalidate()
+        storage.invalidate()
         showsLocalFolders = false
         sleepTimer.cancel()
         cancelRadio()
@@ -882,6 +885,7 @@ final class AppSession {
         cancelMusicLink(keepingPending: !links.isReady && !replacedAccount)
         savedQueues.invalidate()
         localCollections.invalidate()
+        storage.invalidate()
         showsLocalFolders = false
         if account.isSignedIn {
             let library = localCollections

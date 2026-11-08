@@ -7,6 +7,7 @@ struct SettingsView: View {
     private var appearance = "system"
     @Environment(\.openWindow) private var openWindow
     @State private var isSigningOut = false
+    @State private var showsStorage = false
 
     var body: some View {
         Form {
@@ -35,6 +36,11 @@ struct SettingsView: View {
                 }
                 .task { await songNotifications.refreshAuthorization() }
             }
+            Section("Storage") {
+                Button("Manage Storage…") { showsStorage = true }
+                Text("View saved-data usage and clear artwork kept in memory.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             Section("Account") {
                 LabeledContent("YouTube Music", value: session.account.isSignedIn ? "Signed in" : "Not signed in")
                 Button(session.account.isSignedIn ? "Open Account" : "Sign In") {
@@ -50,12 +56,13 @@ struct SettingsView: View {
                         }
                     }.disabled(isSigningOut)
                 }
-                Text("Sign-out clears this app's session and current queue. Named saved queues stay on this Mac for their account until deleted.")
+                Text("Sign-out clears this app's session and current queue. Named saved queues and local collection organization stay on this Mac for their account until deleted.")
                     .font(.caption).foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
         .padding(10)
         .frame(width: 470, height: 580)
+        .sheet(isPresented: $showsStorage) { StorageSettingsView(session: session) }
     }
 }

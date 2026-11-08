@@ -53,13 +53,13 @@ struct ArtworkView: View {
     }
 }
 
-private struct ArtworkRequest: Hashable, Sendable {
+struct ArtworkRequest: Hashable, Sendable {
     let url: URL?
     let videoID: String?
     let pixels: Int
 
-    var cacheKey: NSString {
-        "\(pixels)|\(url?.absoluteString ?? "")|\(videoID ?? "")" as NSString
+    var cacheKey: String {
+        "\(pixels)|\(url?.absoluteString ?? "")|\(videoID ?? "")"
     }
 }
 
@@ -68,7 +68,7 @@ private struct LoadedArtwork {
     let artwork: DecodedArtwork
 }
 
-private final class DecodedArtwork: @unchecked Sendable {
+final class DecodedArtwork: @unchecked Sendable {
     let image: CGImage
     init(_ image: CGImage) { self.image = image }
 }
@@ -210,31 +210,45 @@ enum ArtworkDecoder {
     }
 }
 
-private actor ArtworkCache {
+actor ArtworkCache {
+    static let byteLimit = 48 * 1024 * 1024
+    static let countLimit = 160
     static let shared = ArtworkCache()
-    /// NSCache is thread-safe, so views read it synchronously while drawing.
-    private nonisolated(unsafe) static let memory: NSCache<NSString, DecodedArtwork> = {
-        let value = NSCache<NSString, DecodedArtwork>()
-        value.totalCostLimit = 48 * 1024 * 1024
-        value.countLimit = 160
-        return value
-    }()
+    /// Views retain synchronous first-frame hits; decoded costs are measured exactly.
+    nonisolated let memory: BoundedMemoryCache<String, DecodedArtwork>
+    private let load: @Sendable (URL) async throws -> Data
+    private var generation = UUID()
     /// Sources the server refused, such as frame sizes a video lacks.
     private var refused: Set<URL> = []
 
+    init(memory: BoundedMemoryCache<String, DecodedArtwork> = BoundedMemoryCache(
+            byteLimit: byteLimit, countLimit: countLimit, observesMemoryPressure: true),
+         load: @escaping @Sendable (URL) async throws -> Data = { try await ArtworkTransfer.shared.load($0) }) {
+        self.memory = memory
+        self.load = load
+    }
+
+    func clear() {
+        generation = UUID()
+        refused.removeAll()
+        memory.removeAll()
+    }
+
     nonisolated static func cached(_ request: ArtworkRequest) -> DecodedArtwork? {
-        memory.object(forKey: request.cacheKey)
+        shared.memory.value(for: request.cacheKey)
     }
 
     func image(for request: ArtworkRequest) async -> DecodedArtwork? {
-        if let value = Self.cached(request) { return value }
+        if let value = memory.value(for: request.cacheKey) { return value }
+        let requestGeneration = generation
         let sources = ArtworkSource.candidates(url: request.url, videoID: request.videoID, pixels: request.pixels)
         for source in sources where ArtworkTransfer.allows(source.url) && !refused.contains(source.url) {
-            guard !Task.isCancelled else { return nil }
+            guard !Task.isCancelled, generation == requestGeneration else { return nil }
             let data: Data
             do {
-                data = try await ArtworkTransfer.shared.load(source.url)
+                data = try await load(source.url)
             } catch ArtworkTransfer.Failure.refused {
+                guard generation == requestGeneration else { return nil }
                 if refused.count >= 512 { refused.removeAll() }
                 refused.insert(source.url)
                 continue
@@ -246,10 +260,9 @@ private actor ArtworkCache {
                 ArtworkDecoder.squareImage(from: data, pixels: pixels, letterboxed: source.isLetterboxed)
                     .map(DecodedArtwork.init)
             }.value
-            guard !Task.isCancelled else { return nil }
+            guard !Task.isCancelled, generation == requestGeneration else { return nil }
             guard let decoded else { continue }
-            Self.memory.setObject(decoded, forKey: request.cacheKey,
-                                  cost: decoded.image.bytesPerRow * decoded.image.height)
+            memory.insert(decoded, for: request.cacheKey, cost: decoded.image.bytesPerRow * decoded.image.height)
             return decoded
         }
         return nil
