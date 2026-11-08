@@ -18,7 +18,7 @@ in another service client is not automatically available inside this player.
 | Device routing | WebKit permits AirPlay. The native Audio Output picker still needs receiver and continuity checks. It does not establish Google Cast, service device handoff, or synchronized group listening. |
 | Lossless or spatial audio | No source-format or spatial-content claim is established. Output sample rate, resampling, and EQ do not prove a lossless source. |
 | Local files | Not implemented. A native file player is a possible separate source, requiring file access, persistent identity, queue migration, and engine-switching behavior. |
-| Extensions and filtering | A general extension system and SponsorBlock integration are not implemented. Full WebKit extension hosting requires macOS 15.4 or later; native content rules are a narrower alternative. |
+| Extensions and filtering | Optional [SponsorBlock previews](SPONSORBLOCK.md) offer explicit guarded manual skips for eligible song sections, with default-off session consent. Real timing/provider acceptance remains pending. General extension hosting is not implemented; full WebKit extension hosting requires macOS 15.4 or later. |
 | Language commands | Eight Shortcuts actions and exact Quick Commands use the shared session. Optional reviewed on-device interpretation targets eligible macOS 26 Apple silicon Macs; explicit catalog queue building also supports the macOS 14/Intel target. Installed invocation, model accuracy and native interaction remain runtime checks. |
 | Appearance and feedback | System/light/dark appearance and optional native control accents are implemented with an Increase Contrast fallback. Custom palettes and haptics remain separate work; reactive visualization needs an actual audio source and a measured resource budget. |
 
@@ -39,6 +39,7 @@ allows storage limits and eviction. Offline playback needs its own verification.
 Apple provides [process taps](https://developer.apple.com/documentation/coreaudio/capturing-system-audio-with-core-audio-taps)
 for an optional audio-processing experiment. Its
 [WebKit extension APIs](https://developer.apple.com/documentation/macos-release-notes/macos-15_4-release-notes)
-need a newer OS than the playback baseline. Third-party segment or model services
-would require a separate opt-in that explains what leaves the device; none is
-enabled in the app.
+need a newer OS than the playback baseline. The optional segment provider has a
+separate session-only opt-in that explains the prefix lookup and connection IP.
+On-device command interpretation has its own default-off consent and review step.
+Neither feature starts work merely because the app launches.
