@@ -22,6 +22,7 @@ from [Kaset](https://github.com/sozercan/kaset) at commit
 - `Sources/Kaset/Models/Lyrics.swift`
 - `Sources/Kaset/Models/SyncedLyrics.swift`
 - `Sources/Kaset/Models/ShelfMoreEndpoint.swift`
+- `Sources/Kaset/Services/API/Parsers/PodcastParser.swift`
 
 Synthetic editability and like-state tests also use response shapes documented in
 `Tests/KasetTests/PlaylistParserTests.swift` and
@@ -96,6 +97,8 @@ at commit `206d470bd857dde9e4c588170a23188037e03ad5` (version 1.12.3):
 - `ytmusicapi/parsers/uploads.py`
 - `ytmusicapi/parsers/search.py`
 - `ytmusicapi/parsers/library.py`
+- `ytmusicapi/mixins/podcasts.py`
+- `ytmusicapi/parsers/podcasts.py`
 
 MIT License
 

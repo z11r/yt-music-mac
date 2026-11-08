@@ -81,11 +81,12 @@ public enum MusicLink: Hashable, Sendable {
         return parts.url
     }
 
-    public static func collection(_ value: MusicCollection) -> MusicLink {
+    public static func collection(_ value: MusicCollection) -> MusicLink? {
         switch value.kind {
         case .playlist: .playlist(value.id)
         case .album: .album(value.id)
         case .artist: .artist(value.id)
+        case .podcast: nil
         }
     }
 

@@ -320,7 +320,7 @@ struct LibraryTrackActions: View {
     var showsSeparator = true
 
     var body: some View {
-        if !tracks.isEmpty && !tracks.contains(where: { $0.origin == .upload }) &&
+        if !tracks.isEmpty && !tracks.contains(where: { $0.origin == .upload || $0.contentKind == .podcastEpisode }) &&
             (session.remoteLibraryEditingEnabled || (tracks.count == 1 && session.hasRatingControls)) {
             if showsSeparator { Divider() }
             if tracks.count == 1, let track = tracks.first {

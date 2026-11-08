@@ -15,6 +15,8 @@ public struct Track: Identifiable, Codable, Hashable, Sendable {
     /// True when a service badge establishes explicit content; nil means unknown.
     public var isExplicit: Bool?
     public var origin: MusicContentOrigin?
+    public var contentKind: MusicContentKind?
+    public var episode: EpisodeMetadata?
 
     public init(
         id: String,
@@ -26,7 +28,9 @@ public struct Track: Identifiable, Codable, Hashable, Sendable {
         albumReference: TrackMetadataReference? = nil,
         artistReferences: [TrackMetadataReference]? = nil,
         isExplicit: Bool? = nil,
-        origin: MusicContentOrigin? = nil
+        origin: MusicContentOrigin? = nil,
+        contentKind: MusicContentKind? = nil,
+        episode: EpisodeMetadata? = nil
     ) {
         self.id = id
         self.title = title
@@ -38,6 +42,8 @@ public struct Track: Identifiable, Codable, Hashable, Sendable {
         self.artistReferences = artistReferences
         self.isExplicit = isExplicit
         self.origin = origin
+        self.contentKind = contentKind
+        self.episode = episode
     }
 }
 

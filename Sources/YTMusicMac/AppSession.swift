@@ -13,6 +13,7 @@ enum MusicDestination: Hashable {
     case browse(MusicBrowseReference)
     case uploads(MusicUploadCategory)
     case uploadSearch(String)
+    case podcasts, podcastLibrary, savedEpisodes
 
     var isUploadDestination: Bool {
         switch self {
@@ -33,6 +34,9 @@ enum MusicDestination: Hashable {
         case .search: "Search"
         case let .uploads(category): "Uploaded \(category.title)"
         case .uploadSearch: "Search Uploads"
+        case .podcasts: "Podcasts"
+        case .podcastLibrary: "Your Podcasts"
+        case .savedEpisodes: "Saved Episodes"
         case let .collection(value): value.title
         case let .discovery(category): category.title
         case let .browse(reference): reference.title
@@ -358,11 +362,15 @@ final class AppSession {
                 case let .search(query): result = try await client.search(query: query, filter: filter)
                 case let .uploads(category): result = try await client.uploads(category: category)
                 case let .uploadSearch(query): result = try await client.searchUploads(query: query)
+                case .podcasts: result = try await client.podcasts()
+                case .podcastLibrary: result = try await client.libraryPodcasts()
+                case .savedEpisodes: result = try await client.savedEpisodes()
                 case let .collection(value):
                     switch value.kind {
                     case .album: result = try await client.album(id: value.id)
                     case .artist: result = try await client.artist(id: value.id)
                     case .playlist: result = try await client.playlist(id: value.id)
+                    case .podcast: result = try await client.podcast(id: value.id)
                     }
                 }
                 guard let self, !Task.isCancelled, self.pageGeneration == generation else { return }

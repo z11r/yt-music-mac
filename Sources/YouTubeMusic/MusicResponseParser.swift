@@ -4,7 +4,7 @@ import Foundation
 import MusicCore
 
 indirect enum JSONNode: Decodable {
-    case object([String: JSONNode]), array([JSONNode]), string(String), bool(Bool), scalar, null
+    case object([String: JSONNode]), array([JSONNode]), string(String), bool(Bool), number(Double), null
     init(from decoder: any Decoder) throws {
         let container = try decoder.singleValueContainer()
         if container.decodeNil() { self = .null }
@@ -12,13 +12,14 @@ indirect enum JSONNode: Decodable {
         else if let value = try? container.decode([JSONNode].self) { self = .array(value) }
         else if let value = try? container.decode(String.self) { self = .string(value) }
         else if let value = try? container.decode(Bool.self) { self = .bool(value) }
-        else if (try? container.decode(Double.self)) != nil { self = .scalar }
+        else if let value = try? container.decode(Double.self) { self = .number(value) }
         else { throw MusicServiceError.invalidResponse }
     }
     subscript(_ key: String) -> JSONNode { if case let .object(value) = self { value[key] ?? .null } else { .null } }
     var array: [JSONNode] { if case let .array(value) = self { value } else { [] } }
     var string: String? { if case let .string(value) = self, !value.isEmpty { value } else { nil } }
     var bool: Bool? { if case let .bool(value) = self { value } else { nil } }
+    var double: Double? { if case let .number(value) = self { value } else { nil } }
     var exists: Bool { if case .null = self { false } else { true } }
     var text: String? {
         if let value = self["simpleText"].string { return value }
@@ -413,9 +414,11 @@ enum MusicResponseParser {
         let isExplicit = ["badges", "subtitleBadges"].contains { key in
             node[key].array.contains { $0["musicInlineBadgeRenderer"]["icon"]["iconType"].string == "MUSIC_EXPLICIT_BADGE" }
         }
-        return .track(Track(id: videoID, title: title, artist: artist, album: album, artworkURL: artwork, duration: duration,
+        let episode = MusicPodcastParser.metadata(node, videoID: videoID, endpoints: endpoints)
+        return .track(Track(id: videoID, title: title, artist: episode.flatMap { _ in MusicPodcastParser.showTitle(node) } ?? artist,
+                            album: album, artworkURL: artwork, duration: duration ?? episode?.durationText.flatMap(parseDuration),
                             albumReference: albumReference, artistReferences: artistReferences.isEmpty ? nil : artistReferences,
-                            isExplicit: isExplicit ? true : nil))
+                            isExplicit: isExplicit ? true : nil, contentKind: episode == nil ? nil : .podcastEpisode, episode: episode))
     }
 
     private static func metadataReferences(_ runs: [JSONNode], kind: MusicCollection.Kind) -> [TrackMetadataReference] {
@@ -435,12 +438,14 @@ enum MusicResponseParser {
     static func collectionKind(_ browse: JSONNode) -> MusicCollection.Kind? {
         let pageType = browse["browseEndpointContextSupportedConfigs"]["browseEndpointContextMusicConfig"]["pageType"].string
         switch pageType {
+        case "MUSIC_PAGE_TYPE_PODCAST_SHOW_DETAIL_PAGE": return .podcast
         case "MUSIC_PAGE_TYPE_ALBUM": return .album
         case "MUSIC_PAGE_TYPE_ARTIST", "MUSIC_PAGE_TYPE_USER_CHANNEL", "MUSIC_PAGE_TYPE_LIBRARY_ARTIST": return .artist
         case "MUSIC_PAGE_TYPE_PLAYLIST": return .playlist
         default: break
         }
         guard let id = browse["browseId"].string else { return nil }
+        if id.hasPrefix("MPSP") { return .podcast }
         if id.hasPrefix(MusicUploadRoutes.albumPrefix) { return .album }
         if id.hasPrefix(MusicUploadRoutes.artistPrefix) { return .artist }
         if id.hasPrefix("MPRE") || id.hasPrefix("OLAK") { return .album }

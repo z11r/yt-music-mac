@@ -9,6 +9,7 @@ extension MusicCollection {
         case .playlist: .playlist
         case .album: .album
         case .artist: .artist
+        case .podcast: .podcast
         }
         return LocalCollectionReference(serviceID: id, kind: localKind, title: title)
     }
@@ -20,6 +21,7 @@ extension LocalCollectionReference {
         case .playlist: .playlist
         case .album: .album
         case .artist: .artist
+        case .podcast: .podcast
         }
         return MusicCollection(id: serviceID, kind: musicKind, title: title)
     }
@@ -28,6 +30,7 @@ extension LocalCollectionReference {
         case .playlist: "music.note.list"
         case .album: "square.stack"
         case .artist: "music.mic"
+        case .podcast: "mic.circle"
         }
     }
 }

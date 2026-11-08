@@ -48,7 +48,7 @@ public struct SpotlightCatalogPolicy: Sendable {
         let parts = identifier.split(separator: "|", omittingEmptySubsequences: false)
         guard parts.count == 4, parts[0] == domain, parts[1] == "v1",
               let kind = LocalCollectionReference.Kind(rawValue: String(parts[2])) else { return nil }
-        let title = switch kind { case .playlist: "Playlist"; case .album: "Album"; case .artist: "Artist" }
+        let title = switch kind { case .playlist: "Playlist"; case .album: "Album"; case .artist: "Artist"; case .podcast: "Podcast" }
         let reference = LocalCollectionReference(serviceID: String(parts[3]), kind: kind, title: title)
         guard let canonical = canonical(reference), canonical.serviceID == reference.serviceID else { return nil }
         return canonical
@@ -79,6 +79,7 @@ public struct SpotlightCatalogPolicy: Sendable {
         case .playlist: id.hasPrefix("PL")
         case .album: id.hasPrefix("MPREb_") && id.count > "MPREb_".count
         case .artist: id.hasPrefix("UC")
+        case .podcast: false
         }
         guard catalog else { return nil }
         return LocalCollectionReference(serviceID: id, kind: value.kind, title: String(value.title.prefix(200)))

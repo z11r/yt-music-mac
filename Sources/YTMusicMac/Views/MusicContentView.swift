@@ -8,7 +8,7 @@ struct MusicContentView: View {
 
     private var usesTrackList: Bool {
         switch session.destination {
-        case .likedSongs: true
+        case .likedSongs, .savedEpisodes: true
         case .uploads(.songs): true
         case let .collection(value): value.isUploaded || value.kind != .artist
         case let .browse(reference): reference.kind == .playlist
@@ -231,6 +231,8 @@ private struct MusicCard: View {
                     if case let .track(track) = item { ExplicitContentBadge(track: track) }
                 }
                 ContentOriginBadge(isUploaded: isUploaded)
+                if case let .collection(value) = item, value.kind == .podcast { Text("Podcast").font(.caption).foregroundStyle(.secondary) }
+                if case let .track(track) = item, track.contentKind == .podcastEpisode { Text("Episode").font(.caption).foregroundStyle(.secondary) }
                 Text(item.subtitle ?? (isArtist ? "Artist" : ""))
                     .font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
             }
@@ -260,11 +262,11 @@ private struct MusicCard: View {
             if case let .track(track) = item {
                 Button("Play Next") { session.playNext([track]) }
                 Button("Add to Queue") { session.addToQueue([track]) }
-                if track.origin != .upload { Button("Start Radio") { session.startRadio(from: track) } }
+                if track.origin != .upload && track.contentKind != .podcastEpisode { Button("Start Radio") { session.startRadio(from: track) } }
                 LibraryTrackActions(session: session, tracks: [track], presentEditor: presentEditor,
                                     showsSeparator: false)
                 TrackMetadataActions(track: track, session: session)
-            } else if case let .collection(collection) = item, !collection.isUploaded && collection.radioPlaylistID != nil {
+            } else if case let .collection(collection) = item, !collection.isUploaded && collection.kind != .podcast && collection.radioPlaylistID != nil {
                 Button("Start Radio") { session.startRadio(from: collection) }
             }
         }
@@ -278,12 +280,12 @@ private struct MusicCard: View {
             if case let .track(track) = item {
                 Button("Play Next") { session.playNext([track]) }
                 Button("Add to Queue") { session.addToQueue([track]) }
-                if track.origin != .upload { Button("Start Radio") { session.startRadio(from: track) } }
+                if track.origin != .upload && track.contentKind != .podcastEpisode { Button("Start Radio") { session.startRadio(from: track) } }
                 LibraryTrackActions(session: session, tracks: [track], presentEditor: presentEditor)
                 TrackMetadataActions(track: track, session: session)
             } else if case let .collection(collection) = item {
                 LocalCollectionActions(session: session, collection: collection)
-                if !collection.isUploaded && collection.radioPlaylistID != nil {
+                if !collection.isUploaded && collection.kind != .podcast && collection.radioPlaylistID != nil {
                     Button("Start Radio") { session.startRadio(from: collection) }
                 }
             }
@@ -383,6 +385,9 @@ private struct CollectionTracksView: View {
                                 ExplicitContentBadge(track: row.track)
                             }
                             ContentOriginBadge(isUploaded: row.track.origin == .upload)
+                            if let episode = row.track.episode {
+                                Text(episode.publishedText ?? "Episode").font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                            }
                             Text(row.track.artist).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                         }
                         Spacer(minLength: 0)
@@ -396,7 +401,7 @@ private struct CollectionTracksView: View {
                         Button("Play") { session.play(row.track) }
                         Button("Play Next") { session.playNext([row.track]) }
                         Button("Add to Queue") { session.addToQueue([row.track]) }
-                        if row.track.origin != .upload { Button("Start Radio") { session.startRadio(from: row.track) } }
+                        if row.track.origin != .upload && row.track.contentKind != .podcastEpisode { Button("Start Radio") { session.startRadio(from: row.track) } }
                         TrackRatingActions(session: session, track: row.track)
                         TrackMetadataActions(track: row.track, session: session)
                         reorderActions(for: [row.id])
@@ -416,7 +421,7 @@ private struct CollectionTracksView: View {
                     Button("Add to Queue") { session.addToQueue(tracks) }
                     if tracks.count == 1, let track = tracks.first { MusicLinkActions(track: track) }
                     if tracks.count == 1, let track = tracks.first {
-                        if track.origin != .upload { Button("Start Radio") { session.startRadio(from: track) } }
+                        if track.origin != .upload && track.contentKind != .podcastEpisode { Button("Start Radio") { session.startRadio(from: track) } }
                     }
                     LibraryTrackActions(session: session, tracks: tracks, presentEditor: presentEditor)
                     if tracks.count == 1, let track = tracks.first {
@@ -463,7 +468,7 @@ private struct CollectionTracksView: View {
                 Button("Add All to Queue", systemImage: "text.badge.plus") { session.performCollectionAction(.append) }
                     .disabled(!canQueueCollection)
                 if case let .collection(collection) = session.destination {
-                    if !collection.isUploaded && collection.radioPlaylistID != nil {
+                    if !collection.isUploaded && collection.kind != .podcast && collection.radioPlaylistID != nil {
                         Button("Start Radio", systemImage: "dot.radiowaves.left.and.right") { session.startRadio(from: collection) }
                     }
                     MusicLinkActions(collection: collection)
@@ -547,10 +552,16 @@ private struct CollectionTracksView: View {
             if case let .collection(value) = session.destination, let subtitle = value.subtitle {
                 Text(subtitle).foregroundStyle(.secondary).lineLimit(2)
             }
-            Text(page.continuation == nil ? "\(allTracks.count) songs" : "\(allTracks.count) songs loaded")
+            Text(page.continuation == nil ? "\(allTracks.count) \(contentNoun)" : "\(allTracks.count) \(contentNoun) loaded")
                 .foregroundStyle(.secondary)
             UnavailableMusicNotice(page: page)
         }
+    }
+
+    private var contentNoun: String {
+        if session.destination == .savedEpisodes { return "episodes" }
+        if case let .collection(collection) = session.destination, collection.kind == .podcast { return "episodes" }
+        return "songs"
     }
 }
 

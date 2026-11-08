@@ -1,7 +1,7 @@
 import Foundation
 
 public struct LocalCollectionReference: Identifiable, Codable, Hashable, Sendable {
-    public enum Kind: String, Codable, Hashable, Sendable { case playlist, album, artist }
+    public enum Kind: String, Codable, Hashable, Sendable { case playlist, album, artist, podcast }
     public let serviceID: String
     public let kind: Kind
     public let title: String

@@ -88,7 +88,7 @@ struct QueueView: View {
                 if !ids.isEmpty {
                     Button("Play") { playSelection(ids) }
                     if ids.count == 1, let entry = session.queue.entries.first(where: { ids.contains($0.id) }) {
-                        if entry.track.origin != .upload { Button("Start Radio") { session.startRadio(from: entry.track) } }
+                        if entry.track.origin != .upload && entry.track.contentKind != .podcastEpisode { Button("Start Radio") { session.startRadio(from: entry.track) } }
                     }
                     Button("Remove from Queue") { session.removeQueueEntries(ids) }
                     if ids.count == 1, let entry = session.queue.entries.first(where: { ids.contains($0.id) }) {
@@ -132,6 +132,7 @@ struct QueueView: View {
                     ExplicitContentBadge(track: entry.track)
                 }
                 ContentOriginBadge(isUploaded: entry.track.origin == .upload)
+                if entry.track.contentKind == .podcastEpisode { Text("Episode").font(.caption2).foregroundStyle(.secondary) }
                 Text(entry.track.artist).font(.caption).foregroundStyle(.secondary).lineLimit(1)
             }
             Spacer(minLength: 2)
@@ -148,7 +149,7 @@ struct QueueView: View {
         .help("\(entry.track.title) — \(entry.track.artist)")
         .accessibilityActions {
             Button("Play") { session.selectQueueEntry(entry.id) }
-            if entry.track.origin != .upload { Button("Start Radio") { session.startRadio(from: entry.track) } }
+            if entry.track.origin != .upload && entry.track.contentKind != .podcastEpisode { Button("Start Radio") { session.startRadio(from: entry.track) } }
             if !isFiltering && index > 0 {
                 Button("Move Up") { moveEntry(entry.id, up: true) }
             }

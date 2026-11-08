@@ -7,7 +7,7 @@ struct MusicLinkActions: View {
     let link: MusicLink?
     init(link: MusicLink) { self.link = link }
     init(track: Track) { link = track.origin == .upload ? nil : .track(track.id) }
-    init(collection: MusicCollection) { link = collection.isUploaded ? nil : .collection(collection) }
+    init(collection: MusicCollection) { link = collection.isUploaded ? nil : MusicLink.collection(collection) }
     var body: some View {
         if let url = link?.url {
             ShareLink(item: url) { Label("Share…", systemImage: "square.and.arrow.up") }

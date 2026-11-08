@@ -88,7 +88,7 @@ public actor YouTubeMusicClient {
         guard !MusicUploadRoutes.isCollectionID(id) else { throw MusicServiceError.invalidInput }
         try validateIdentifier(id)
         let browseID = Self.playlistBrowseID(id)
-        return try await browse(browseID, title: "Playlist", requiresAuthentication: browseID == "VLLM", preservesOccurrences: true)
+        return try await browse(browseID, title: "Playlist", requiresAuthentication: ["VLLM", "VLSE"].contains(browseID), preservesOccurrences: true)
     }
     public func album(id: String) async throws -> MusicPage {
         if MusicUploadRoutes.isCollectionID(id) { return try await uploadedAlbum(id: id) }

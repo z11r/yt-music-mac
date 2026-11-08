@@ -18,6 +18,7 @@ struct RootView: View {
                     Section("Browse") {
                         Label("Home", systemImage: "house").tag(MusicDestination.home)
                         Label("Explore", systemImage: "safari").tag(MusicDestination.explore)
+                        Label("Podcasts", systemImage: "podcasts").tag(MusicDestination.podcasts)
                     }
                     Section("Your Library") {
                         Label("Library", systemImage: "square.stack").tag(MusicDestination.library)
@@ -27,6 +28,8 @@ struct RootView: View {
                         Label("Liked Songs", systemImage: "heart").tag(MusicDestination.likedSongs)
                         Label("Listening History", systemImage: "clock").tag(MusicDestination.history)
                         Label("Uploads", systemImage: "music.note.house").tag(MusicDestination.uploads(.songs))
+                        Label("Your Podcasts", systemImage: "podcasts").tag(MusicDestination.podcastLibrary)
+                        Label("Saved Episodes", systemImage: "bookmark").tag(MusicDestination.savedEpisodes)
                     }
                     LocalCollectionsSidebar(session: session)
                 }

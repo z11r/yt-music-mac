@@ -2,7 +2,7 @@ import Foundation
 import MusicCore
 
 public struct MusicCollection: Identifiable, Hashable, Sendable {
-    public enum Kind: String, Hashable, Sendable { case playlist, album, artist }
+    public enum Kind: String, Hashable, Sendable { case playlist, album, artist, podcast }
     public let id: String
     public let kind: Kind
     public let title: String
@@ -31,7 +31,7 @@ public enum MusicItem: Hashable, Identifiable, Sendable {
     /// Content identity; use a separate occurrence identifier when building a playback queue.
     public var id: String {
         switch self {
-        case let .track(track): "track:\(track.id)"
+        case let .track(track): track.episode.map { "episode:\($0.identity.key)" } ?? "track:\(track.id)"
         case let .collection(collection): "\(collection.kind.rawValue):\(collection.id)"
         case let .browse(reference): "browse:\(reference.browseID)|\(reference.params ?? "")"
         }

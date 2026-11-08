@@ -263,11 +263,16 @@ public struct PlaybackQueue: Sendable {
 
     public mutating func updateTrack(_ track: Track) {
         for index in self.entries.indices where self.entries[index].track.id == track.id {
+            let prior = self.entries[index].track
+            if let old = prior.contentKind, let new = track.contentKind, old != new { continue }
+            if let old = prior.episode?.identity.key, let new = track.episode?.identity.key, old != new { continue }
             var updated = track
             updated.origin = updated.origin ?? self.entries[index].track.origin
             updated.albumReference = updated.albumReference ?? self.entries[index].track.albumReference
             updated.artistReferences = updated.artistReferences ?? self.entries[index].track.artistReferences
             updated.isExplicit = updated.isExplicit ?? self.entries[index].track.isExplicit
+            updated.contentKind = updated.contentKind ?? prior.contentKind
+            updated.episode = updated.episode ?? prior.episode
             self.entries[index].track = updated
         }
     }
