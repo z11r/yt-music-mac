@@ -96,7 +96,7 @@ and the correct song version must be established separately.
 | ID | Feature | State | Acceptance check |
 | --- | --- | --- | --- |
 | G08 | Playlist description/privacy editing, service reorder, and custom cover | Partial; edits implemented but disabled; custom cover missing | Implement each operation separately; retain service occurrence IDs and current edit permission. Confirm results after reload. |
-| G09 | Library tabs for Playlists, Songs, Albums, and Artists | Partial; native categories implemented | Add native destinations and paging; distinguish saved songs from liked songs and account uploads. |
+| G09 | Library tabs for Playlists, Songs, Albums, and Artists | Implemented; signed-in coverage pending | Add native destinations and paging; distinguish saved songs from liked songs and account uploads. |
 | G10 | Save/unsave albums and follow/unfollow artists | Implemented; disabled pending live checks | Read authoritative state and confirm approved edits; an artist page alone does not establish subscription. |
 | G11 | Recently played and listening history | Implemented; live checks pending | Separate service history from any local history; provide scope labels, account fences, and appropriate clearing controls. |
 | G12 | Charts, moods/genres, new releases, mixes, and See All | Partial; categories, scoped See All and chart countries implemented | Add routes and pagination for each offered destination; retain service personalization without inventing recommendations. |

@@ -8,7 +8,7 @@ struct MusicContentView: View {
 
     private var usesTrackList: Bool {
         switch session.destination {
-        case .likedSongs, .savedEpisodes: true
+        case .likedSongs, .savedEpisodes, .libraryCategory(.songs): true
         case .uploads(.songs): true
         case let .collection(value): value.isUploaded || value.kind != .artist
         case let .browse(reference): reference.kind == .playlist

@@ -6,20 +6,24 @@ import MusicCore
 
 public actor YouTubeMusicClient {
     public enum LibraryCategory: String, CaseIterable, Hashable, Sendable {
-        case all, playlists, albums, artists
+        case all, playlists, songs, albums, songArtists, artists
         public var title: String {
             switch self {
             case .all: ServiceLocalization.text("Library")
             case .playlists: ServiceLocalization.text("Playlists")
+            case .songs: ServiceLocalization.text("Songs")
             case .albums: ServiceLocalization.text("Albums")
-            case .artists: ServiceLocalization.text("Artists")
+            case .songArtists: ServiceLocalization.text("Artists")
+            case .artists: ServiceLocalization.text("Followed Artists")
             }
         }
         var browseID: String {
             switch self {
             case .all: "FEmusic_library_landing"
             case .playlists: "FEmusic_liked_playlists"
+            case .songs: "FEmusic_liked_videos"
             case .albums: "FEmusic_liked_albums"
+            case .songArtists: "FEmusic_library_corpus_track_artists"
             case .artists: "FEmusic_library_corpus_artists"
             }
         }

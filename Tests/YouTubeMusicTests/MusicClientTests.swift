@@ -390,7 +390,7 @@ final class MusicClientTests: XCTestCase {
     }
 
     func testLibraryCategoriesUseDedicatedAuthenticatedBrowseRequests() async throws {
-        let transport = StubTransport(Array(repeating: .response(response(shelf([]))), count: 4))
+        let transport = StubTransport(Array(repeating: .response(response(shelf([]))), count: YouTubeMusicClient.LibraryCategory.allCases.count))
         let store = MusicSessionStore()
         await setFixtureSession(store)
         let client = client(transport, sessions: store)
@@ -401,7 +401,8 @@ final class MusicClientTests: XCTestCase {
         let requests = await transport.requests
         let bodies = try requests.map(body)
         XCTAssertEqual(bodies.compactMap { $0["browseId"] as? String }, [
-            "FEmusic_library_landing", "FEmusic_liked_playlists", "FEmusic_liked_albums", "FEmusic_library_corpus_artists",
+            "FEmusic_library_landing", "FEmusic_liked_playlists", "FEmusic_liked_videos", "FEmusic_liked_albums",
+            "FEmusic_library_corpus_track_artists", "FEmusic_library_corpus_artists",
         ])
         XCTAssertTrue(requests.allSatisfy { $0.value(forHTTPHeaderField: "Authorization") != nil })
         XCTAssertEqual(bodies.last?["params"] as? String, "ggMCCAU=")
