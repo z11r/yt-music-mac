@@ -150,12 +150,15 @@ enum ProfilePreferenceCleanup {
     static let booleans: Set<String> = ["autoplay", "cacheLibraryMetadata", "persistsLocalQueue", "persistsEpisodeProgress", "keepsMiniPlayerOnTop", "showsSongChangeNotifications", "sessionRestoreBlocked", "spotlightLibraryEnabled", "onDeviceCommandInterpretationEnabled", NativeHaptics.preferenceKey]
     static func accepts(_ values: [String: Any]) -> Bool {
         guard values.count <= 32 else { return false }
+        if values[NativeControlAccent.preferenceKey] as? String == NativeControlAccent.custom.rawValue,
+           CustomControlAccent(storedValue: values[CustomControlAccent.preferenceKey]) == nil { return false }
         for (key, value) in values {
             if booleans.contains(key) { guard let number = value as? NSNumber, CFGetTypeID(number) == CFBooleanGetTypeID() else { return false }; continue }
             switch key {
             case "volume": guard let number = value as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID(), number.doubleValue.isFinite, (0...1).contains(number.doubleValue) else { return false }
             case "appearance": guard let value = value as? String, ["system", "light", "dark"].contains(value) else { return false }
             case NativeControlAccent.preferenceKey: guard let value = value as? String, NativeControlAccent(rawValue: value) != nil else { return false }
+            case CustomControlAccent.preferenceKey: guard CustomControlAccent(storedValue: value) != nil else { return false }
             case "lastAccount": guard let value = value as? String, EpisodeProgressAccountKey.accepts(value) else { return false }
             default: return false
             }

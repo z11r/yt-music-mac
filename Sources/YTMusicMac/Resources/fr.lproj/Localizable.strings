@@ -1063,3 +1063,14 @@
 "Playlist Contributors" = "Contributeurs de la playlist";
 
 "Open this playlist again to view its contributors." = "Rouvrez cette playlist pour voir ses contributeurs.";
+
+/* Custom control accent. */
+"Custom Accent" = "Accentuation personnalisée";
+"Edit Custom Accent…" = "Modifier l’accentuation personnalisée…";
+"Light Accent" = "Accentuation claire";
+"Dark Accent" = "Accentuation sombre";
+"Choose opaque sRGB accents for Light and Dark. Changes stay in this draft until Apply." = "Choisissez des couleurs sRGB opaques pour les modes clair et sombre. Les modifications restent dans ce brouillon jusqu’à Appliquer.";
+"Reference checks require 4.5:1 against white for Light and black for Dark. They do not certify the contrast of native controls." = "Les vérifications de référence exigent 4,5:1 par rapport au blanc en mode clair et au noir en mode sombre. Elles ne certifient pas le contraste des commandes natives.";
+"Use six hexadecimal digits. Choose a darker Light accent and a lighter Dark accent to pass the reference checks." = "Utilisez six chiffres hexadécimaux. Choisissez une accentuation plus foncée en mode clair et plus claire en mode sombre pour réussir les vérifications de référence.";
+"The profile changed. Close this draft and open Custom Accent again." = "Le profil a changé. Fermez ce brouillon et rouvrez Accentuation personnalisée.";
+"The saved custom accent is unsupported. It is retained until you explicitly replace it with Apply." = "L’accentuation personnalisée enregistrée n’est pas prise en charge. Elle est conservée jusqu’à son remplacement explicite avec Appliquer.";

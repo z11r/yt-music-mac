@@ -25,7 +25,7 @@ struct NativeControlAccentTests {
         let generation = UUID()
         fixture.defaults.set("dark", forKey: "appearance")
         fixture.defaults.set("preserve", forKey: "other-setting")
-        for choice in NativeControlAccent.allCases where choice != .system {
+        for choice in NativeControlAccent.allCases where choice != .system && choice != .custom {
             #expect(NativeControlAccentPreference.write(choice, to: fixture.defaults,
                 expectedGeneration: generation, currentGeneration: generation, acceptsActions: true))
             #expect(NativeControlAccentPreference.read(from: fixture.defaults) == choice)
@@ -45,8 +45,8 @@ struct NativeControlAccentTests {
             fixture.defaults.set(choice.rawValue, forKey: NativeControlAccent.preferenceKey)
             #expect(NativeControlAccentPreference.read(from: fixture.defaults, increasedContrast: true) == .system)
             #expect(fixture.defaults.string(forKey: NativeControlAccent.preferenceKey) == choice.rawValue)
-            #expect(NativeControlAccentPreference.read(from: fixture.defaults, increasedContrast: false) == choice)
-            if choice != .system { #expect(choice.tint != nil) }
+            #expect(NativeControlAccentPreference.read(from: fixture.defaults, increasedContrast: false) == (choice == .custom ? .system : choice))
+            if choice != .system && choice != .custom { #expect(choice.tint != nil) }
         }
     }
 
@@ -82,9 +82,19 @@ struct NativeControlAccentTests {
     }
 }
 
-private struct AccentPreferences {
+@MainActor private struct AccentPreferences {
     let domain = "NativeControlAccentTests.\(UUID().uuidString)"
-    let defaults: UserDefaults
-    init() throws { defaults = try #require(UserDefaults(suiteName: domain)) }
-    func remove() { defaults.removePersistentDomain(forName: domain) }
+    let defaults = MemoryAccentPreferences()
+    init() throws {}
+    func remove() { defaults.values = [:] }
+}
+
+@MainActor final class MemoryAccentPreferences: NativeAccentPreferences {
+    var values: [String: Any] = [:]
+    var writes = 0
+    func object(forKey key: String) -> Any? { values[key] }
+    func set(_ value: Any?, forKey key: String) { writes += 1; values[key] = value }
+    func removeObject(forKey key: String) { writes += 1; values[key] = nil }
+    func string(forKey key: String) -> String? { values[key] as? String }
+    func persistentDomain(forName name: String) -> [String: Any]? { values }
 }
