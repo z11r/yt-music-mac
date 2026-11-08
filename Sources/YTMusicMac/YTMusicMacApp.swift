@@ -64,6 +64,10 @@ struct YTMusicMacApp: App {
         .commands {
             SidebarCommands()
             CommandGroup(replacing: .newItem) { }
+            CommandGroup(after: .newItem) {
+                Button("Open Music Link…") { session.links.showsSheet = true }
+                    .keyboardShortcut("o", modifiers: .command)
+            }
             PlaybackCommands(session: session, keyboardFocus: keyboardFocus)
             NavigationCommands(session: session)
             CommandGroup(after: .sidebar) {
@@ -107,6 +111,19 @@ private struct MainSceneView: View {
 
     var body: some View {
         RootView(session: session)
+            .onOpenURL { url in
+                openWindow(id: "main")
+                session.receiveMusicLink(url)
+            }
+            .sheet(isPresented: Binding(get: { session.links.showsSheet }, set: { session.links.showsSheet = $0 })) {
+                OpenMusicLinkSheet(session: session)
+            }
+            .alert("Could Not Open Music Link", isPresented: Binding(
+                get: { session.links.error != nil },
+                set: { if !$0 { session.links.error = nil } }
+            )) {
+                Button("OK", role: .cancel) { session.links.error = nil }
+            } message: { Text(session.links.error ?? "") }
             .background {
                 if let sceneCheck {
                     SceneCheckRenderProbe(driver: sceneCheck, revision: session.sceneCheckRevision)
@@ -117,6 +134,8 @@ private struct MainSceneView: View {
                 delegate.session = session
                 delegate.openMainWindow = { openWindow(id: "main") }
                 await session.start()
+                session.links.isReady = sceneCheck == nil
+                session.processPendingMusicLink()
                 sceneCheck?.start(session: session)
             }
     }

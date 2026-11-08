@@ -80,6 +80,7 @@ struct PlaybackResumeState {
 
 @MainActor @Observable
 final class AppSession {
+    let links = MusicLinkState()
     let account: WebSession
     let player: WebPlayer
     private(set) var queue = PlaybackQueue()
@@ -591,6 +592,7 @@ final class AppSession {
     }
 
     func signOut() async {
+        cancelMusicLink()
         accountGeneration = UUID()
         resetLibraryEditing()
         pageGeneration = UUID()
@@ -614,6 +616,7 @@ final class AppSession {
     }
 
     private func accountChanged(replacedAccount: Bool) {
+        cancelMusicLink()
         accountGeneration = UUID()
         resetLibraryEditing()
         pageTask?.cancel()
@@ -655,6 +658,7 @@ final class AppSession {
     }
 
     func shutdown() async {
+        cancelMusicLink()
         scriptingPlayGeneration = UUID()
         wantsPlayback = false
         player.pause()

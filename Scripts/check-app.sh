@@ -44,10 +44,15 @@ actual_configuration="$(read_plist YTMusicBuildConfiguration)"
 [[ "$configuration" == debug || "$configuration" == release ]] || { usage; exit 2; }
 [[ "$actual_configuration" == "$configuration" ]] || { echo "Build configuration does not match." >&2; exit 1; }
 identifier="io.github.z11r.ytmusicmac"
+music_link_scheme="ytmusicmac"
 [[ "$configuration" != debug ]] || identifier="$identifier.debug"
+[[ "$configuration" != debug ]] || music_link_scheme="ytmusicmac-debug"
 [[ "$(read_plist CFBundleIdentifier)" == "$identifier" ]] || { echo "Bundle identifier does not match the build configuration." >&2; exit 1; }
 [[ "$(read_plist CFBundleExecutable)" == YTMusicMac ]] || { echo "Bundle executable does not match." >&2; exit 1; }
 [[ "$(read_plist CFBundlePackageType)" == APPL ]] || { echo "Bundle type is not APPL." >&2; exit 1; }
+[[ "$(read_plist CFBundleURLTypes:0:CFBundleURLSchemes:0)" == "$music_link_scheme" ]] || {
+  echo "Music link registration does not match the build configuration." >&2; exit 1;
+}
 [[ "$(read_plist LSMinimumSystemVersion)" == 14.0 ]] || { echo "Bundle minimum must be macOS 14.0." >&2; exit 1; }
 [[ "$(read_plist NSAppleScriptEnabled)" == true && "$(read_plist OSAScriptingDefinition)" == YTMusicMac.sdef &&
    -s "$bundle/Contents/Resources/YTMusicMac.sdef" ]] || {

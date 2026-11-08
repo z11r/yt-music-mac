@@ -80,6 +80,9 @@ struct TrackIdentityView: View {
             }
         }
         .accessibilityElement(children: .combine)
+        .contextMenu {
+            if let track = session.currentTrack { MusicLinkActions(link: .track(track.id)) }
+        }
         .help([session.currentTrack?.title, session.currentTrack?.artist].compactMap { $0 }.joined(separator: " — "))
     }
 }

@@ -173,6 +173,10 @@ private struct MusicCard: View {
             }
         }
         .contextMenu {
+            switch item {
+            case let .track(track): MusicLinkActions(link: .track(track.id))
+            case let .collection(collection): MusicLinkActions(link: .collection(collection))
+            }
             Button(isTrack ? "Play" : "Open") { session.activate(item) }
             if case let .track(track) = item {
                 Button("Play Next") { session.playNext([track]) }
@@ -290,6 +294,7 @@ private struct CollectionTracksView: View {
                     Button("Play") { session.playTracks(tracks) }
                     Button("Play Next") { session.playNext(tracks) }
                     Button("Add to Queue") { session.addToQueue(tracks) }
+                    if tracks.count == 1, let track = tracks.first { MusicLinkActions(link: .track(track.id)) }
                     LibraryTrackActions(session: session, tracks: tracks, presentEditor: presentEditor)
                     removalAction(for: ids)
                 }

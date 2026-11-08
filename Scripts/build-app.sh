@@ -37,9 +37,11 @@ mkdir -p "$project_dir/.build/app-bundles"
 build_dir="$(mktemp -d "$project_dir/.build/app-bundles/$configuration-$variant.XXXXXX")"
 app_name="YT Music for Mac"
 bundle_identifier="io.github.z11r.ytmusicmac"
+music_link_scheme="ytmusicmac"
 if [[ "$configuration" == debug ]]; then
   app_name="$app_name Debug"
   bundle_identifier="$bundle_identifier.debug"
+  music_link_scheme="ytmusicmac-debug"
 fi
 bundle="$build_dir/$app_name.app"
 mkdir -p "$bundle/Contents/MacOS" "$bundle/Contents/Resources" "$bundle/Contents/Frameworks"
@@ -110,6 +112,10 @@ cat > "$bundle/Contents/Info.plist" <<PLIST
   <key>NSHighResolutionCapable</key><true/>
   <key>NSAppleScriptEnabled</key><true/>
   <key>OSAScriptingDefinition</key><string>YTMusicMac.sdef</string>
+  <key>CFBundleURLTypes</key><array><dict>
+    <key>CFBundleURLName</key><string>$bundle_identifier.music-links</string>
+    <key>CFBundleURLSchemes</key><array><string>$music_link_scheme</string></array>
+  </dict></array>
   <key>YTMusicBuildConfiguration</key><string>$configuration</string>
 </dict></plist>
 PLIST
