@@ -81,6 +81,21 @@ struct EpisodeRateControllerTests {
         #expect(h.requests.last?.expectedRate == 1.5 && h.requests.last?.rate == 1)
     }
 
+    @Test func interveningRateChangesDuringASetDoNotGrantOrRetainOwnership() async {
+        for alreadyOwned in [false, true] {
+            let h = EpisodeRateHarness(), episode = rateTarget()
+            h.observe(episode); await h.controller.waitUntilIdle()
+            if alreadyOwned { #expect(await h.controller.set(1.5, occurrence: episode.occurrence)) }
+            h.nextMutation = .confirmed(.init(rates: h.rates, current: 1.5, mediaRate: 1.5, changes: 3), changed: !alreadyOwned)
+            #expect(await h.controller.set(1.5, occurrence: episode.occurrence))
+            #expect(!h.controller.needsSongReset)
+            h.current = 1.5; h.changes = 3
+            h.controller.prepareLoad(content: .song); h.observe(rateTarget(.song)); await h.controller.waitUntilIdle()
+            #expect(!h.requests.contains { $0.action == .resetOwnedSongRate })
+            #expect(h.current == 1.5)
+        }
+    }
+
     @Test func anAlreadySelectedPageRateIsNeverClaimedOrReset() async {
         let h = EpisodeRateHarness(), episode = rateTarget()
         h.current = 1.5; h.observe(episode); await h.controller.waitUntilIdle()

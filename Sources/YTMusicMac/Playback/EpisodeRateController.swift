@@ -159,7 +159,13 @@ enum EpisodeRateOutcome: Equatable, Sendable {
         }
         self.snapshot = confirmed; media = .init(rate: confirmed.current, changes: confirmed.changes)
         lastProbe = (target, confirmed.changes)
-        if changed { owned = rate == 1 ? nil : (rate, target, confirmed.changes) }
+        if changed, rate != 1, confirmed.changes == snapshot.changes + 1 {
+            owned = (rate, target, confirmed.changes)
+        } else if changed || rate == 1 || confirmed.changes != snapshot.changes {
+            // An extra change may belong to the page/user, even if it ends at
+            // the requested rate. A later song must not inherit our ownership.
+            owned = nil
+        }
         report(occurrence, confirmed)
         return true
     }
