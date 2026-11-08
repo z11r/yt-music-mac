@@ -28,7 +28,8 @@ public actor YouTubeMusicClient {
     // The web client requires a browser-compatible user agent, including for anonymous configuration requests.
     public static let webUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15"
     /// Remote edits remain disabled until signed-in integration testing is complete.
-    public nonisolated let supportsRemoteLibraryEdits = false
+    public nonisolated let libraryEditCapabilities: MusicLibraryEditCapabilities
+    public nonisolated var supportsRemoteLibraryEdits: Bool { libraryEditCapabilities.hasAny }
     let transport: any MusicHTTPTransport
     let sessions: any MusicSessionProviding
     private let pause: @Sendable (Duration) async throws -> Void
@@ -38,10 +39,12 @@ public actor YouTubeMusicClient {
 
     public init(transport: any MusicHTTPTransport = URLSessionMusicTransport(),
                 sessions: any MusicSessionProviding = MusicSessionStore(),
+                libraryEditCapabilities: MusicLibraryEditCapabilities = .init(),
                 pause: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
                 now: @escaping @Sendable () -> Date = { Date() }) {
         self.transport = transport
         self.sessions = sessions
+        self.libraryEditCapabilities = libraryEditCapabilities
         self.pause = pause
         self.now = now
     }
@@ -184,7 +187,7 @@ public actor YouTubeMusicClient {
         }
         return MusicPage(title: parsed.title ?? title, sections: sections, items: sections.flatMap(\.items), continuation: next,
                          playlistItems: parsed.playlistItems, playlistCapabilities: parsed.playlistCapabilities,
-                         likeStates: parsed.likeStates)
+                         likeStates: parsed.likeStates, ratings: parsed.ratings)
     }
 
     func request(endpoint: MusicEndpoint, body: [String: Any], session: MusicSession, requiresAuthentication: Bool) async throws -> Data {

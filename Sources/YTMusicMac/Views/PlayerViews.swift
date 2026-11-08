@@ -81,12 +81,19 @@ struct TrackIdentityView: View {
                         .font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
                 }
             }
+            .accessibilityElement(children: .combine)
+            if let track = session.currentTrack {
+                TrackRatingMenu(session: session, track: track)
+            }
         }
-        .accessibilityElement(children: .combine)
-        .contextMenu {
-            if let track = session.currentTrack { MusicLinkActions(link: .track(track.id)) }
-        }
+        .accessibilityElement(children: .contain)
         .help([session.currentTrack?.title, session.currentTrack?.artist].compactMap { $0 }.joined(separator: " — "))
+        .contextMenu {
+            if let track = session.currentTrack {
+                MusicLinkActions(link: .track(track.id))
+                TrackRatingActions(session: session, track: track)
+            }
+        }
     }
 }
 

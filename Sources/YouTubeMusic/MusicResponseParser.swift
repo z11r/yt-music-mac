@@ -35,9 +35,12 @@ struct ParsedMusicPage {
     var playlistItems: [MusicPlaylistItem] = []
     var playlistCapabilities = MusicPlaylistCapabilities()
     var playlistEditingDenied = false
-    var likeStateCandidates: [String: Set<Bool>] = [:]
+    var ratingCandidates: [String: Set<MusicRating>] = [:]
+    var ratings: [String: MusicRating] {
+        ratingCandidates.compactMapValues { $0.count == 1 ? $0.first : nil }
+    }
     var likeStates: [String: Bool] {
-        likeStateCandidates.compactMapValues { $0.count == 1 ? $0.first : nil }
+        ratings.mapValues { $0 == .liked }
     }
     var items: [MusicItem] { sections.flatMap(\.items) }
 }
@@ -238,11 +241,9 @@ enum MusicResponseParser {
         for key in ["musicResponsiveListItemRenderer", "musicTwoRowItemRenderer", "musicMultiRowListItemRenderer"] {
             for button in node[key]["menu"]["menuRenderer"]["topLevelButtons"].array {
                 let like = button["likeButtonRenderer"]
-                if let target = like["target"]["videoId"].string, target != track.id { continue }
-                switch like["likeStatus"].string {
-                case "LIKE": result.likeStateCandidates[track.id, default: []].insert(true)
-                case "INDIFFERENT", "DISLIKE": result.likeStateCandidates[track.id, default: []].insert(false)
-                default: break
+                if like["target"].exists, like["target"]["videoId"].string != track.id { continue }
+                if let status = like["likeStatus"].string, let rating = MusicRating(rawValue: status) {
+                    result.ratingCandidates[track.id, default: []].insert(rating)
                 }
             }
         }

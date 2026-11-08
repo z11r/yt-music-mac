@@ -86,6 +86,9 @@ struct QueueView: View {
                         Button("Start Radio") { session.startRadio(from: entry.track) }
                     }
                     Button("Remove from Queue") { session.removeQueueEntries(ids) }
+                    if ids.count == 1, let entry = session.queue.entries.first(where: { ids.contains($0.id) }) {
+                        TrackRatingActions(session: session, track: entry.track)
+                    }
                 }
             } primaryAction: { ids in playSelection(ids) }
             .onDeleteCommand { removeSelection() }
@@ -142,6 +145,7 @@ struct QueueView: View {
                 Button("Move Down") { moveEntry(entry.id, up: false) }
             }
             Button("Remove from Queue") { session.removeQueueEntries([entry.id]) }
+            TrackRatingActions(session: session, track: entry.track)
         }
     }
 

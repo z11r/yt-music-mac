@@ -60,6 +60,155 @@ final class MusicLibraryEditTests: XCTestCase {
         XCTAssertFalse(client.supportsRemoteLibraryEdits)
     }
 
+    func testThreeStateRatingUsesTheMatchingEndpointAndRequiresConfirmation() async throws {
+        let transport = EditTransport([.response(confirmed()), .response(confirmed()), .response(confirmed())])
+        let client = await makeClient(transport)
+        for rating in [MusicRating.liked, .disliked, .neutral] {
+            let result = try await client.executeLibraryEdit(.setRating(videoID: "song", rating: rating))
+            XCTAssertEqual(result, .rated(videoID: "song", rating: rating))
+        }
+        let requests = await transport.requests
+        XCTAssertEqual(requests.map { $0.url?.path }, ["/youtubei/v1/like/like", "/youtubei/v1/like/dislike", "/youtubei/v1/like/removelike"])
+        for request in requests {
+            XCTAssertEqual(try body(request)["target"] as? [String: String], ["videoId": "song"])
+        }
+    }
+
+    func testDefaultCapabilitiesRejectEveryKindOfUserFacingEditWithoutRequests() async throws {
+        let transport = EditTransport([])
+        let client = await makeClient(transport)
+        let actions: [MusicLibraryEditAction] = [
+            .setLiked(videoID: "song", liked: true), .setLiked(videoID: "song", liked: false),
+            .setRating(videoID: "song", rating: .liked), .setRating(videoID: "song", rating: .disliked),
+            .setRating(videoID: "song", rating: .neutral),
+            .createPlaylist(title: "New", description: nil, privacy: .private, videoIDs: []),
+            .renamePlaylist(id: "PLfixture", title: "New"), .deletePlaylist(id: "PLfixture"),
+            .addItems(playlistID: "PLfixture", videoIDs: ["song"], allowDuplicates: false),
+            .removeItems(playlistID: "PLfixture", items: [.init(videoID: "song", setVideoID: "entry")]),
+        ]
+        for action in actions {
+            do { _ = try await client.performLibraryEdit(action); XCTFail("Expected disabled operation") }
+            catch { XCTAssertEqual(error as? MusicLibraryEditError, .featureUnavailable) }
+        }
+        let requests = await transport.requests
+        XCTAssertTrue(requests.isEmpty)
+    }
+
+    func testLikeCapabilityDoesNotEnableDislikeOrPlaylistEdits() async throws {
+        let transport = EditTransport([.response(confirmed()), .response(confirmed())])
+        let client = YouTubeMusicClient(transport: transport, sessions: await authenticatedStore(),
+                                       libraryEditCapabilities: .init(likes: true))
+        let liked = try await client.performLibraryEdit(.setRating(videoID: "song", rating: .liked))
+        let neutral = try await client.performLibraryEdit(.setRating(videoID: "song", rating: .neutral))
+        XCTAssertEqual(liked, .rated(videoID: "song", rating: .liked))
+        XCTAssertEqual(neutral, .rated(videoID: "song", rating: .neutral))
+        for action: MusicLibraryEditAction in [.setRating(videoID: "song", rating: .disliked), .deletePlaylist(id: "PLfixture")] {
+            do { _ = try await client.performLibraryEdit(action); XCTFail("Expected independent operation gate") }
+            catch { XCTAssertEqual(error as? MusicLibraryEditError, .featureUnavailable) }
+        }
+        let requests = await transport.requests
+        XCTAssertEqual(requests.count, 2)
+        XCTAssertTrue(client.supportsRemoteLibraryEdits)
+        XCTAssertFalse(client.libraryEditCapabilities.playlists)
+    }
+
+    func testDislikeCapabilityAllowsClearingDislikeWithoutEnablingLikes() async throws {
+        let transport = EditTransport([.response(confirmed()), .response(confirmed())])
+        let client = YouTubeMusicClient(transport: transport, sessions: await authenticatedStore(),
+                                       libraryEditCapabilities: .init(dislikes: true))
+        let disliked = try await client.performLibraryEdit(.setRating(videoID: "song", rating: .disliked))
+        let neutral = try await client.performLibraryEdit(.setRating(videoID: "song", rating: .neutral))
+        XCTAssertEqual(disliked, .rated(videoID: "song", rating: .disliked))
+        XCTAssertEqual(neutral, .rated(videoID: "song", rating: .neutral))
+        do { _ = try await client.performLibraryEdit(.setRating(videoID: "song", rating: .liked)); XCTFail("Expected like gate") }
+        catch { XCTAssertEqual(error as? MusicLibraryEditError, .featureUnavailable) }
+        let requests = await transport.requests
+        XCTAssertEqual(requests.count, 2)
+    }
+
+    func testPlaylistCapabilityDoesNotEnableRatings() async throws {
+        let transport = EditTransport([.response(response(["playlistId": "PLcreated"]))])
+        let client = YouTubeMusicClient(transport: transport, sessions: await authenticatedStore(),
+                                       libraryEditCapabilities: .init(playlists: true))
+        let result = try await client.performLibraryEdit(.createPlaylist(title: "New", description: nil, privacy: .private, videoIDs: []))
+        XCTAssertEqual(result, .playlistCreated(id: "PLcreated"))
+        do { _ = try await client.performLibraryEdit(.setRating(videoID: "song", rating: .disliked)); XCTFail("Expected rating gate") }
+        catch { XCTAssertEqual(error as? MusicLibraryEditError, .featureUnavailable) }
+        let requests = await transport.requests
+        XCTAssertEqual(requests.count, 1)
+    }
+
+    func testRejectedOrUncertainRatingNeverReturnsAConfirmedRatingOrRetries() async throws {
+        let cases: [(EditTransport.Step, any Error)] = [
+            (.response(MusicHTTPResponse(data: Data(), statusCode: 403)), MusicServiceError.accessDenied),
+            (.response(response(["status": "STATUS_FAILED"])), MusicLibraryEditError.serviceRejected),
+            (.response(response(["responseContext": [:]])), MusicLibraryEditError.unconfirmedOutcome),
+            (.failure(.networkConnectionLost), MusicLibraryEditError.unconfirmedOutcome),
+        ]
+        for (step, expected) in cases {
+            let transport = EditTransport([step, .response(confirmed())])
+            let client = await makeClient(transport)
+            do { _ = try await client.executeLibraryEdit(.setRating(videoID: "song", rating: .disliked)); XCTFail("Expected no confirmation") }
+            catch {
+                if let expected = expected as? MusicServiceError { XCTAssertEqual(error as? MusicServiceError, expected) }
+                else { XCTAssertEqual(error as? MusicLibraryEditError, expected as? MusicLibraryEditError) }
+            }
+            let requests = await transport.requests
+            XCTAssertEqual(requests.count, 1)
+        }
+    }
+
+    func testChangedAccountRejectsAnInFlightRatingConfirmation() async throws {
+        let transport = DeferredEditTransport()
+        let store = await authenticatedStore()
+        let client = YouTubeMusicClient(transport: transport, sessions: store,
+                                       libraryEditCapabilities: .init(dislikes: true))
+        let task = Task { try await client.performLibraryEdit(.setRating(videoID: "song", rating: .disliked)) }
+        await transport.waitUntilStarted()
+        await store.clear()
+        await transport.finish(confirmed())
+        do { _ = try await task.value; XCTFail("Expected account fence") }
+        catch { XCTAssertEqual(error as? MusicServiceError, .sessionChanged) }
+    }
+
+    func testAnOldUIAccountScopeCannotStartAWriteInANewAccount() async throws {
+        let transport = EditTransport([])
+        let store = await authenticatedStore()
+        let oldScope = await store.snapshot().scope
+        await store.replaceSession(accountID: "different-account", cookieHeader: "fixture=other", sapisid: "other",
+                                   configuration: MusicClientConfiguration(apiKey: "fixture", clientVersion: "fixture"))
+        let client = YouTubeMusicClient(transport: transport, sessions: store,
+                                       libraryEditCapabilities: .init(likes: true))
+        do {
+            _ = try await client.performLibraryEdit(.setRating(videoID: "song", rating: .liked), expectedScope: oldScope)
+            XCTFail("Expected old account fence")
+        } catch { XCTAssertEqual(error as? MusicServiceError, .sessionChanged) }
+        let requests = await transport.requests
+        XCTAssertTrue(requests.isEmpty)
+    }
+
+    func testScopeIsRecheckedWhenTheMutationTakesItsCredentialSnapshot() async throws {
+        let transport = EditTransport([])
+        let original = UUID()
+        let client = YouTubeMusicClient(transport: transport, sessions: ScopeChangingEditSession(original: original),
+                                       libraryEditCapabilities: .init(likes: true))
+        do {
+            _ = try await client.performLibraryEdit(.setRating(videoID: "song", rating: .liked), expectedScope: original)
+            XCTFail("Expected snapshot race fence")
+        } catch { XCTAssertEqual(error as? MusicServiceError, .sessionChanged) }
+        let requests = await transport.requests
+        XCTAssertTrue(requests.isEmpty)
+    }
+
+    func testLibraryEditScopeDoesNotExposeAnAnonymousSessionAsEditable() async {
+        let transport = EditTransport([])
+        let client = YouTubeMusicClient(transport: transport)
+        do { _ = try await client.libraryEditScope(); XCTFail("Expected sign-in requirement") }
+        catch { XCTAssertEqual(error as? MusicServiceError, .signInRequired) }
+        let requests = await transport.requests
+        XCTAssertTrue(requests.isEmpty)
+    }
+
     func testSignedOutEditsNeverSendARequest() async {
         let transport = EditTransport([])
         let client = YouTubeMusicClient(transport: transport)
@@ -344,6 +493,18 @@ private actor DeferredEditTransport: MusicHTTPTransport {
         await withCheckedContinuation { waiters.append($0) }
     }
     func finish(_ response: MusicHTTPResponse) { pending?.resume(returning: response); pending = nil }
+}
+
+private actor ScopeChangingEditSession: MusicSessionProviding {
+    let original: UUID
+    private var reads = 0
+    init(original: UUID) { self.original = original }
+    func snapshot() async -> MusicSession {
+        reads += 1
+        return MusicSession(scope: reads == 1 ? original : UUID(), accountID: "fixture-account",
+                            cookieHeader: "fixture=value", sapisid: "fixture",
+                            configuration: MusicClientConfiguration(apiKey: "fixture", clientVersion: "fixture"))
+    }
 }
 
 private func body(_ request: URLRequest) throws -> [String: Any] {

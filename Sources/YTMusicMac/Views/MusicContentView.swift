@@ -335,6 +335,7 @@ private struct CollectionTracksView: View {
                         Button("Play Next") { session.playNext([row.track]) }
                         Button("Add to Queue") { session.addToQueue([row.track]) }
                         Button("Start Radio") { session.startRadio(from: row.track) }
+                        TrackRatingActions(session: session, track: row.track)
                     }
                 }.width(min: 190, ideal: 380)
                 TableColumn("Time") { row in

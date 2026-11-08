@@ -99,6 +99,13 @@ public struct MusicPlaylistCapabilities: Hashable, Sendable {
     }
 }
 
+/// The service's song rating. A missing value is unknown, not neutral.
+public enum MusicRating: String, Codable, Hashable, Sendable {
+    case liked = "LIKE"
+    case neutral = "INDIFFERENT"
+    case disliked = "DISLIKE"
+}
+
 public struct MusicPage: Sendable {
     public let title: String
     public let sections: [MusicSection]
@@ -108,19 +115,22 @@ public struct MusicPage: Sendable {
     public let playlistCapabilities: MusicPlaylistCapabilities
     /// A missing entry means the response did not establish the song's like state.
     public let likeStates: [String: Bool]
+    /// Authoritative three-state ratings. A legacy false like value cannot establish neutral versus disliked.
+    public let ratings: [String: MusicRating]
     public var tracks: [Track] { items.compactMap { if case let .track(track) = $0 { track } else { nil } } }
 
     public init(title: String, sections: [MusicSection], items: [MusicItem], continuation: MusicContinuation? = nil,
                 playlistItems: [MusicPlaylistItem] = [],
                 playlistCapabilities: MusicPlaylistCapabilities = MusicPlaylistCapabilities(),
-                likeStates: [String: Bool] = [:]) {
+                likeStates: [String: Bool] = [:], ratings: [String: MusicRating] = [:]) {
         self.title = title
         self.sections = sections
         self.items = items
         self.continuation = continuation
         self.playlistItems = playlistItems
         self.playlistCapabilities = playlistCapabilities
-        self.likeStates = likeStates
+        self.ratings = likeStates.compactMapValues { $0 ? .liked : nil }.merging(ratings) { _, explicit in explicit }
+        self.likeStates = likeStates.merging(self.ratings.mapValues { $0 == .liked }) { _, explicit in explicit }
     }
 }
 

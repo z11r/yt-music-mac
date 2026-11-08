@@ -286,21 +286,17 @@ struct LibraryTrackActions: View {
     var showsSeparator = true
 
     var body: some View {
-        if session.remoteLibraryEditingEnabled && !tracks.isEmpty {
-            let scope = session.libraryEditingScope
+        if !tracks.isEmpty && (session.remoteLibraryEditingEnabled || (tracks.count == 1 && session.hasRatingControls)) {
             if showsSeparator { Divider() }
-            if tracks.count == 1, let track = tracks.first, let liked = session.page?.likeStates[track.id] {
-                Button(liked ? "Remove from Liked Songs" : "Add to Liked Songs") {
-                    Task {
-                        guard session.libraryEditingScope == scope else { return }
-                        _ = await session.performLibraryEdit(.setLiked(videoID: track.id, liked: !liked))
-                    }
-                }.disabled(session.isEditingLibrary)
+            if tracks.count == 1, let track = tracks.first {
+                TrackRatingActions(session: session, track: track)
             }
-            Button("Add to Playlist…") { presentEditor(.addItems(tracks: tracks)) }
-                .disabled(session.isEditingLibrary)
-            Button("New Playlist with Selection…") { presentEditor(.createPlaylist(tracks: tracks)) }
-                .disabled(session.isEditingLibrary)
+            if session.remoteLibraryEditingEnabled {
+                Button("Add to Playlist…") { presentEditor(.addItems(tracks: tracks)) }
+                    .disabled(session.isEditingLibrary)
+                Button("New Playlist with Selection…") { presentEditor(.createPlaylist(tracks: tracks)) }
+                    .disabled(session.isEditingLibrary)
+            }
         }
     }
 }

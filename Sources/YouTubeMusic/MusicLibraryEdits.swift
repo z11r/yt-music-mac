@@ -11,11 +11,40 @@ public enum PlaylistPrivacy: String, Equatable, Sendable {
 
 public enum MusicLibraryEditAction: Equatable, Sendable {
     case setLiked(videoID: String, liked: Bool)
+    case setRating(videoID: String, rating: MusicRating)
     case createPlaylist(title: String, description: String?, privacy: PlaylistPrivacy, videoIDs: [String])
     case renamePlaylist(id: String, title: String)
     case deletePlaylist(id: String)
     case addItems(playlistID: String, videoIDs: [String], allowDuplicates: Bool)
     case removeItems(playlistID: String, items: [PlaylistItemReference])
+}
+
+/// Enabled separately only after the corresponding signed-in operations have been verified.
+public struct MusicLibraryEditCapabilities: Hashable, Sendable {
+    public let likes: Bool
+    public let dislikes: Bool
+    public let playlists: Bool
+
+    public init(likes: Bool = false, dislikes: Bool = false, playlists: Bool = false) {
+        self.likes = likes
+        self.dislikes = dislikes
+        self.playlists = playlists
+    }
+
+    public var hasAny: Bool { likes || dislikes || playlists }
+
+    public func allows(_ action: MusicLibraryEditAction) -> Bool {
+        switch action {
+        case .setLiked: likes
+        case let .setRating(_, rating):
+            switch rating {
+            case .liked: likes
+            case .disliked: dislikes
+            case .neutral: likes || dislikes
+            }
+        default: playlists
+        }
+    }
 }
 
 /// A service-assigned playlist occurrence, separate from a song or local queue entry.
@@ -32,6 +61,7 @@ public struct PlaylistItemReference: Hashable, Sendable {
 /// Returned only when the response explicitly confirms the requested change.
 public enum MusicLibraryEditResult: Equatable, Sendable {
     case liked(videoID: String, isLiked: Bool)
+    case rated(videoID: String, rating: MusicRating)
     case playlistCreated(id: String)
     case playlistRenamed(id: String, title: String)
     case playlistDeleted(id: String)
@@ -62,71 +92,95 @@ public enum MusicLibraryEditError: Error, Equatable, LocalizedError, Sendable {
 }
 
 extension YouTubeMusicClient {
-    /// UI entry point. An uncertain response never triggers an automatic repeat submission.
-    public func performLibraryEdit(_ action: MusicLibraryEditAction) async throws -> MusicLibraryEditResult {
-        guard supportsRemoteLibraryEdits else { throw MusicLibraryEditError.featureUnavailable }
-        return try await executeLibraryEdit(action)
+    /// Account fence only; no credentials or account identity leave the client.
+    public func libraryEditScope() async throws -> UUID {
+        let session = await sessions.snapshot()
+        guard session.isAuthenticated else { throw MusicServiceError.signInRequired }
+        return session.scope
     }
 
-    func executeLibraryEdit(_ action: MusicLibraryEditAction) async throws -> MusicLibraryEditResult {
+    /// UI entry point. An uncertain response never triggers an automatic repeat submission.
+    public func performLibraryEdit(_ action: MusicLibraryEditAction, expectedScope: UUID? = nil) async throws -> MusicLibraryEditResult {
+        guard libraryEditCapabilities.allows(action) else { throw MusicLibraryEditError.featureUnavailable }
+        return try await executeLibraryEdit(action, expectedScope: expectedScope)
+    }
+
+    func executeLibraryEdit(_ action: MusicLibraryEditAction, expectedScope: UUID? = nil) async throws -> MusicLibraryEditResult {
         try Task.checkCancellation()
         guard !libraryEditInProgress else { throw MusicLibraryEditError.operationInProgress }
         libraryEditInProgress = true
         defer { libraryEditInProgress = false }
+        let scope: UUID
+        if let expectedScope { scope = expectedScope }
+        else { scope = await sessions.snapshot().scope }
+        try await validateScope(scope)
         switch action {
-        case let .setLiked(videoID, liked): return try await setLiked(liked, videoID: videoID)
+        case let .setLiked(videoID, liked): return try await setLiked(liked, videoID: videoID, expectedScope: scope)
+        case let .setRating(videoID, rating): return try await setRating(rating, videoID: videoID, expectedScope: scope)
         case let .createPlaylist(title, description, privacy, videoIDs):
-            return try await createPlaylist(title: title, description: description, privacy: privacy, videoIDs: videoIDs)
-        case let .renamePlaylist(id, title): return try await renamePlaylist(id: id, title: title)
-        case let .deletePlaylist(id): return try await deletePlaylist(id: id)
+            return try await createPlaylist(title: title, description: description, privacy: privacy, videoIDs: videoIDs, expectedScope: scope)
+        case let .renamePlaylist(id, title): return try await renamePlaylist(id: id, title: title, expectedScope: scope)
+        case let .deletePlaylist(id): return try await deletePlaylist(id: id, expectedScope: scope)
         case let .addItems(playlistID, videoIDs, allowDuplicates):
-            return try await addPlaylistItems(playlistID: playlistID, videoIDs: videoIDs, allowDuplicates: allowDuplicates)
-        case let .removeItems(playlistID, items): return try await removePlaylistItems(playlistID: playlistID, items: items)
+            return try await addPlaylistItems(playlistID: playlistID, videoIDs: videoIDs, allowDuplicates: allowDuplicates, expectedScope: scope)
+        case let .removeItems(playlistID, items): return try await removePlaylistItems(playlistID: playlistID, items: items, expectedScope: scope)
         }
     }
 
-    public func setLiked(_ liked: Bool, videoID: String) async throws -> MusicLibraryEditResult {
-        try validateIdentifier(videoID)
-        let response = try await libraryMutation(endpoint: liked ? "like/like" : "like/removelike",
-                                                 body: ["target": ["videoId": videoID]])
-        try Self.requireMutationConfirmation(response)
+    func setLiked(_ liked: Bool, videoID: String, expectedScope: UUID? = nil) async throws -> MusicLibraryEditResult {
+        _ = try await setRating(liked ? .liked : .neutral, videoID: videoID, expectedScope: expectedScope)
         return .liked(videoID: videoID, isLiked: liked)
     }
 
-    public func createPlaylist(title: String, description: String? = nil,
-                               privacy: PlaylistPrivacy = .private, videoIDs: [String] = []) async throws -> MusicLibraryEditResult {
+    func setRating(_ rating: MusicRating, videoID: String, expectedScope: UUID? = nil) async throws -> MusicLibraryEditResult {
+        try validateIdentifier(videoID)
+        let endpoint: String
+        switch rating {
+        case .liked: endpoint = "like/like"
+        case .neutral: endpoint = "like/removelike"
+        case .disliked: endpoint = "like/dislike"
+        }
+        let response = try await libraryMutation(endpoint: endpoint,
+                                                 body: ["target": ["videoId": videoID]], expectedScope: expectedScope)
+        try Self.requireMutationConfirmation(response)
+        return .rated(videoID: videoID, rating: rating)
+    }
+
+    func createPlaylist(title: String, description: String? = nil,
+                               privacy: PlaylistPrivacy = .private, videoIDs: [String] = [],
+                               expectedScope: UUID? = nil) async throws -> MusicLibraryEditResult {
         let title = try Self.playlistTitle(title)
         try validateVideos(videoIDs, allowEmpty: true)
         guard (description?.count ?? 0) <= 5_000 else { throw MusicServiceError.invalidInput }
         var body: [String: Any] = ["title": title, "privacyStatus": privacy.rawValue]
         if let description, !description.isEmpty { body["description"] = description }
         if !videoIDs.isEmpty { body["videoIds"] = videoIDs }
-        let response = try await libraryMutation(endpoint: "playlist/create", body: body)
+        let response = try await libraryMutation(endpoint: "playlist/create", body: body, expectedScope: expectedScope)
         guard let id = response["playlistId"] as? String else { throw MusicLibraryEditError.unconfirmedOutcome }
         do { try validateIdentifier(id) } catch { throw MusicLibraryEditError.unconfirmedOutcome }
         return .playlistCreated(id: id)
     }
 
-    public func renamePlaylist(id: String, title: String) async throws -> MusicLibraryEditResult {
+    func renamePlaylist(id: String, title: String, expectedScope: UUID? = nil) async throws -> MusicLibraryEditResult {
         let id = try editablePlaylistID(id)
         let title = try Self.playlistTitle(title)
         let response = try await libraryMutation(endpoint: "browse/edit_playlist", body: [
             "playlistId": id,
             "actions": [["action": "ACTION_SET_PLAYLIST_NAME", "playlistName": title]],
-        ])
+        ], expectedScope: expectedScope)
         try Self.requireMutationConfirmation(response)
         return .playlistRenamed(id: id, title: title)
     }
 
-    public func deletePlaylist(id: String) async throws -> MusicLibraryEditResult {
+    func deletePlaylist(id: String, expectedScope: UUID? = nil) async throws -> MusicLibraryEditResult {
         let id = try editablePlaylistID(id)
-        let response = try await libraryMutation(endpoint: "playlist/delete", body: ["playlistId": id])
+        let response = try await libraryMutation(endpoint: "playlist/delete", body: ["playlistId": id], expectedScope: expectedScope)
         try Self.requireMutationConfirmation(response)
         return .playlistDeleted(id: id)
     }
 
-    public func addPlaylistItems(playlistID: String, videoIDs: [String],
-                                 allowDuplicates: Bool = false) async throws -> MusicLibraryEditResult {
+    func addPlaylistItems(playlistID: String, videoIDs: [String],
+                                 allowDuplicates: Bool = false, expectedScope: UUID? = nil) async throws -> MusicLibraryEditResult {
         let playlistID = try editablePlaylistID(playlistID)
         try validateVideos(videoIDs)
         guard allowDuplicates || Set(videoIDs).count == videoIDs.count else {
@@ -139,7 +193,7 @@ extension YouTubeMusicClient {
         }
         let response = try await libraryMutation(endpoint: "browse/edit_playlist", body: [
             "playlistId": playlistID, "actions": actions,
-        ])
+        ], expectedScope: expectedScope)
         try Self.requireMutationConfirmation(response)
         guard let results = response["playlistEditResults"] as? [[String: Any]] else {
             throw MusicLibraryEditError.unconfirmedOutcome
@@ -159,13 +213,13 @@ extension YouTubeMusicClient {
         return .itemsAdded(playlistID: playlistID, items: added)
     }
 
-    public func removePlaylistItems(playlistID: String, items: [PlaylistItemReference]) async throws -> MusicLibraryEditResult {
+    func removePlaylistItems(playlistID: String, items: [PlaylistItemReference], expectedScope: UUID? = nil) async throws -> MusicLibraryEditResult {
         let playlistID = try editablePlaylistID(playlistID)
         try validateReferences(items)
         let response = try await libraryMutation(endpoint: "browse/edit_playlist", body: [
             "playlistId": playlistID,
             "actions": items.map { ["action": "ACTION_REMOVE_VIDEO", "removedVideoId": $0.videoID, "setVideoId": $0.setVideoID] },
-        ])
+        ], expectedScope: expectedScope)
         try Self.requireMutationConfirmation(response)
         return .itemsRemoved(playlistID: playlistID, items: items)
     }
@@ -212,9 +266,10 @@ extension YouTubeMusicClient {
     }
 
     /// Writes are sent once. A lost response cannot establish whether the server applied the change.
-    private func libraryMutation(endpoint: String, body: [String: Any]) async throws -> [String: Any] {
+    private func libraryMutation(endpoint: String, body: [String: Any], expectedScope: UUID? = nil) async throws -> [String: Any] {
         try Task.checkCancellation()
         let session = await sessions.snapshot()
+        guard expectedScope == nil || session.scope == expectedScope else { throw MusicServiceError.sessionChanged }
         guard session.isAuthenticated, let cookie = session.cookieHeader, let sapisid = session.sapisid else {
             throw MusicServiceError.signInRequired
         }

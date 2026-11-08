@@ -100,6 +100,7 @@ final class AppSession {
     let savedQueues: NamedQueueLibrary
     var queue = PlaybackQueue()
     let collectionPlayback: CollectionPlayback
+    let songRatings = SongRatings()
     private(set) var destination: MusicDestination = .home
     private(set) var page: MusicPage?
     private(set) var isLoading = false
@@ -228,7 +229,14 @@ final class AppSession {
     var remainingQueuePosition: TimeInterval {
         resumeState.position(for: queue, playerPosition: Double(player.clock.elapsedSeconds))
     }
-    var remoteLibraryEditingEnabled: Bool { account.isSignedIn && client.supportsRemoteLibraryEdits }
+    var remoteLibraryEditingEnabled: Bool { account.isSignedIn && client.libraryEditCapabilities.playlists }
+    var hasRatingControls: Bool {
+        account.isSignedIn && (client.libraryEditCapabilities.likes || client.libraryEditCapabilities.dislikes)
+    }
+    func canEditRating(_ rating: MusicRating) -> Bool {
+        account.isSignedIn && client.libraryEditCapabilities.allows(.setRating(videoID: "", rating: rating))
+    }
+    func rating(for track: Track) -> MusicRating? { songRatings.values[track.id] }
     var visibleTracks: [Track] {
         guard let page else { return [] }
         let tracks = page.tracks.isEmpty ? page.sections.flatMap(\.items).compactMap {
@@ -282,6 +290,7 @@ final class AppSession {
         let generation = UUID()
         pageGeneration = generation
         let filter = searchFilter
+        let ratingsRead = songRatings.beginRead()
         pageTask = Task { [weak self, client] in
             do {
                 let result: MusicPage
@@ -302,6 +311,7 @@ final class AppSession {
                 }
                 guard let self, !Task.isCancelled, self.pageGeneration == generation else { return }
                 self.page = result
+                self.songRatings.observe(result.ratings, from: ratingsRead)
                 self.isLoading = false
             } catch {
                 guard let self, !Task.isCancelled, self.pageGeneration == generation else { return }
@@ -342,6 +352,7 @@ final class AppSession {
         cancelRadio()
         let pageScope = pageGeneration
         let accountScope = accountGeneration
+        let ratingsRead = songRatings.beginRead()
         let queueState = queue.snapshot()
         return collectionPlayback.start(page: page, action: action, isCurrent: { [weak self] in
             guard let self else { return false }
@@ -351,6 +362,7 @@ final class AppSession {
         }, commit: { [weak self] complete, action in
             guard let self else { return }
             self.page = complete
+            self.songRatings.observe(complete.ratings, from: ratingsRead)
             self.pageError = nil
             switch action {
             case .append:
@@ -370,6 +382,7 @@ final class AppSession {
         isLoadingMore = true
         pageError = nil
         let generation = pageGeneration
+        let ratingsRead = songRatings.beginRead()
         pageTask = Task { [weak self, client] in
             do {
                 let next = try await client.nextPage(continuation)
@@ -378,7 +391,9 @@ final class AppSession {
                     items: initial.items + next.items, continuation: next.continuation,
                     playlistItems: initial.playlistItems + next.playlistItems,
                     playlistCapabilities: initial.playlistCapabilities,
-                    likeStates: initial.likeStates.merging(next.likeStates) { _, new in new })
+                    likeStates: initial.likeStates.merging(next.likeStates) { _, new in new },
+                    ratings: initial.ratings.merging(next.ratings) { _, new in new })
+                self.songRatings.observe(next.ratings, from: ratingsRead)
                 self.isLoadingMore = false
             } catch {
                 guard let self, !Task.isCancelled, self.pageGeneration == generation else { return }
@@ -468,7 +483,7 @@ final class AppSession {
     }
 
     func performLibraryEdit(_ action: MusicLibraryEditAction) async -> Bool {
-        guard remoteLibraryEditingEnabled else {
+        guard account.isSignedIn, client.libraryEditCapabilities.allows(action) else {
             libraryEditError = MusicLibraryEditError.featureUnavailable.localizedDescription
             return false
         }
@@ -483,6 +498,7 @@ final class AppSession {
             if libraryEditID == id { libraryEditID = nil; isEditingLibrary = false }
         }
         do {
+            let expectedScope = try await client.libraryEditScope()
             if let target = LibraryEditPolicy.playlistID(for: action) {
                 let targetPage = try await client.playlist(id: target)
                 guard LibraryEditPolicy.permits(action, capabilities: targetPage.playlistCapabilities) else {
@@ -491,11 +507,16 @@ final class AppSession {
             }
             guard libraryEditID == id, accountGeneration == generation, account.isSignedIn else { return false }
             try Task.checkCancellation()
-            let result = try await client.performLibraryEdit(action)
+            let result = try await client.performLibraryEdit(action, expectedScope: expectedScope)
             guard libraryEditID == id, accountGeneration == generation, account.isSignedIn else { return false }
             switch result {
-            case .liked:
-                libraryEditMessage = "Your liked songs were updated."
+            case let .liked(videoID, isLiked):
+                songRatings.confirm(isLiked ? .liked : .neutral, for: videoID)
+                libraryEditMessage = "Your song rating was updated."
+                if destination == startingDestination { reload() }
+            case let .rated(videoID, rating):
+                songRatings.confirm(rating, for: videoID)
+                libraryEditMessage = "Your song rating was updated."
                 if destination == startingDestination { reload() }
             case let .playlistCreated(playlistID):
                 libraryEditMessage = "Playlist created."
@@ -522,6 +543,12 @@ final class AppSession {
             return true
         } catch {
             guard libraryEditID == id, accountGeneration == generation else { return false }
+            if error is CancellationError || error as? MusicLibraryEditError == .unconfirmedOutcome {
+                switch action {
+                case let .setLiked(videoID, _), let .setRating(videoID, _): songRatings.invalidate(videoID)
+                default: break
+                }
+            }
             libraryEditError = error is CancellationError
                 ? "The change was interrupted. Check your library before trying again."
                 : error.localizedDescription
@@ -535,6 +562,7 @@ final class AppSession {
     }
 
     private func resetLibraryEditing() {
+        songRatings.clear()
         libraryEditingScope = UUID()
         libraryEditID = nil
         isEditingLibrary = false

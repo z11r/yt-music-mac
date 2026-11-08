@@ -206,6 +206,21 @@ struct CollectionPlaybackTests {
         #expect(requests.count == 3)
     }
 
+    @Test func aggregatingCollectionPagesKeepsDislikeDistinctFromNeutral() async throws {
+        let transport = CollectionTransport([
+            .page(collectionData(["disliked"], next: "second", ratings: ["disliked": .disliked])),
+            .page(collectionData(["neutral"], continuation: true, ratings: ["neutral": .neutral])),
+        ])
+        let client = collectionClient(transport)
+        let first = try await client.playlist(id: "PLfixture")
+        let operation = CollectionPlayback { try await client.nextPage($0) }
+        var observed: [String: MusicRating] = [:]
+        await operation.start(page: first, action: .append, isCurrent: { true }) { complete, _ in
+            observed = complete.ratings
+        }.value
+        #expect(observed == ["disliked": .disliked, "neutral": .neutral])
+    }
+
     @Test func emptyCollectionLeavesTheQueueUntouched() async {
         let operation = CollectionPlayback { _ in
             Issue.record("A terminal page must not send a request")
@@ -319,10 +334,15 @@ struct CollectionPlaybackTests {
 
 private func collectionTrack(_ id: String) -> Track { Track(id: id, title: "Fixture Song", artist: "Fixture Artist") }
 
-private func collectionData(_ ids: [String], next: String? = nil, continuation: Bool = false) -> Data {
+private func collectionData(_ ids: [String], next: String? = nil, continuation: Bool = false,
+                            ratings: [String: MusicRating] = [:]) -> Data {
     let items: [[String: Any]] = ids.map { id in
-        ["musicResponsiveListItemRenderer": ["playlistItemData": ["videoId": id],
-            "flexColumns": [["musicResponsiveListItemFlexColumnRenderer": ["text": ["runs": [["text": "Fixture Song"]]]]]]]]
+        var renderer: [String: Any] = ["playlistItemData": ["videoId": id],
+            "flexColumns": [["musicResponsiveListItemFlexColumnRenderer": ["text": ["runs": [["text": "Fixture Song"]]]]]]]
+        if let rating = ratings[id] {
+            renderer["menu"] = ["menuRenderer": ["topLevelButtons": [["likeButtonRenderer": ["likeStatus": rating.rawValue]]]]]
+        }
+        return ["musicResponsiveListItemRenderer": renderer]
     }
     var shelf: [String: Any] = ["contents": items]
     if let next { shelf["continuations"] = [["nextContinuationData": ["continuation": next]]] }

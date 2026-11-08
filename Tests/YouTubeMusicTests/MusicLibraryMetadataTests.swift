@@ -51,6 +51,30 @@ final class MusicLibraryMetadataTests: XCTestCase {
         XCTAssertEqual(result.playlistItems.count, 3)
     }
 
+    func testDislikedAndNeutralAreDistinctAuthoritativeRatings() throws {
+        let result = try parse(header: [:], rows: [
+            row("liked", status: "LIKE"), row("neutral", status: "INDIFFERENT"), row("disliked", status: "DISLIKE"),
+        ])
+        XCTAssertEqual(result.ratings, ["liked": .liked, "neutral": .neutral, "disliked": .disliked])
+        XCTAssertEqual(result.likeStates, ["liked": true, "neutral": false, "disliked": false])
+    }
+
+    func testConflictingNeutralAndDislikedRowsDoNotBecomeNeutral() throws {
+        let result = try parse(header: [:], rows: [row("same", status: "DISLIKE"), row("same", status: "INDIFFERENT")])
+        XCTAssertTrue(result.ratings.isEmpty)
+        XCTAssertTrue(result.likeStates.isEmpty)
+    }
+
+    func testAPlaylistTargetCannotEstablishARowsSongRating() throws {
+        var item = row("song", status: "LIKE")
+        var renderer = item["musicResponsiveListItemRenderer"] as! [String: Any]
+        renderer["menu"] = ["menuRenderer": ["topLevelButtons": [["likeButtonRenderer": [
+            "likeStatus": "LIKE", "target": ["playlistId": "PLdifferent"],
+        ]]]]]
+        item["musicResponsiveListItemRenderer"] = renderer
+        XCTAssertTrue(try parse(header: [:], rows: [item]).ratings.isEmpty)
+    }
+
     private func parse(header: [String: Any], rows: [[String: Any]]) throws -> ParsedMusicPage {
         let data = try JSONSerialization.data(withJSONObject: ["header": header,
             "contents": ["sectionListRenderer": ["contents": [["musicPlaylistShelfRenderer": ["contents": rows]]]]]])

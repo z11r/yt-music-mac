@@ -21,6 +21,7 @@ struct LibraryEditPolicyTests {
 
     @Test func creationAndLikesDoNotUseAnotherPlaylistsPermission() {
         #expect(LibraryEditPolicy.playlistID(for: .setLiked(videoID: "abcDEF12_-3", liked: true)) == nil)
+        #expect(LibraryEditPolicy.playlistID(for: .setRating(videoID: "abcDEF12_-3", rating: .disliked)) == nil)
         #expect(LibraryEditPolicy.playlistID(for: .createPlaylist(title: "New", description: nil,
             privacy: .private, videoIDs: [])) == nil)
         #expect(LibraryEditPolicy.normalizedID("VLPLtest") == "PLtest")
