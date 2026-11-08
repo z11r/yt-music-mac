@@ -30,9 +30,8 @@ Recovery tests save and reopen isolated queue files after failed loads, and chec
 that retries, new occurrences, explicit seeks, and account changes handle saved
 positions correctly. Keyboard tests cover text and web focus, sheets, focused
 controls, shortcut routing, bounded seek steps, and volume/mute actions using
-isolated preferences without network requests. On November 7, 2026, 259
-deterministic tests passed locally on Apple silicon; the two opt-in network
-tests were skipped.
+isolated preferences without network requests. On November 7, 2026, the combined feature branch passed 636 deterministic
+tests locally on Apple silicon; four opt-in network tests were skipped.
 
 Check scripts and workflow syntax separately:
 

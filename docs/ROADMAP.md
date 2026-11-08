@@ -4,6 +4,10 @@ Start with a player that can be used for a full listening session. Add library
 editing and compact controls after playback is reliable. There is no release
 date yet.
 
+The [feature plan](FEATURE_PLAN.md) lists the current gaps, reference products,
+implemented and planned features, and acceptance checks for the next development
+batches. It expands this roadmap without replacing the release gates below.
+
 ## 1. App foundation
 
 Create the Swift package, app bundle, and core test target. Use Swift 6.2 or
@@ -126,10 +130,10 @@ account types need their own verification.
 
 ## Follow-up features
 
-After the beta gates pass, consider local folders and pinned favorites, lyrics
-when supplied by the service, a sleep timer, named saved queues, and Shortcuts
-actions. Add these as separate changes with storage and keyboard checks. Label
-organization that stays on the Mac as local.
+The feature branch now includes local folders, pins, tags, saved loaded-library
+filters, service lyrics, a sleep timer, named saved queues, and native Shortcuts
+actions. Their runtime, keyboard, and accessibility acceptance checks remain
+separate from implementation. Organization that stays on the Mac is labeled local.
 
 Downloads, crossfade, loudness normalization, and device handoff need separate
 playback, entitlement, and service checks. Do not promise these features before

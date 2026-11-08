@@ -6,10 +6,15 @@ Local prototype. The native interface, browsing client, playback bridge, and
 queue are implemented. Signed-in playback and the compatibility matrix are
 still being validated. There is no signed public download yet.
 
-The app includes search, discovery, collection pages, an editable queue,
-shuffle/repeat, a mini-player, and menu bar controls. Google sign-in uses the
-app's own WebKit session. Remote likes and playlist edits remain disabled until
-signed-in checks pass.
+The feature branch includes filtered search and suggestions, discovery and
+history, paginated collections, service lyrics, radio/autoplay, a sleep timer,
+an editable queue, named saved queues, and local collection organization. Native
+controls include a mini-player, menu bar player, dedicated playback windows,
+configurable keyboard shortcuts, native Shortcuts actions, and scripting.
+Google sign-in uses the app's own WebKit session. Remote ratings, playlist
+edits, album saves, and artist follows remain disabled until their signed-in
+checks pass. The [feature plan](docs/FEATURE_PLAN.md)
+separates implemented behavior from remaining runtime checks.
 
 ## Compatibility
 
