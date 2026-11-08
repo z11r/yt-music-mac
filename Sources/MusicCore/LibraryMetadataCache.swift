@@ -171,7 +171,7 @@ public actor LibraryMetadataCache {
         }
     }
 
-    private func validate(_ snapshot: LibraryMetadataSnapshot) throws {
+    private nonisolated func validate(_ snapshot: LibraryMetadataSnapshot) throws {
         guard snapshot.capturedAt.timeIntervalSinceReferenceDate.isFinite,
               Set(snapshot.collections.map(\.id)).count == snapshot.collections.count else { throw LibraryMetadataCacheError.invalidMetadata }
         for value in snapshot.collections {
@@ -190,4 +190,14 @@ public actor LibraryMetadataCache {
     private static func isMissing(_ error: NSError) -> Bool {
         error.domain == NSCocoaErrorDomain && (error.code == NSFileNoSuchFileError || error.code == NSFileReadNoSuchFileError)
     }
+    /// Pure format admission for explicit profile cleanup; performs no storage access.
+    public nonisolated static func validatedCleanupMetadata(_ data: Data) throws -> Data {
+        guard data.count <= 2 * 1024 * 1024 else { throw QueuePersistenceError.fileTooLarge }
+        let value = try JSONDecoder().decode(Archive.self, from: data)
+        let validator = LibraryMetadataCache(directoryURL: URL(fileURLWithPath: "/"))
+        guard value.snapshot.collections.count <= collectionLimit else { throw LibraryMetadataCacheError.invalidArchive }
+        try validator.validate(value.snapshot)
+        return try JSONEncoder().encode(value.snapshot)
+    }
+
 }

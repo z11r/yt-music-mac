@@ -199,3 +199,24 @@ are RSS or physical footprint. Use repeated measurements and report variation.
 Do not claim a resource-use improvement before collecting those results.
 The [resource measurement guide](PERFORMANCE.md) describes the sampler, process
 selection, and matched comparison procedure.
+
+
+## Populated additional-profile cleanup
+
+Run the focused profile cleanup fixtures without accessing an actual profile:
+
+```sh
+Scripts/with-xcode.sh swift test --jobs 1 --filter 'ProfileMetadataCleanupTests|ProfileDeletionTests|AppProfileTests'
+```
+
+The fixtures cover recognized metadata schemas, unsupported and future fields,
+write-ahead file checkpoints, lost acknowledgments, digest and revision changes,
+reappearing files, descriptor identities, symlinks, hard links, store-lock
+contention and retained shared profile leases. Filesystem cases create disposable
+metadata only. Local-audio grants contain synthetic opaque bytes, never native
+bookmarks. Provider, preference, Spotlight and website removal use fakes.
+
+Actual inactive-profile cleanup remains a separate runtime acceptance check.
+Verify the selected-profile protection and retained native-resource lease gates,
+then inspect the explicit review and each confirmed outcome in a disposable
+profile. Local audio files and external exports must remain intact.

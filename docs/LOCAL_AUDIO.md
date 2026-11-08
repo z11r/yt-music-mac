@@ -107,7 +107,9 @@ current source and view. Profile changes revoke old window actions immediately,
 drain accepted library writes and check output quiet before activation. Actual
 file grants and shared profile ownership remain retained through readers, assets
 and detached native items. An inactive profile containing local-library data
-remains subject to the existing conservative profile-cleanup limits.
+can remove only validated local-library metadata under the profile-cleanup
+journal. Retained file grants and native items block cleanup; bookmark targets
+and audio files are never removed.
 
 ## Verification
 

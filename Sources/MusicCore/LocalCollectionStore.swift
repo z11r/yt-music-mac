@@ -285,14 +285,14 @@ public actor LocalCollectionStore {
         return directoryURL.appendingPathComponent(accountKey).appendingPathComponent("organization.json")
     }
 
-    private func folderName(_ value: String) throws -> String {
+    private nonisolated func folderName(_ value: String) throws -> String {
         let name = value.trimmingCharacters(in: .whitespacesAndNewlines)
         guard (1...100).contains(name.count), name.utf8.count <= 1_024,
               !name.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains) else { throw LocalCollectionError.invalidName }
         return name
     }
 
-    private func validate(_ organization: LocalCollectionOrganization) throws {
+    private nonisolated func validate(_ organization: LocalCollectionOrganization) throws {
         guard organization.version == LocalCollectionOrganization.currentVersion else { throw LocalCollectionError.unsupportedVersion(organization.version) }
         guard organization.folders.count <= maximumFolders, organization.bookmarks.count <= maximumBookmarks,
               organization.tags.count <= maximumTags, organization.savedFilters.count <= maximumFilters else { throw LocalCollectionError.capacityReached }
@@ -341,4 +341,13 @@ public actor LocalCollectionStore {
         try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
         return organization
     }
+    /// Pure format admission for explicit profile cleanup; performs no storage access.
+    public nonisolated static func validatedCleanupMetadata(_ data: Data) throws -> Data {
+        guard data.count <= 1024 * 1024 else { throw QueuePersistenceError.fileTooLarge }
+        let value = try JSONDecoder().decode(LocalCollectionOrganization.self, from: data)
+        let validator = LocalCollectionStore(directoryURL: URL(fileURLWithPath: "/"))
+        try validator.validate(value)
+        return try JSONEncoder().encode(value)
+    }
+
 }

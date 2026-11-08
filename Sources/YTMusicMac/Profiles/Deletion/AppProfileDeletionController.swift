@@ -37,12 +37,17 @@ final class AppProfileDeletionController {
             try protect(target, archive: snapshot.archive)
             guard snapshot.archive.deletions.isEmpty || snapshot.archive.deletions[0].target == target else { throw ProfileCleanupProblem.busy }
             var probes: [ProfileCleanupProbe]
+            var metadata: ProfileMetadataManifest?
             do {
                 let session = try await adapter.prepare(target)
                 guard isCurrent(), !stopping else { session.close(); throw ProfileCleanupProblem.stale }
                 cleanup = session
                 probes = []
                 let journal = snapshot.archive.deletions.first
+                if let files = session as? any ProfileMetadataCleaning {
+                    metadata = try await files.reviewMetadata(recovering: journal?.metadata)
+                    guard isCurrent(), !stopping else { throw ProfileCleanupProblem.stale }
+                }
                 for step in ProfileCleanupStep.allCases {
                     guard isCurrent(), !stopping else { throw ProfileCleanupProblem.stale }
                     let state = journal?.states[step.index] ?? .pending
@@ -54,7 +59,7 @@ final class AppProfileDeletionController {
                 probes = Array(repeating: .blocked(problem), count: ProfileCleanupStep.allCases.count)
             }
             guard isCurrent(), !stopping else { throw ProfileCleanupProblem.stale }
-            review = .init(snapshot: snapshot, target: target, probes: probes)
+            review = .init(snapshot: snapshot, target: target, probes: probes, metadata: metadata)
             message = nil
         } catch { cleanup?.close(); cleanup = nil; message = failureMessage(error) }
     }
@@ -100,6 +105,7 @@ final class AppProfileDeletionController {
             guard admitted(), working == review.snapshot else { throw ProfileCleanupProblem.stale }
             try protect(review.target, archive: working.archive)
             var journal = working.archive.deletions.first ?? ProfileDeletionJournal(target: review.target)
+            if journal.metadata == nil, let metadata = review.metadata { journal = journal.withMetadata(metadata) }
             var archive = AppProfileArchive(version: 2, selectedID: working.archive.selectedID,
                 profiles: working.archive.profiles, deletions: [journal])
             journal.problem = review.problem; archive.deletions = [journal]
@@ -109,6 +115,10 @@ final class AppProfileDeletionController {
             }
             for step in ProfileCleanupStep.allCases {
                 try await validatePrerequisites(cleanup, journal: journal, snapshot: working)
+                if step == .directory, journal.metadata != nil, let files = cleanup as? any ProfileMetadataCleaning {
+                    try await performMetadata(files, cleanup: cleanup, journal: &journal, archive: &archive, working: &working)
+                    continue
+                }
                 let probe = await cleanup.probe(step, state: journal.states[step.index])
                 if let problem = probe.problem { throw problem }
                 if journal.states[step.index] == .complete && probe == .ready { throw ProfileCleanupProblem.unavailable }
@@ -158,6 +168,65 @@ final class AppProfileDeletionController {
             message = AppLocalization.text("The additional local profile was deleted. External exports and YouTube service data were not removed.")
         } catch { message = failureMessage(error) }
     }
+    private func checkpoint(_ journal: ProfileDeletionJournal, archive: inout AppProfileArchive,
+                            working: inout AppProfileRegistrySnapshot) async throws {
+        archive.deletions = [journal]
+        working = try await registry.save(archive, replacing: working.revision); changed(working)
+    }
+    private func performMetadata(_ files: any ProfileMetadataCleaning, cleanup: any ProfileCleanupSession,
+                                 journal: inout ProfileDeletionJournal, archive: inout AppProfileArchive,
+                                 working: inout AppProfileRegistrySnapshot) async throws {
+        guard var manifest = journal.metadata else { throw ProfileCleanupProblem.savedData }
+        try await files.validateMetadata(manifest)
+        guard admitted(), !stopping else { throw ProfileCleanupProblem.stale }
+        if journal.states[ProfileCleanupStep.directory.index] == .complete {
+            guard await cleanup.probe(.directory, state: .complete) == .absent else { throw ProfileCleanupProblem.savedData }
+            return
+        }
+        journal.states[ProfileCleanupStep.directory.index] = .running
+        try await checkpoint(journal, archive: &archive, working: &working)
+        for index in manifest.files.indices {
+            try await validatePrerequisites(cleanup, journal: journal, snapshot: working)
+            try await files.validateMetadata(manifest)
+            guard admitted(), !stopping else { throw ProfileCleanupProblem.stale }
+            if manifest.files[index].state == .complete { continue }
+            let present = try await files.metadataFileIsPresent(manifest.files[index], manifest: manifest)
+            guard admitted(), !stopping else { throw ProfileCleanupProblem.stale }
+            if present {
+                manifest.files[index].state = .running; journal.metadata = manifest
+                try await checkpoint(journal, archive: &archive, working: &working)
+                try await validatePrerequisites(cleanup, journal: journal, snapshot: working)
+                try await files.validateMetadata(manifest)
+                guard admitted(), !stopping else { throw ProfileCleanupProblem.stale }
+                do {
+                    try await files.removeMetadataFile(manifest.files[index], manifest: manifest)
+                    // Lost acknowledgments are reconciled by an explicit later review.
+                    guard try await !files.metadataFileIsPresent(manifest.files[index], manifest: manifest) else { throw ProfileCleanupProblem.unavailable }
+                } catch {
+                    manifest.files[index].state = .uncertain; journal.metadata = manifest
+                    journal.states[ProfileCleanupStep.directory.index] = .uncertain
+                    journal.problem = (error as? ProfileCleanupProblem) ?? .unavailable
+                    try? await checkpoint(journal, archive: &archive, working: &working)
+                    throw error
+                }
+            }
+            manifest.files[index].state = .complete; journal.metadata = manifest
+            try await checkpoint(journal, archive: &archive, working: &working)
+        }
+        try await validatePrerequisites(cleanup, journal: journal, snapshot: working)
+        try await files.validateMetadata(manifest)
+        guard admitted(), !stopping else { throw ProfileCleanupProblem.stale }
+        do { try await files.finishMetadata(manifest) }
+        catch {
+            journal.states[ProfileCleanupStep.directory.index] = .uncertain
+            journal.problem = (error as? ProfileCleanupProblem) ?? .unavailable
+            try? await checkpoint(journal, archive: &archive, working: &working)
+            throw error
+        }
+        guard await cleanup.probe(.directory, state: .complete) == .absent else { throw ProfileCleanupProblem.unavailable }
+        journal.states[ProfileCleanupStep.directory.index] = .complete; journal.problem = nil
+        try await checkpoint(journal, archive: &archive, working: &working)
+    }
     private func validatePrerequisites(_ cleanup: any ProfileCleanupSession, journal: ProfileDeletionJournal,
                                        snapshot: AppProfileRegistrySnapshot) async throws {
         for step in ProfileCleanupStep.allCases.filter({ $0 != .website }) + [.website] {
@@ -171,6 +240,7 @@ final class AppProfileDeletionController {
         guard admitted(), !stopping else { throw ProfileCleanupProblem.stale }
         let latest = try await registry.load()
         guard admitted(), !stopping, latest == snapshot else { throw ProfileCleanupProblem.stale }
+        if let target = latest.archive.deletions.first?.target { try protect(target, archive: latest.archive) }
     }
     private func failureMessage(_ error: any Error) -> String {
         if let problem = error as? ProfileCleanupProblem { return problem.message }

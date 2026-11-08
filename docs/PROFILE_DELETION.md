@@ -13,11 +13,23 @@ profile folder.
 
 ## Supported cleanup and pending states
 
-This first cleanup path supports empty profile folders, including bounded known
-empty subdirectories, and known scalar settings. Populated folders are retained
-until their saved-data formats have dedicated cleanup validation. Unknown or
-versioned settings, unsupported credentials, symbolic links, unexpected paths,
-other app instances and retained website views also block cleanup.
+Cleanup supports known scalar settings and a bounded inventory of recognized app
+metadata. The review shows recognized file and confirmed removal counts. Unknown
+files or nested fields, unsupported versions, malformed or oversized archives,
+changed file identities, unresolved external writes, unsafe paths and retained
+resources keep deletion pending. Other app instances also block cleanup.
+
+Recognized metadata includes the current queue, named queues, collection
+organization, library metadata cache, local song rules, local episode progress,
+Last.fm and ListenBrainz delivery records, and the local-audio library. Account
+folders and filenames must use the exact stored account-hash format. A local-audio
+library must identify this additional profile. Bookmarks are validated as bounded
+opaque metadata; cleanup never resolves them or visits their target audio files.
+
+Pending service-playlist records are removable only before a remote write was
+admitted or after the complete playlist result was confirmed. Creating, known
+partial targets and pending batches remain blocked so their recovery evidence is
+retained. Profile deletion never tries to finish or undo service writes.
 
 When a prerequisite is blocked, confirmation stages deletion only. The profile
 remains listed as Deletion Pending and cannot be opened or renamed. No destructive
@@ -43,7 +55,15 @@ guess that an irreversible operation succeeded or silently recreate its store.
 
 ## Ownership and persistence
 
-Deletion uses a bounded version-two registry journal. The target record remains
+Deletion uses a bounded version-two registry archive. Populated cleanup adds a
+version-two per-profile journal containing relative metadata names, file identities,
+SHA-256 digests, supported schema versions, archive revisions where available and
+per-file outcomes. Version-one registries and journals remain readable; unsupported
+future data is retained. A manifest is limited to 64 files, 128 folders and 128 MiB
+in total, with stricter limits for each format and the existing 64 KiB registry
+limit. Unsupported older metadata variants also remain pending.
+
+The target record remains
 until every step has a confirmed result. Running markers are saved and synced
 before native cleanup calls; an unconfirmed registry write starts no cleanup.
 Revision checks and current activation/account checks reject stale confirmations.
@@ -61,10 +81,21 @@ Apple requires views using a store to be released before
 Filesystem cleanup opens verified directory components without following symbolic
 links. It checks current-user ownership and safe permissions for app-owned
 directories and private lock files, rejects cross-device traversal, and removes
-only empty directories beneath the exact UUID root. Activation also rejects a
-symbolic link in an additional profile's directory path. Cleanup never unlinks
-saved files. Small empty lock files remain
-as coordination metadata to avoid creating two independent locks for one UUID.
+only recognized metadata beneath the exact UUID root on a local filesystem.
+Every cleanup boundary validates the full inventory, including newly added or
+reappearing files. Each file receives a durable running marker before removal;
+its inode, ownership, size, timestamps, digest and schema are checked again before
+unlinking. Parent folders are synced and absence is checked. A lost acknowledgment
+stays uncertain until another explicit review can establish absence. Changed or
+reappearing data is retained. Empty recognized folders are removed last.
+
+Activation also rejects symbolic links in additional-profile paths. Existing
+metadata lock files require a nonblocking exclusive lock and are removed last,
+while the exclusive profile lifetime lock remains held. The separate
+`ProfileLocks/<profile UUID>.lock` remains permanently as coordination metadata.
+Local file readers, grants and retained native items also hold shared profile
+leases, so a quiet player alone does not authorize cleanup. Audio files, external
+exports and bookmark targets are never deleted.
 Spotlight cleanup targets only this profile's exact named catalog index; it never
 uses the default index or wildcard domains. Credential cleanup uses exact local
 service/account/persistent-reference queries with interaction disabled; unknown
@@ -74,7 +105,9 @@ Tests use memory registries, fake process inventories and cleanup adapters, held
 receipts, isolated schemas and disposable directory-admission fixtures. They
 exercise write-ahead ordering, stale admission,
 registry conflicts, failure recovery, protected profiles, cancellation and future
-data preservation without enumerating processes or invoking cleanup APIs. Actual
-WebKit, Keychain, preferences, Spotlight, filesystem cleanup and native layout
-remain separate runtime acceptance checks. The source and fake checks do not
+data preservation without enumerating processes or invoking native cleanup APIs.
+Disposable metadata fixtures also exercise descriptor-relative inventory and
+removal, lock contention, replacement identities, symlinks and external sentinel
+preservation. Actual user-profile cleanup, WebKit, Keychain, preferences,
+Spotlight and native layout remain separate runtime acceptance checks. The source and fake checks do not
 establish secure erasure or physical storage behavior.

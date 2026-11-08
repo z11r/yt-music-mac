@@ -159,12 +159,12 @@ public actor NamedQueueStore {
         }
     }
 
-    private func validate(_ snapshot: QueueSnapshot) throws {
+    private nonisolated func validate(_ snapshot: QueueSnapshot) throws {
         try snapshot.validate()
         guard snapshot.entries.count <= maximumEntries else { throw NamedQueueError.tooManyEntries }
     }
 
-    private func validate(_ archive: Archive) throws {
+    private nonisolated func validate(_ archive: Archive) throws {
         guard archive.version == Self.currentVersion else { throw NamedQueueError.unsupportedVersion(archive.version) }
         guard archive.queues.count <= maximumQueues else { throw NamedQueueError.tooManyQueues }
         guard Set(archive.queues.map(\.id)).count == archive.queues.count else { throw NamedQueueError.invalidArchive }
@@ -190,4 +190,13 @@ public actor NamedQueueStore {
         try data.write(to: url, options: .atomic)
         try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
     }
+    /// Pure format admission for explicit profile cleanup; performs no storage access.
+    public nonisolated static func validatedCleanupMetadata(_ data: Data) throws -> Data {
+        guard data.count <= 8 * 1024 * 1024 else { throw QueuePersistenceError.fileTooLarge }
+        let value = try JSONDecoder().decode(Archive.self, from: data)
+        let validator = NamedQueueStore(directoryURL: URL(fileURLWithPath: "/"))
+        try validator.validate(value)
+        return try JSONEncoder().encode(value)
+    }
+
 }

@@ -309,6 +309,72 @@ struct ProfileDeletionTests {
         #expect(ProfilePreferenceCleanup.accepts(["onDeviceCommandInterpretationEnabled": true]))
         #expect(!ProfilePreferenceCleanup.accepts(["onDeviceCommandInterpretationEnabled": 1]))
     }
+    @Test func populatedFilesHaveDurableRunningMarkersAndIndependentOutcomes() async throws {
+        let f = try DeletionFixture(); f.session.manifest = metadataManifestFixture()
+        f.session.existingMetadata = ["queue.json", "LocalAudio/library.json"]
+        f.session.verifyMetadataMarker = {
+            guard let data = f.io.bytes, let archive = try? JSONDecoder().decode(AppProfileArchive.self, from: data),
+                  let manifest = archive.deletions.first?.metadata else { return false }
+            return manifest.files.contains { $0.state == .running }
+        }
+        await f.prepare(); await f.confirm()
+        #expect(f.session.metadataEffects == ["queue.json", "LocalAudio/library.json"])
+        #expect(try await f.registry.load().archive.profiles == [.original])
+    }
+    @Test func uncertainMetadataRemovalReconcilesAbsenceWithoutRepeatingUnlink() async throws {
+        let f = try DeletionFixture(); f.session.manifest = metadataManifestFixture()
+        f.session.existingMetadata = ["queue.json", "LocalAudio/library.json"]
+        f.session.verifyMetadataMarker = { true }; f.session.loseMetadataReceipt = true
+        await f.prepare(); await f.confirm()
+        let pending = try #require(try await f.registry.load().archive.deletions.first)
+        #expect(pending.version == 2 && pending.metadata?.files[0].state == .uncertain)
+        f.session.loseMetadataReceipt = false
+        await f.prepare(); await f.confirm()
+        #expect(f.session.metadataEffects.filter { $0 == "queue.json" }.count == 1)
+        #expect(try await f.registry.load().archive.profiles == [.original])
+    }
+    @Test func unknownAdditionAfterRunningCheckpointBlocksAllFurtherMetadataEffects() async throws {
+        let f = try DeletionFixture(); f.session.manifest = metadataManifestFixture()
+        f.session.existingMetadata = ["queue.json", "LocalAudio/library.json"]
+        f.session.verifyMetadataMarker = { true }
+        f.session.blocksRunningMetadata = true
+        await f.prepare(); await f.confirm()
+        #expect(f.session.metadataEffects.isEmpty)
+        #expect(try await f.registry.load().archive.profiles.contains(f.target))
+    }
+    @Test func completedMetadataReappearingCannotBeAcceptedByARepeatedReview() async throws {
+        let f = try DeletionFixture(); var manifest = metadataManifestFixture()
+        manifest.files[0].state = .complete; f.session.manifest = manifest
+        f.session.existingMetadata = ["queue.json"]
+        await f.prepare(); await f.confirm()
+        #expect(f.session.effects.isEmpty && f.session.metadataEffects.isEmpty)
+    }
+    @Test func duplicateRegistryVersionCannotHideFutureDataOrStartCleanup() async throws {
+        let f = try DeletionFixture()
+        let encoded = try JSONEncoder().encode(AppProfileArchive.original)
+        let text = String(decoding: encoded, as: UTF8.self).replacingOccurrences(of: "\"version\":1", with: "\"version\":99,\"version\":1")
+        let duplicate = Data(text.utf8); f.io.force(duplicate)
+        await f.prepare()
+        #expect(f.adapter.calls == 0 && f.io.writes == 0 && f.io.bytes == duplicate)
+    }
+    @Test func metadataManifestAndOldJournalsRejectFutureNestedFieldsWithoutRewriting() throws {
+        let target = try deletionProfile(), legacy = ProfileDeletionJournal(target: target)
+        let encoder = JSONEncoder(), decoder = JSONDecoder()
+        #expect(try decoder.decode(ProfileDeletionJournal.self, from: encoder.encode(legacy)) == legacy)
+        var legacyObject = try JSONSerialization.jsonObject(with: encoder.encode(legacy)) as! [String: Any]
+        legacyObject["metadata"] = NSNull()
+        #expect(throws: (any Error).self) { try decoder.decode(ProfileDeletionJournal.self, from: JSONSerialization.data(withJSONObject: legacyObject)) }
+        let modern = legacy.withMetadata(metadataManifestFixture())
+        #expect(try decoder.decode(ProfileDeletionJournal.self, from: encoder.encode(modern)) == modern)
+        var object = try JSONSerialization.jsonObject(with: encoder.encode(modern)) as! [String: Any]
+        var manifest = object["metadata"] as! [String: Any]
+        var files = manifest["files"] as! [[String: Any]]
+        files[0]["future"] = true; manifest["files"] = files; object["metadata"] = manifest
+        #expect(throws: (any Error).self) { try decoder.decode(ProfileDeletionJournal.self, from: JSONSerialization.data(withJSONObject: object)) }
+        object["version"] = 99
+        #expect(throws: (any Error).self) { try decoder.decode(ProfileDeletionJournal.self, from: JSONSerialization.data(withJSONObject: object)) }
+    }
+
 }
 
 private let deletionID = "11111111-1111-4111-8111-111111111111"
@@ -342,8 +408,38 @@ private final class DeletionMemoryIO: AppProfileRegistryIO, @unchecked Sendable 
         callback?(number)
     }
 }
-@MainActor private final class DeletionFakeCleanup: ProfileCleanupSession {
+@MainActor private final class DeletionFakeCleanup: ProfileMetadataCleaning {
     var present = Set(ProfileCleanupStep.allCases)
+    var manifest: ProfileMetadataManifest?
+    var existingMetadata = Set<String>()
+    var metadataEffects: [String] = []
+    var loseMetadataReceipt = false
+    var unknownMetadata = false
+    var blocksRunningMetadata = false
+    var verifyMetadataMarker: (() -> Bool)?
+    func reviewMetadata(recovering: ProfileMetadataManifest?) async throws -> ProfileMetadataManifest? {
+        if let recovering { manifest = recovering }
+        if let manifest { try await validateMetadata(manifest) }
+        return manifest
+    }
+    func validateMetadata(_ manifest: ProfileMetadataManifest) async throws {
+        guard !unknownMetadata, !(blocksRunningMetadata && manifest.files.contains(where: { $0.state == .running })), !manifest.files.contains(where: { $0.state == .complete && existingMetadata.contains($0.path) }) else { throw ProfileCleanupProblem.savedData }
+        self.manifest = manifest
+    }
+    func metadataFileIsPresent(_ file: ProfileMetadataFile, manifest: ProfileMetadataManifest) async throws -> Bool {
+        try await validateMetadata(manifest); return existingMetadata.contains(file.path)
+    }
+    func removeMetadataFile(_ file: ProfileMetadataFile, manifest: ProfileMetadataManifest) async throws {
+        try await validateMetadata(manifest)
+        #expect(verifyMetadataMarker?() == true)
+        metadataEffects.append(file.path); existingMetadata.remove(file.path)
+        if loseMetadataReceipt { throw ProfileCleanupProblem.unavailable }
+    }
+    func finishMetadata(_ manifest: ProfileMetadataManifest) async throws {
+        try await validateMetadata(manifest)
+        guard existingMetadata.isEmpty else { throw ProfileCleanupProblem.savedData }
+        present.remove(.directory)
+    }
     var blocked: (ProfileCleanupStep, ProfileCleanupProblem)?
     var loseReceipt: ProfileCleanupStep?
     var effects: [ProfileCleanupStep] = [], probes: [ProfileCleanupStep] = []
@@ -352,6 +448,9 @@ private final class DeletionMemoryIO: AppProfileRegistryIO, @unchecked Sendable 
     var beforeEffect: ((ProfileCleanupStep) async throws -> Void)?
     func probe(_ step: ProfileCleanupStep, state: ProfileCleanupState) async -> ProfileCleanupProbe {
         probes.append(step)
+        if step == .directory, let manifest {
+            do { try await validateMetadata(manifest) } catch { return .blocked(.savedData) }
+        }
         if step == .directory, blockWhenRevoked?.current == false { return .blocked(.savedData) }
         if let blocked, blocked.0 == step { return .blocked(blocked.1) }
         if step == .spotlight, state == .running || state == .uncertain { return .blocked(.uncertainIndex) }
@@ -414,4 +513,14 @@ private final class DeletionAdmission: @unchecked Sendable {
     private let lock = NSLock()
     private var value = true
     var current: Bool { get { lock.withLock { value } } set { lock.withLock { value = newValue } } }
+}
+
+private func metadataManifestFixture() -> ProfileMetadataManifest {
+    func identity(_ mode: UInt16, inode: UInt64) -> ProfileMetadataIdentity {
+        .init(device: 1, inode: inode, generation: 1, owner: 501, mode: mode, links: 1, size: mode == 0o100600 ? 10 : 0,
+              modifiedSeconds: 1, modifiedNanoseconds: 0, changedSeconds: 1, changedNanoseconds: 0)
+    }
+    return .init(files: ["queue.json", "LocalAudio/library.json"].enumerated().map { index, path in
+        .init(path: path, identity: identity(0o100600, inode: UInt64(index + 1)), digest: Data(repeating: 1, count: 32), schema: .init(version: path == "queue.json" ? 2 : 1, revision: nil))
+    }, folders: [.init(path: "", identity: identity(0o040700, inode: 3)), .init(path: "LocalAudio", identity: identity(0o040700, inode: 4))])
 }

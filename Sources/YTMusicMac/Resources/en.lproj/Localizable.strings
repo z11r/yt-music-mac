@@ -1051,3 +1051,9 @@
 "The account that saved this queue could not be verified. Opening it replaces the current queue and keeps playback paused. Service entries may belong to another account." = "The account that saved this queue could not be verified. Opening it replaces the current queue and keeps playback paused. Service entries may belong to another account.";
 
 "Loading profile…" = "Loading profile…";
+
+/* Additional-profile metadata cleanup. */
+"Recognized Metadata Files" = "Recognized Metadata Files";
+"Confirmed Metadata Removals" = "Confirmed Metadata Removals";
+"Only validated app metadata is removed. Local audio files and bookmark targets remain untouched." = "Only validated app metadata is removed. Local audio files and bookmark targets remain untouched.";
+"Unrecognized, changed, or unresolved saved data is retained. Review the supported formats before trying cleanup again." = "Unrecognized, changed, or unresolved saved data is retained. Review the supported formats before trying cleanup again.";

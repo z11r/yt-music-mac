@@ -1051,3 +1051,9 @@
 "The account that saved this queue could not be verified. Opening it replaces the current queue and keeps playback paused. Service entries may belong to another account." = "Le compte ayant enregistré cette file n’a pas pu être vérifié. Son ouverture remplace la file actuelle sans lancer la lecture. Les éléments du service peuvent appartenir à un autre compte.";
 
 "Loading profile…" = "Chargement du profil…";
+
+/* Additional-profile metadata cleanup. */
+"Recognized Metadata Files" = "Fichiers de métadonnées reconnus";
+"Confirmed Metadata Removals" = "Suppressions de métadonnées confirmées";
+"Only validated app metadata is removed. Local audio files and bookmark targets remain untouched." = "Seules les métadonnées validées de l’app sont supprimées. Les fichiers audio locaux et les cibles des signets sont conservés.";
+"Unrecognized, changed, or unresolved saved data is retained. Review the supported formats before trying cleanup again." = "Les données enregistrées non reconnues, modifiées ou non résolues sont conservées. Consultez les formats pris en charge avant de réessayer le nettoyage.";

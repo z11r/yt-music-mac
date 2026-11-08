@@ -24,6 +24,12 @@ struct ProfileDeletionReviewView: View {
                     }
                 }
             }
+            if let metadata = review.metadata {
+                LabeledContent("Recognized Metadata Files", value: String(metadata.files.count))
+                LabeledContent("Confirmed Metadata Removals", value: String(metadata.files.filter { $0.state == .complete }.count))
+                Text("Only validated app metadata is removed. Local audio files and bookmark targets remain untouched.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             if let problem = review.problem {
                 Text(problem.message).font(.callout)
                 Text("Confirmation will stage deletion only. No cleanup runs until the missing prerequisites are resolved and you review it again.")

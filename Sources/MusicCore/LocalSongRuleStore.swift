@@ -127,16 +127,16 @@ public actor LocalSongRuleStore {
         value.utf8.count == 11 && value.utf8.allSatisfy { (65...90).contains($0) || (97...122).contains($0) || (48...57).contains($0) || $0 == 45 || $0 == 95 }
     }
 
-    private func name(_ value: String) throws -> String {
+    private nonisolated func name(_ value: String) throws -> String {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         guard (1...100).contains(trimmed.count), validText(trimmed, maximum: 1_024) else { throw LocalSongRuleError.invalidName }
         return trimmed
     }
-    private func validText(_ value: String, maximum: Int = 4_096) -> Bool {
+    private nonisolated func validText(_ value: String, maximum: Int = 4_096) -> Bool {
         !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && value.utf8.count <= maximum &&
         !value.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains)
     }
-    private func validate(_ archive: LocalSongRuleArchive) throws {
+    private nonisolated func validate(_ archive: LocalSongRuleArchive) throws {
         guard archive.version == LocalSongRuleArchive.currentVersion else { throw LocalSongRuleError.unsupportedVersion(archive.version) }
         guard archive.rules.count <= maximumRules else { throw LocalSongRuleError.capacityReached }
         guard Set(archive.rules.map(\.id)).count == archive.rules.count else { throw LocalSongRuleError.invalidArchive }
@@ -181,4 +181,13 @@ public actor LocalSongRuleStore {
         guard NamedQueueStore.acceptsAccountKey(key) else { throw NamedQueueError.invalidAccount }
         return directoryURL.appendingPathComponent(key).appendingPathComponent("song-rules.json")
     }
+    /// Pure format admission for explicit profile cleanup; performs no storage access.
+    public nonisolated static func validatedCleanupMetadata(_ data: Data) throws -> Data {
+        guard data.count <= 8 * 1024 * 1024 else { throw QueuePersistenceError.fileTooLarge }
+        let value = try JSONDecoder().decode(LocalSongRuleArchive.self, from: data)
+        let validator = LocalSongRuleStore(directoryURL: URL(fileURLWithPath: "/"))
+        try validator.validate(value)
+        return try JSONEncoder().encode(value)
+    }
+
 }

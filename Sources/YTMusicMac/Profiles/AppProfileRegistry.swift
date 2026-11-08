@@ -45,6 +45,7 @@ actor AppProfileRegistryStore: AppProfileRegistry {
         guard let data else { return .original }
         guard data.count <= Self.byteLimit else { throw AppProfileError.tooLarge }
         do {
+            try ProfileMetadataJSON.check(data)
             let archive = try JSONDecoder().decode(AppProfileArchive.self, from: data)
             try archive.validate(); return archive
         } catch let error as AppProfileError { throw error }

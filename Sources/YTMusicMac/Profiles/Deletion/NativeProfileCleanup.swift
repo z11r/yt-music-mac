@@ -27,18 +27,51 @@ import WebKit
         return NativeProfileCleanupSession(root: root, context: context, lease: lease, onlyInstance: onlyInstance)
     }
 }
-@MainActor private final class NativeProfileCleanupSession: ProfileCleanupSession {
+@MainActor private final class NativeProfileCleanupSession: ProfileMetadataCleaning {
     let root: URL
     let context: AppProfileContext
     var lease: ProfileLifecycleLease?
     let onlyInstance: @MainActor () -> Bool
     var removedPreferences = false
     var originalPreferences: [String: Any]?
+    private var metadata: ProfileMetadataManifest?
+    private var reviewedMetadata = false
+    private let directory: ProfileMetadataDirectory
     private var credentialSnapshot: Set<ProfileCredentialCleanup.Item>?
     init(root: URL, context: AppProfileContext, lease: ProfileLifecycleLease, onlyInstance: @escaping @MainActor () -> Bool) {
         self.root = root; self.context = context; self.lease = lease; self.onlyInstance = onlyInstance
+        directory = ProfileMetadataDirectory(root: root, profileID: context.profileID)
     }
     func close() { lease = nil }
+    func reviewMetadata(recovering: ProfileMetadataManifest?) async throws -> ProfileMetadataManifest? {
+        guard lease != nil, onlyInstance() else { throw ProfileCleanupProblem.otherInstance }
+        metadata = try await directory.review(recovering: recovering)
+        reviewedMetadata = true
+        return metadata
+    }
+    func validateMetadata(_ manifest: ProfileMetadataManifest) async throws {
+        guard lease != nil, onlyInstance() else { throw ProfileCleanupProblem.otherInstance }
+        try await directory.validate(manifest)
+        guard lease != nil, onlyInstance() else { throw ProfileCleanupProblem.otherInstance }
+        metadata = manifest
+    }
+    private func preflight() async throws {
+        guard lease != nil, onlyInstance() else { throw ProfileCleanupProblem.otherInstance }
+        if let metadata { try await validateMetadata(metadata) }
+        else if reviewedMetadata, try await directory.exists() { throw ProfileCleanupProblem.savedData }
+    }
+    func metadataFileIsPresent(_ file: ProfileMetadataFile, manifest: ProfileMetadataManifest) async throws -> Bool {
+        try await validateMetadata(manifest)
+        return try await directory.isPresent(file, manifest: manifest)
+    }
+    func removeMetadataFile(_ file: ProfileMetadataFile, manifest: ProfileMetadataManifest) async throws {
+        try await validateMetadata(manifest)
+        try await directory.remove(file, manifest: manifest)
+    }
+    func finishMetadata(_ manifest: ProfileMetadataManifest) async throws {
+        try await validateMetadata(manifest)
+        try await directory.finish(manifest)
+    }
     func probe(_ step: ProfileCleanupStep, state: ProfileCleanupState) async -> ProfileCleanupProbe {
         guard lease != nil, onlyInstance() else { return .blocked(.otherInstance) }
         do {
@@ -67,16 +100,22 @@ import WebKit
                 originalPreferences = domain
                 return .ready
             case .directory:
-                let root = root, id = context.profileID
-                return try await Task.detached { try ProfileSafeDirectories.emptyProfile(root: root, id: id, removing: false) ? .absent : .ready }.value
+                if reviewedMetadata, metadata == nil {
+                    return try await directory.exists() ? .blocked(.savedData) : .absent
+                }
+                let current = try await directory.review(recovering: metadata)
+                if !reviewedMetadata { metadata = current; reviewedMetadata = true }
+                return try await directory.exists() ? .ready : .absent
             }
         } catch { return .blocked((error as? ProfileCleanupProblem) ?? .unavailable) }
     }
     func remove(_ step: ProfileCleanupStep) async throws {
         guard lease != nil, onlyInstance() else { throw ProfileCleanupProblem.otherInstance }
+        try await preflight()
         switch step {
         case .website:
             guard await WKWebsiteDataStore.allDataStoreIdentifiers.contains(context.websiteDataIdentifier), onlyInstance() else { throw ProfileCleanupProblem.unavailable }
+            try await preflight()
             try await WKWebsiteDataStore.remove(forIdentifier: context.websiteDataIdentifier)
             guard !(await WKWebsiteDataStore.allDataStoreIdentifiers.contains(context.websiteDataIdentifier)) else { throw ProfileCleanupProblem.unavailable }
         case .spotlight:
@@ -89,16 +128,21 @@ import WebKit
             }
         case .credentials:
             let context = context, expected = credentialSnapshot ?? []
-            try await Task.detached { try ProfileCredentialCleanup.remove(context: context, expected: expected) }.value
+            try await Task.detached { [self] in
+                try await ProfileCredentialCleanup.remove(context: context, expected: expected) { try await self.preflight() }
+            }.value
             credentialSnapshot = []
         case .preferences:
             guard case .ready = await probe(.preferences, state: .pending), let prefs = UserDefaults(suiteName: context.namespace) else { throw ProfileCleanupProblem.unknownPreferences }
+            try await preflight()
+            guard let domain = prefs.persistentDomain(forName: context.namespace), ProfilePreferenceCleanup.accepts(domain),
+                  let originalPreferences, NSDictionary(dictionary: originalPreferences).isEqual(to: domain) else { throw ProfileCleanupProblem.unknownPreferences }
             prefs.removePersistentDomain(forName: context.namespace)
             guard prefs.synchronize(), prefs.persistentDomain(forName: context.namespace).map(\.isEmpty) ?? true else { throw ProfileCleanupProblem.unavailable }
             removedPreferences = true
         case .directory:
-            let root = root, id = context.profileID
-            _ = try await Task.detached { try ProfileSafeDirectories.emptyProfile(root: root, id: id, removing: true) }.value
+            guard let metadata, metadata.files.isEmpty else { throw ProfileCleanupProblem.savedData }
+            try await finishMetadata(metadata)
         }
     }
 }
@@ -149,7 +193,7 @@ private enum ProfileCredentialCleanup {
         }
         return items
     }
-    static func remove(context: AppProfileContext, expected: Set<Item>) throws {
+    static func remove(context: AppProfileContext, expected: Set<Item>, preflight: @Sendable () async throws -> Void) async throws {
         guard Set(try items(context: context)) == expected else { throw ProfileCleanupProblem.credentialsUnavailable }
         for item in expected {
             let current = try items(context: context)
@@ -157,6 +201,8 @@ private enum ProfileCredentialCleanup {
             let auth = LAContext(); auth.interactionNotAllowed = true
             let query: [CFString: Any] = [kSecClass: kSecClassGenericPassword, kSecAttrService: item.service,
                 kSecAttrAccount: item.account, kSecAttrSynchronizable: false, kSecMatchItemList: [item.reference], kSecUseAuthenticationContext: auth]
+            try await preflight()
+            guard try items(context: context).contains(item) else { throw ProfileCleanupProblem.credentialsUnavailable }
             let status = SecItemDelete(query as CFDictionary)
             guard status == errSecSuccess || status == errSecItemNotFound else { throw ProfileCleanupProblem.credentialsUnavailable }
         }
