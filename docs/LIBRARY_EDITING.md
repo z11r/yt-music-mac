@@ -41,7 +41,8 @@ server error, or uncertain result. Check the service before submitting again.
 When enabled, a playlist's actions menu offers description and visibility
 forms only when its current response grants permission and supplies the
 existing value. A known empty description can be cleared or replaced; a
-missing description remains unknown. Custom cover upload is not implemented.
+missing description remains unknown. Custom cover upload is not implemented;
+see the [supported paths and remaining requirements](PLAYLIST_COVERS.md).
 
 Move Up and Move Down operate on one service occurrence, including when a
 song appears more than once. They are available in the unfiltered service
