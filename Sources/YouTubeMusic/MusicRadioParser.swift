@@ -100,7 +100,8 @@ enum MusicRadioParser {
         return Track(id: id, title: title, artist: artist, album: album,
                      artworkURL: MusicResponseParser.thumbnail(renderer), duration: duration,
                      origin: recommendationsOnly ? .catalog : nil,
-                     contentKind: episode != nil ? .podcastEpisode : song ? .song : nil, episode: episode)
+                     contentKind: episode != nil ? .podcastEpisode : song ? .song : nil, episode: episode,
+                     creditsReference: episode == nil ? MusicSongCreditsParser.reference(in: renderer) : nil)
     }
 
     private static func isSeparator(_ text: String?) -> Bool {

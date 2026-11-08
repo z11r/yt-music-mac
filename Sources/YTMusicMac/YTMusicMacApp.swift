@@ -94,7 +94,7 @@ struct YTMusicMacApp: App {
             CommandGroup(after: .sidebar) {
                 Button(session.showsQueue ? "Hide Queue" : "Show Queue") { if session.acceptsProfileActions { session.showsQueue.toggle() } }
                     .keyboardShortcut("u", modifiers: [.command, .shift])
-                PlayerWindowCommands(preferences: session.preferences)
+                PlayerWindowCommands(session: session)
             }
             MusicSearchCommands()
         }
@@ -111,6 +111,10 @@ struct YTMusicMacApp: App {
             surface { LyricsPanel(session: session) }
         }
         .defaultSize(width: 560, height: 620)
+        Window("Song Credits", id: "song-credits") {
+            surface { SongCreditsPanel(session: session) }
+        }
+        .defaultSize(width: 560, height: 600)
         Window("Queue", id: "queue") {
             surface { QueueView(session: session).frame(minWidth: 300, minHeight: 360) }
         }
@@ -207,7 +211,7 @@ private struct MainSceneView: View {
 }
 
 private struct PlayerWindowCommands: View {
-    let preferences: UserDefaults
+    let session: AppSession
     @Environment(\.openWindow) private var openWindow
     var body: some View {
         Button("Show Main Window") { openWindow(id: "main") }
@@ -216,8 +220,11 @@ private struct PlayerWindowCommands: View {
             .keyboardShortcut("m", modifiers: [.command, .shift])
         Button("Show Now Playing") { openWindow(id: "now-playing") }
         Button("Show Lyrics") { openWindow(id: "lyrics") }
+        if let track = session.currentTrack {
+            SongCreditsAction(track: track, session: session)
+        }
         Button("Open Queue Window") { openWindow(id: "queue") }
-        KeepMiniPlayerOnTopToggle(preferences: preferences)
+        KeepMiniPlayerOnTopToggle(preferences: session.preferences)
     }
 }
 

@@ -876,3 +876,14 @@
 "Playback can still appear in the signed-in account's YouTube history. Use YouTube's own controls to pause or delete service history. Local profiles do not provide private listening." = "Playback can still appear in the signed-in account's YouTube history. Use YouTube's own controls to pause or delete service history. Local profiles do not provide private listening.";
 "Switching Profile…" = "Switching Profile…";
 "Local Profile Notice" = "Local Profile Notice";
+
+/* Song credits */
+"Song Credits" = "Song Credits";
+"Song Information" = "Song Information";
+"Open song credits, album or artist" = "Open song credits, album or artist";
+"Open Song Credits from a song's menu when YouTube Music offers them." = "Open Song Credits from a song's menu when YouTube Music offers them.";
+"Loading song credits…" = "Loading song credits…";
+"No Song Credits Available" = "No Song Credits Available";
+"YouTube Music did not supply credits for this recording." = "YouTube Music did not supply credits for this recording.";
+"Couldn't Load Song Credits" = "Couldn't Load Song Credits";
+"The request was stopped or could not finish. Try again to load this song's credits." = "The request was stopped or could not finish. Try again to load this song's credits.";

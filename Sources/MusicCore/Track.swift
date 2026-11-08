@@ -17,6 +17,7 @@ public struct Track: Identifiable, Codable, Hashable, Sendable {
     public var origin: MusicContentOrigin?
     public var contentKind: MusicContentKind?
     public var episode: EpisodeMetadata?
+    public var creditsReference: SongCreditsReference?
 
     public init(
         id: String,
@@ -30,7 +31,8 @@ public struct Track: Identifiable, Codable, Hashable, Sendable {
         isExplicit: Bool? = nil,
         origin: MusicContentOrigin? = nil,
         contentKind: MusicContentKind? = nil,
-        episode: EpisodeMetadata? = nil
+        episode: EpisodeMetadata? = nil,
+        creditsReference: SongCreditsReference? = nil
     ) {
         self.id = id
         self.title = title
@@ -44,6 +46,7 @@ public struct Track: Identifiable, Codable, Hashable, Sendable {
         self.origin = origin
         self.contentKind = contentKind
         self.episode = episode
+        self.creditsReference = creditsReference
     }
 }
 

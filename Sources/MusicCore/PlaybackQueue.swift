@@ -273,6 +273,7 @@ public struct PlaybackQueue: Sendable {
             updated.isExplicit = updated.isExplicit ?? self.entries[index].track.isExplicit
             updated.contentKind = updated.contentKind ?? prior.contentKind
             updated.episode = updated.episode ?? prior.episode
+            updated.creditsReference = updated.creditsReference ?? prior.creditsReference
             self.entries[index].track = updated
         }
     }

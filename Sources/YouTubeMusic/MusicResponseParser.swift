@@ -422,7 +422,8 @@ enum MusicResponseParser {
         return .track(Track(id: videoID, title: title, artist: episode.flatMap { _ in MusicPodcastParser.showTitle(node) } ?? artist,
                             album: album, artworkURL: artwork, duration: duration ?? episode?.durationText.flatMap(parseDuration),
                             albumReference: albumReference, artistReferences: artistReferences.isEmpty ? nil : artistReferences,
-                            isExplicit: isExplicit ? true : nil, contentKind: episode == nil ? (songType ? .song : nil) : .podcastEpisode, episode: episode))
+                            isExplicit: isExplicit ? true : nil, contentKind: episode == nil ? (songType ? .song : nil) : .podcastEpisode, episode: episode,
+                            creditsReference: episode == nil ? MusicSongCreditsParser.reference(in: node) : nil))
     }
 
     private static func metadataReferences(_ runs: [JSONNode], kind: MusicCollection.Kind) -> [TrackMetadataReference] {

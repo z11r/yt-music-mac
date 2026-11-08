@@ -166,6 +166,7 @@ final class AppSession {
     let searchSuggestions: SearchSuggestions
     let searchHistory = SearchHistory()
     let lyrics: LyricsSession
+    let credits: SongCreditsSession
     var libraryDisplayOrder: LibraryDisplayOrder = .serviceOrder
     var collectionFilter = ""
     var libraryFilter = ""
@@ -192,7 +193,7 @@ final class AppSession {
     @ObservationIgnored private let queuePersistenceGate = LocalPersistenceGate()
     @ObservationIgnored private var saveTask: Task<Void, Never>?
     @ObservationIgnored private var pageGeneration = UUID()
-    @ObservationIgnored var accountGeneration = UUID() { didSet { recommendations.cancel() } }
+    @ObservationIgnored var accountGeneration = UUID() { didSet { recommendations.cancel(); credits.clear() } }
     @ObservationIgnored private var backHistory: [MusicDestination] = []
     @ObservationIgnored private var forwardHistory: [MusicDestination] = []
     @ObservationIgnored private var resumeState = PlaybackResumeState()
@@ -253,6 +254,11 @@ final class AppSession {
         lyrics = LyricsSession { [client = configuration.client] videoID in
             try await client.lyrics(videoID: videoID)
         }
+        credits = SongCreditsSession(snapshot: { [credentials = configuration.credentials] in
+            await credentials.snapshot().scope
+        }, fetch: { [client = configuration.client] reference, scope in
+            try await client.songCredits(reference, expectedScope: scope)
+        })
         player = WebPlayer(dataStore: configuration.dataStore)
         queueStore = configuration.queueStore
         queueError = configuration.queueStorageError
@@ -1091,10 +1097,20 @@ final class AppSession {
         guard acceptsProfileActions else { return }
         quickCommands.invalidate()
         guard !isSceneCheck else { return }
+        credits.clear()
         lyrics.clear()
         player.cancelSessionRestore()
         account.openLogin()
         showsAccount = true
+    }
+
+    @discardableResult
+    func openSongCredits(track: Track, expectedAccountGeneration: UUID) -> Bool {
+        guard acceptsProfileActions, accountGeneration == expectedAccountGeneration else { return false }
+        return credits.open(track: track) { [weak self] in
+            guard let self else { return false }
+            return self.acceptsProfileActions && self.accountGeneration == expectedAccountGeneration
+        }
     }
 
     func setSpotlightEnabled(_ enabled: Bool) {
@@ -1351,6 +1367,7 @@ final class AppSession {
     func quiesceForProfileSwitch() {
         guard !isProfileSuspended else { return }
         isProfileSuspended = true
+        credits.clear()
         quickCommands.invalidate(); quickCommandProfile = nil
         streamingExport?.quiesce(); discordPresence?.quiesce()
         player.invalidateEpisodeRateControl()

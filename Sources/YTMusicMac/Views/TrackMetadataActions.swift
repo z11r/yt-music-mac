@@ -9,6 +9,7 @@ struct TrackMetadataActions: View {
     let session: AppSession
 
     var body: some View {
+        SongCreditsAction(track: track, session: session)
         if let album = track.albumReference {
             Button("Go to Album: \(album.title)") {
                 session.navigate(to: .collection(MusicCollection(id: album.id, kind: .album, title: album.title)))
@@ -27,14 +28,15 @@ struct TrackMetadataMenu: View {
     let session: AppSession
 
     var body: some View {
-        if track.albumReference != nil || !(track.artistReferences ?? []).isEmpty {
+        let hasCredits = track.creditsReference != nil && track.origin != .upload && track.contentKind != .podcastEpisode && track.episode == nil
+        if hasCredits || track.albumReference != nil || !(track.artistReferences ?? []).isEmpty {
             Menu {
                 TrackMetadataActions(track: track, session: session)
             } label: {
-                Label("Album and Artists", systemImage: "info.circle")
+                Label("Song Information", systemImage: "info.circle")
             }
             .labelStyle(.iconOnly).menuStyle(.borderlessButton).fixedSize()
-            .help("Open album or artist")
+            .help("Open song credits, album or artist")
         }
     }
 }

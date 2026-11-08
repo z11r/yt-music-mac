@@ -876,3 +876,14 @@
 "Playback can still appear in the signed-in account's YouTube history. Use YouTube's own controls to pause or delete service history. Local profiles do not provide private listening." = "La lecture peut toujours apparaître dans l’historique YouTube du compte connecté. Utilisez les réglages de YouTube pour suspendre ou supprimer l’historique du service. Les profils locaux ne permettent pas l’écoute privée.";
 "Switching Profile…" = "Changement de profil…";
 "Local Profile Notice" = "Information sur le profil local";
+
+/* Song credits */
+"Song Credits" = "Crédits du morceau";
+"Song Information" = "Informations sur le morceau";
+"Open song credits, album or artist" = "Ouvrir les crédits du morceau, l’album ou l’artiste";
+"Open Song Credits from a song's menu when YouTube Music offers them." = "Ouvrez les crédits depuis le menu d’un morceau lorsque YouTube Music les propose.";
+"Loading song credits…" = "Chargement des crédits du morceau…";
+"No Song Credits Available" = "Aucun crédit disponible pour ce morceau";
+"YouTube Music did not supply credits for this recording." = "YouTube Music n’a pas fourni de crédits pour cet enregistrement.";
+"Couldn't Load Song Credits" = "Impossible de charger les crédits du morceau";
+"The request was stopped or could not finish. Try again to load this song's credits." = "La requête a été interrompue ou n’a pas pu aboutir. Réessayez pour charger les crédits de ce morceau.";
