@@ -10,6 +10,7 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
+            Section("Startup") { StartupSettings() }
             Section("Appearance") {
                 Picker("Appearance", selection: $appearance) {
                     Text("System").tag("system")
