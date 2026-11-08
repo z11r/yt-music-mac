@@ -1,12 +1,15 @@
 /* Native interface copy. Service metadata remains verbatim. */
+"A local song rule already uses this name." = "Une règle locale de titres porte déjà ce nom.";
 "A newer library snapshot or cache-clear request replaced this operation." = "Un nouvel instantané ou une nouvelle demande de nettoyage du cache a remplacé cette opération.";
 "A saved-data path is not a regular file. Its contents have been kept." = "Un chemin de données enregistrées ne désigne pas un fichier ordinaire. Son contenu a été conservé.";
 "Album" = "Album";
 "An item of this type already has this name." = "Un élément de ce type porte déjà ce nom.";
 "Artist" = "Artiste";
+"Choose 1–12 supported conditions with valid text or duration values." = "Choisissez de 1 à 12 conditions prises en charge avec un texte ou une durée valide.";
 "Choose an export location outside the app's saved queue storage." = "Choisissez un emplacement d’exportation en dehors du stockage des files d’attente de l’app.";
 "Library metadata cache version %lld is not supported. Its file has been kept." = "La version %lld du cache des métadonnées de la bibliothèque n’est pas prise en charge. Son fichier a été conservé.";
 "Local collection organization version %lld is not supported." = "La version %lld de l’organisation locale des collections n’est pas prise en charge.";
+"Local song-rule version %lld is not supported. Its file has been kept." = "La version %lld des règles locales de titres n’est pas prise en charge. Son fichier a été conservé.";
 "Playlist" = "Playlist";
 "Podcast" = "Podcast";
 "Saved queue exchange version %lld is not supported." = "La version %lld du format d’échange des files d’attente n’est pas prise en charge.";
@@ -21,6 +24,9 @@
 "The local collection limit was reached. Remove an unused bookmark or folder first." = "La limite des collections locales est atteinte. Supprimez d’abord un favori ou un dossier inutilisé.";
 "The local collection organization could not be read. The file has been kept." = "Impossible de lire l’organisation locale des collections. Le fichier a été conservé.";
 "The local collection organization exceeds its storage limit." = "L’organisation locale des collections dépasse sa limite de stockage.";
+"The local song-rule file could not be read. Its contents have been kept." = "Impossible de lire le fichier des règles locales de titres. Son contenu a été conservé.";
+"The local song-rule file exceeds its storage limit." = "Le fichier des règles locales de titres dépasse sa limite de stockage.";
+"The local song-rule limit was reached. Remove an unused rule first." = "La limite des règles locales de titres est atteinte. Supprimez d’abord une règle inutilisée.";
 "The queue store requires a local file URL." = "Le stockage de la file d’attente nécessite une URL de fichier local.";
 "The saved queue collection could not be read. The file has been kept." = "Impossible de lire les files d’attente enregistrées. Le fichier a été conservé.";
 "The saved queue exceeds the storage limit." = "La file d’attente enregistrée dépasse la limite de stockage.";
@@ -30,7 +36,9 @@
 "This file contains too many songs to import." = "Ce fichier contient trop de titres à importer.";
 "This file is not valid saved queue metadata." = "Ce fichier ne contient pas de métadonnées de file d’attente valides.";
 "This library metadata could not be cached. The previous snapshot has been kept." = "Impossible de mettre ces métadonnées de bibliothèque en cache. L’instantané précédent a été conservé.";
+"This loaded-song snapshot contains invalid metadata. The previous file has been kept." = "Cet instantané de titres chargés contient des métadonnées non valides. Le fichier précédent a été conservé.";
 "This local folder no longer exists. Refresh the list." = "Ce dossier local n’existe plus. Actualisez la liste.";
+"This local song rule no longer exists. Refresh the list." = "Cette règle locale de titres n’existe plus. Actualisez la liste.";
 "This local tag no longer exists. Refresh the list." = "Cette étiquette locale n’existe plus. Actualisez la liste.";
 "This queue has too many entries to save." = "Cette file d’attente contient trop d’éléments pour être enregistrée.";
 "This saved filter no longer exists. Refresh the list." = "Ce filtre enregistré n’existe plus. Actualisez la liste.";

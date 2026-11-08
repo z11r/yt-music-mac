@@ -1,12 +1,15 @@
 /* Native interface copy. Service metadata remains verbatim. */
+"A local song rule already uses this name." = "A local song rule already uses this name.";
 "A newer library snapshot or cache-clear request replaced this operation." = "A newer library snapshot or cache-clear request replaced this operation.";
 "A saved-data path is not a regular file. Its contents have been kept." = "A saved-data path is not a regular file. Its contents have been kept.";
 "Album" = "Album";
 "An item of this type already has this name." = "An item of this type already has this name.";
 "Artist" = "Artist";
+"Choose 1–12 supported conditions with valid text or duration values." = "Choose 1–12 supported conditions with valid text or duration values.";
 "Choose an export location outside the app's saved queue storage." = "Choose an export location outside the app's saved queue storage.";
 "Library metadata cache version %lld is not supported. Its file has been kept." = "Library metadata cache version %lld is not supported. Its file has been kept.";
 "Local collection organization version %lld is not supported." = "Local collection organization version %lld is not supported.";
+"Local song-rule version %lld is not supported. Its file has been kept." = "Local song-rule version %lld is not supported. Its file has been kept.";
 "Playlist" = "Playlist";
 "Podcast" = "Podcast";
 "Saved queue exchange version %lld is not supported." = "Saved queue exchange version %lld is not supported.";
@@ -21,6 +24,9 @@
 "The local collection limit was reached. Remove an unused bookmark or folder first." = "The local collection limit was reached. Remove an unused bookmark or folder first.";
 "The local collection organization could not be read. The file has been kept." = "The local collection organization could not be read. The file has been kept.";
 "The local collection organization exceeds its storage limit." = "The local collection organization exceeds its storage limit.";
+"The local song-rule file could not be read. Its contents have been kept." = "The local song-rule file could not be read. Its contents have been kept.";
+"The local song-rule file exceeds its storage limit." = "The local song-rule file exceeds its storage limit.";
+"The local song-rule limit was reached. Remove an unused rule first." = "The local song-rule limit was reached. Remove an unused rule first.";
 "The queue store requires a local file URL." = "The queue store requires a local file URL.";
 "The saved queue collection could not be read. The file has been kept." = "The saved queue collection could not be read. The file has been kept.";
 "The saved queue exceeds the storage limit." = "The saved queue exceeds the storage limit.";
@@ -30,7 +36,9 @@
 "This file contains too many songs to import." = "This file contains too many songs to import.";
 "This file is not valid saved queue metadata." = "This file is not valid saved queue metadata.";
 "This library metadata could not be cached. The previous snapshot has been kept." = "This library metadata could not be cached. The previous snapshot has been kept.";
+"This loaded-song snapshot contains invalid metadata. The previous file has been kept." = "This loaded-song snapshot contains invalid metadata. The previous file has been kept.";
 "This local folder no longer exists. Refresh the list." = "This local folder no longer exists. Refresh the list.";
+"This local song rule no longer exists. Refresh the list." = "This local song rule no longer exists. Refresh the list.";
 "This local tag no longer exists. Refresh the list." = "This local tag no longer exists. Refresh the list.";
 "This queue has too many entries to save." = "This queue has too many entries to save.";
 "This saved filter no longer exists. Refresh the list." = "This saved filter no longer exists. Refresh the list.";

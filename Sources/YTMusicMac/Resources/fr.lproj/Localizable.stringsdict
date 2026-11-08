@@ -98,6 +98,22 @@
 			<string>%lld heures</string>
 		</dict>
 	</dict>
+	<key>%lld matching captured songs</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@songs@</string>
+		<key>songs</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>%lld titre capturé correspondant</string>
+			<key>other</key>
+			<string>%lld titres capturés correspondants</string>
+		</dict>
+	</dict>
 	<key>%lld matching loaded library collections</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -144,6 +160,22 @@
 			<string>%lld seconde</string>
 			<key>other</key>
 			<string>%lld secondes</string>
+		</dict>
+	</dict>
+	<key>%lld song entries from “%@” · %@</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%1$#@songs@ de « %2$@ » · %3$@</string>
+		<key>songs</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>%lld entrée de titre</string>
+			<key>other</key>
+			<string>%lld entrées de titres</string>
 		</dict>
 	</dict>
 	<key>%lld songs</key>
@@ -210,6 +242,22 @@
 			<string>%lld titres</string>
 		</dict>
 	</dict>
+	<key>%lld source rows could not be captured</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@songs@</string>
+		<key>songs</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>%lld ligne de la source n’a pas pu être capturée</string>
+			<key>other</key>
+			<string>%lld lignes de la source n’ont pas pu être capturées</string>
+		</dict>
+	</dict>
 	<key>%lld unavailable items excluded from the loaded pages</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -224,6 +272,22 @@
 			<string>%lld élément indisponible exclu des pages chargées</string>
 			<key>other</key>
 			<string>%lld éléments indisponibles exclus des pages chargées</string>
+		</dict>
+	</dict>
+	<key>%lld unavailable source rows</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@songs@</string>
+		<key>songs</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>%lld ligne de la source indisponible</string>
+			<key>other</key>
+			<string>%lld lignes de la source indisponibles</string>
 		</dict>
 	</dict>
 	<key>At least %@ remaining · %lld unknown</key>
@@ -288,6 +352,22 @@
 			<string>Avancer de %lld seconde</string>
 			<key>other</key>
 			<string>Avancer de %lld secondes</string>
+		</dict>
+	</dict>
+	<key>Loaded snapshot only · %lld results unknown because metadata is missing</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@songs@</string>
+		<key>songs</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>Instantané chargé uniquement · %lld résultat inconnu faute de métadonnées</string>
+			<key>other</key>
+			<string>Instantané chargé uniquement · %lld résultats inconnus faute de métadonnées</string>
 		</dict>
 	</dict>
 	<key>Loading all songs… %lld loaded</key>

@@ -5,15 +5,15 @@ public enum LocalSongRuleError: Error, Equatable, LocalizedError, Sendable {
     case unsupportedVersion(Int)
     public var errorDescription: String? {
         switch self {
-        case .invalidArchive: "The local song-rule file could not be read. Its contents have been kept."
-        case .invalidRule: "Choose 1–12 supported conditions with valid text or duration values."
-        case .invalidSnapshot: "This loaded-song snapshot contains invalid metadata. The previous file has been kept."
-        case .invalidName: "Use a name of 1–100 characters without control characters."
-        case .duplicateName: "A local song rule already uses this name."
-        case .notFound: "This local song rule no longer exists. Refresh the list."
-        case .capacityReached: "The local song-rule limit was reached. Remove an unused rule first."
-        case .fileTooLarge: "The local song-rule file exceeds its storage limit."
-        case let .unsupportedVersion(version): "Local song-rule version \(version) is not supported. Its file has been kept."
+        case .invalidArchive: CoreLocalization.text("The local song-rule file could not be read. Its contents have been kept.")
+        case .invalidRule: CoreLocalization.text("Choose 1–12 supported conditions with valid text or duration values.")
+        case .invalidSnapshot: CoreLocalization.text("This loaded-song snapshot contains invalid metadata. The previous file has been kept.")
+        case .invalidName: CoreLocalization.text("Use a name of 1–100 characters without control characters.")
+        case .duplicateName: CoreLocalization.text("A local song rule already uses this name.")
+        case .notFound: CoreLocalization.text("This local song rule no longer exists. Refresh the list.")
+        case .capacityReached: CoreLocalization.text("The local song-rule limit was reached. Remove an unused rule first.")
+        case .fileTooLarge: CoreLocalization.text("The local song-rule file exceeds its storage limit.")
+        case let .unsupportedVersion(version): CoreLocalization.format("Local song-rule version %lld is not supported. Its file has been kept.", version)
         }
     }
 }

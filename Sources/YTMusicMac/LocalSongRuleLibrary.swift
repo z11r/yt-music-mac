@@ -57,7 +57,7 @@ final class LocalSongRuleLibrary {
 
     func reportSourceUnavailable(expectedScope: UUID) {
         guard scope == expectedScope else { return }
-        errorMessage = "Reload a music page with songs before capturing a snapshot."
+        errorMessage = AppLocalization.text("Reload a music page with songs before capturing a snapshot.")
     }
 
     /// A page keeps the verified account identity from before its network request began.
@@ -91,7 +91,7 @@ final class LocalSongRuleLibrary {
     @discardableResult private func update(expectedScope: UUID, source: LocalSongSourceIdentity? = nil,
         _ action: @Sendable (LocalSongRuleStore, String) async throws -> LocalSongRuleArchive) async -> Bool {
         guard scope == expectedScope, !isWorking else { return false }
-        guard let store else { errorMessage = "Local song-rule storage is unavailable."; return false }
+        guard let store else { errorMessage = AppLocalization.text("Local song-rule storage is unavailable."); return false }
         isWorking = true; errorMessage = nil
         defer { if scope == expectedScope { isWorking = false } }
         do {
@@ -130,9 +130,9 @@ final class LocalSongRuleLibrary {
         case signInRequired, accountChanged, sourceChanged
         var errorDescription: String? {
             switch self {
-            case .signInRequired: "Sign in to a confirmed account to use its local song rules."
-            case .accountChanged: "The account changed. Open Local Song Rules again."
-            case .sourceChanged: "The page's account or session changed. Reload the music page before capturing its songs."
+            case .signInRequired: AppLocalization.text("Sign in to a confirmed account to use its local song rules.")
+            case .accountChanged: AppLocalization.text("The account changed. Open Local Song Rules again.")
+            case .sourceChanged: AppLocalization.text("The page's account or session changed. Reload the music page before capturing its songs.")
             }
         }
     }

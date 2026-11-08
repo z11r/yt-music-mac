@@ -102,7 +102,7 @@ struct LocalSongRulesView: View {
                 Picker("Match", selection: $draft.match) {
                     Text("All conditions").tag(LocalSongRuleMatch.all)
                     Text("Any condition").tag(LocalSongRuleMatch.any)
-                }.labelsHidden().frame(width: 150)
+                }.labelsHidden().frame(width: 180)
                 Button("Save Rule") {
                     let rule = draft
                     Task {
@@ -143,7 +143,7 @@ struct LocalSongRulesView: View {
                 Text("\(snapshot.songs.count) song entries from “\(snapshot.sourceName)” · \(snapshot.capturedAt.formatted(date: .abbreviated, time: .shortened))")
                     .font(.caption).foregroundStyle(.secondary)
                 if snapshot.hasMorePages || snapshot.wasLoading || snapshot.isTruncated || snapshot.hasUnsupportedContent || snapshot.unavailableCount > 0 || snapshot.skippedCount > 0 {
-                    Text(scopeDescription(snapshot)).font(.caption).foregroundStyle(.secondary)
+                    Text(LocalSongRulePresentation.scopeDescription(snapshot)).font(.caption).foregroundStyle(.secondary)
                 }
             } else {
                 Text("Open a page with songs, then capture its loaded metadata. Rules cover captured loaded songs only.")
@@ -164,11 +164,11 @@ struct LocalSongRulesView: View {
                     .disabled(session.songRules.evaluation.matches.isEmpty)
             }
             Table(session.songRules.evaluation.matches, selection: $selection) {
-                TableColumn("Title") { Text($0.title ?? "Unknown title").lineLimit(1) }.width(min: 130, ideal: 210)
-                TableColumn("Artist") { Text($0.artist ?? "Unknown artist").lineLimit(1) }.width(min: 100, ideal: 150)
-                TableColumn("Album") { Text($0.album ?? "Unknown").lineLimit(1) }.width(min: 90, ideal: 130)
-                TableColumn("Time") { Text($0.duration.map(playbackTime) ?? "Unknown").monospacedDigit() }.width(70)
-                TableColumn("Explicit") { Text($0.isExplicit.map { $0 ? "Yes" : "No" } ?? "Unknown") }.width(65)
+                TableColumn("Title") { Text($0.title ?? AppLocalization.text("Unknown title")).lineLimit(1) }.width(min: 130, ideal: 210)
+                TableColumn("Artist") { Text($0.artist ?? AppLocalization.text("Unknown artist")).lineLimit(1) }.width(min: 100, ideal: 150)
+                TableColumn("Album") { Text($0.album ?? AppLocalization.text("Unknown")).lineLimit(1) }.width(min: 90, ideal: 130)
+                TableColumn("Time") { Text($0.duration.map(playbackTime) ?? AppLocalization.text("Unknown")).monospacedDigit() }.width(70)
+                TableColumn("Explicit") { Text($0.isExplicit.map { $0 ? AppLocalization.text("Yes") : AppLocalization.text("No") } ?? AppLocalization.text("Unknown")) }.width(80)
             }
             .frame(minHeight: 150)
             .contextMenu(forSelectionType: UUID.self) { ids in
@@ -188,16 +188,6 @@ struct LocalSongRulesView: View {
     private func perform(play: Bool, selected: Set<UUID>?, revision: UUID) {
         Task { await session.performSongRuleAction(play: play, selectedIDs: selected, expectedScope: displayedScope, expectedRevision: revision) }
     }
-    private func scopeDescription(_ value: LocalSongRuleSnapshot) -> String {
-        var details: [String] = []
-        if value.hasMorePages { details.append("More source pages were available") }
-        if value.wasLoading { details.append("Captured while source loading was in progress") }
-        if value.isTruncated { details.append("Snapshot limited to the first 5,000 loaded rows") }
-        if value.hasUnsupportedContent { details.append("The source included unsupported items") }
-        if value.unavailableCount > 0 { details.append("\(value.unavailableCount) unavailable source rows") }
-        if value.skippedCount > 0 { details.append("\(value.skippedCount) source rows could not be captured") }
-        return details.joined(separator: " · ")
-    }
     private static func newClause() -> LocalSongRuleClause { LocalSongRuleClause(text: "") }
     private static func newRule() -> LocalSongRule { LocalSongRule(name: "", clauses: [newClause()]) }
 }
@@ -209,10 +199,10 @@ private struct LocalSongRuleClauseEditor: View {
     var body: some View {
         HStack {
             Picker("Field", selection: $clause.field) {
-                ForEach(LocalSongRuleField.allCases, id: \.self) { Text($0.rawValue.capitalized).tag($0) }
+                ForEach(LocalSongRuleField.allCases, id: \.self) { Text($0.localizedTitle).tag($0) }
             }.labelsHidden().frame(width: 100)
             Picker("Condition", selection: $clause.operation) {
-                ForEach(clause.allowedOperators, id: \.self) { Text(title($0)).tag($0) }
+                ForEach(clause.allowedOperators, id: \.self) { Text($0.localizedTitle).tag($0) }
             }.labelsHidden().frame(width: 145)
             if clause.usesText {
                 TextField("Text", text: Binding(get: { clause.text ?? "" }, set: { clause.text = $0 })).textFieldStyle(.roundedBorder)
@@ -231,20 +221,5 @@ private struct LocalSongRuleClauseEditor: View {
         clause.text = clause.usesText ? clause.text ?? "" : nil
         clause.number = clause.usesNumber ? clause.number ?? 180 : nil
     }
-    private func title(_ operation: LocalSongRuleOperator) -> String {
-        switch operation {
-        case .contains: "contains"
-        case .doesNotContain: "does not contain"
-        case .equals: "is"
-        case .doesNotEqual: "is not"
-        case .lessThan: "is less than"
-        case .atMost: "is at most"
-        case .greaterThan: "is greater than"
-        case .atLeast: "is at least"
-        case .isTrue: "is explicit"
-        case .isFalse: "is not explicit"
-        case .isUnknown: "is unknown"
-        case .isKnown: "is known"
-        }
-    }
+
 }

@@ -98,6 +98,22 @@
 			<string>%lld hours</string>
 		</dict>
 	</dict>
+	<key>%lld matching captured songs</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@songs@</string>
+		<key>songs</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>%lld matching captured song</string>
+			<key>other</key>
+			<string>%lld matching captured songs</string>
+		</dict>
+	</dict>
 	<key>%lld matching loaded library collections</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -144,6 +160,22 @@
 			<string>%lld second</string>
 			<key>other</key>
 			<string>%lld seconds</string>
+		</dict>
+	</dict>
+	<key>%lld song entries from “%@” · %@</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%1$#@songs@ from “%2$@” · %3$@</string>
+		<key>songs</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>%lld song entry</string>
+			<key>other</key>
+			<string>%lld song entries</string>
 		</dict>
 	</dict>
 	<key>%lld songs</key>
@@ -210,6 +242,22 @@
 			<string>%lld songs</string>
 		</dict>
 	</dict>
+	<key>%lld source rows could not be captured</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@songs@</string>
+		<key>songs</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>%lld source row could not be captured</string>
+			<key>other</key>
+			<string>%lld source rows could not be captured</string>
+		</dict>
+	</dict>
 	<key>%lld unavailable items excluded from the loaded pages</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -224,6 +272,22 @@
 			<string>%lld unavailable item excluded from the loaded pages</string>
 			<key>other</key>
 			<string>%lld unavailable items excluded from the loaded pages</string>
+		</dict>
+	</dict>
+	<key>%lld unavailable source rows</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@songs@</string>
+		<key>songs</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>%lld unavailable source row</string>
+			<key>other</key>
+			<string>%lld unavailable source rows</string>
 		</dict>
 	</dict>
 	<key>At least %@ remaining · %lld unknown</key>
@@ -288,6 +352,22 @@
 			<string>Forward %lld second</string>
 			<key>other</key>
 			<string>Forward %lld seconds</string>
+		</dict>
+	</dict>
+	<key>Loaded snapshot only · %lld results unknown because metadata is missing</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@songs@</string>
+		<key>songs</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>Loaded snapshot only · %lld result unknown because metadata is missing</string>
+			<key>other</key>
+			<string>Loaded snapshot only · %lld results unknown because metadata is missing</string>
 		</dict>
 	</dict>
 	<key>Loading all songs… %lld loaded</key>

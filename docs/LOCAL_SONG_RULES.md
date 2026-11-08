@@ -41,3 +41,9 @@ Use **Delete Rule** or **Clear Snapshot** to remove that local data explicitly.
 Unsupported or corrupt files are kept rather than replaced by an edit.
 
 Known podcast episodes are excluded from song snapshots and counted as skipped rows. Known song classification is retained; missing classification stays unknown.
+
+Native field names, conditions, errors, and status messages follow the app's
+language. Rule names, condition text, and captured music metadata retain their
+entered or source values. Saved enum identifiers stay unchanged across languages.
+Count messages use singular and plural rules, including snapshot summaries that
+also display a source name and capture date.
