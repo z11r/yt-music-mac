@@ -1074,3 +1074,5 @@
 "Use six hexadecimal digits. Choose a darker Light accent and a lighter Dark accent to pass the reference checks." = "Utilisez six chiffres hexadécimaux. Choisissez une accentuation plus foncée en mode clair et plus claire en mode sombre pour réussir les vérifications de référence.";
 "The profile changed. Close this draft and open Custom Accent again." = "Le profil a changé. Fermez ce brouillon et rouvrez Accentuation personnalisée.";
 "The saved custom accent is unsupported. It is retained until you explicitly replace it with Apply." = "L’accentuation personnalisée enregistrée n’est pas prise en charge. Elle est conservée jusqu’à son remplacement explicite avec Appliquer.";
+
+"Apply" = "Appliquer";

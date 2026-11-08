@@ -1074,3 +1074,5 @@
 "Use six hexadecimal digits. Choose a darker Light accent and a lighter Dark accent to pass the reference checks." = "Use six hexadecimal digits. Choose a darker Light accent and a lighter Dark accent to pass the reference checks.";
 "The profile changed. Close this draft and open Custom Accent again." = "The profile changed. Close this draft and open Custom Accent again.";
 "The saved custom accent is unsupported. It is retained until you explicitly replace it with Apply." = "The saved custom accent is unsupported. It is retained until you explicitly replace it with Apply.";
+
+"Apply" = "Apply";

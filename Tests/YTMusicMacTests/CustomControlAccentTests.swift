@@ -4,7 +4,7 @@ import Testing
 
 @MainActor struct CustomControlAccentTests {
     @Test func customEditorAndValidationCopyHaveEnglishAndFrenchResources() throws {
-        let keys = ["Custom Accent", "Edit Custom Accent…", "Light Accent", "Dark Accent",
+        let keys = ["Apply", "Custom Accent", "Edit Custom Accent…", "Light Accent", "Dark Accent",
             "Choose opaque sRGB accents for Light and Dark. Changes stay in this draft until Apply.",
             "Reference checks require 4.5:1 against white for Light and black for Dark. They do not certify the contrast of native controls.",
             "Use six hexadecimal digits. Choose a darker Light accent and a lighter Dark accent to pass the reference checks.",
