@@ -97,6 +97,20 @@ final class WebPlayer: NSObject {
     @ObservationIgnored var onPlaybackOutputInterrupted: ((PlaybackOccurrence) -> Void)?
     @ObservationIgnored var onRecoveryRequested: ((PlaybackOccurrence, TimeInterval) -> TimeInterval?)?
     @ObservationIgnored var onSessionRestoreFailed: (() -> Void)?
+    @ObservationIgnored var onOutputBindingReady: ((WebPlaybackOutputContext) -> Void)?
+    @ObservationIgnored var onOutputEvent: ((WebPlaybackOutputEvent) -> Void)?
+    @ObservationIgnored var onOutputRecoveryRequested: ((WebPlaybackOutputContext, TimeInterval) -> TimeInterval?)?
+    @ObservationIgnored private var outputObservation = WebPlaybackOutputObservation()
+    var outputMediaID: UUID? { gate.loadID }
+    var requestedOutputContext: WebPlaybackOutputContext? {
+        guard !outputHold.isHeld, let context = outputObservation.requested,
+              context.loadID == gate.loadID, context.occurrence == occurrence else { return nil }
+        return context
+    }
+    var currentOutputContext: WebPlaybackOutputContext? {
+        guard let context = requestedOutputContext, outputObservation.accepts(context) else { return nil }
+        return context
+    }
 
     @ObservationIgnored private let messageHandler: PlayerMessageHandler
     @ObservationIgnored private var gate = PlaybackEventGate()
@@ -167,7 +181,13 @@ final class WebPlayer: NSObject {
         super.init()
         handler.owner = self
         self.episodeRates.execute = { [weak self] in await self?.executeEpisodeRate($0) ?? .stale }
-        self.episodeRates.report = { [weak self] occurrence, snapshot in self?.onEpisodeRates?(occurrence, snapshot) }
+        self.episodeRates.report = { [weak self] occurrence, snapshot in
+            guard let self else { return }
+            let context = self.currentOutputContext
+            if context?.occurrence == occurrence { self.emitOutput(.rates(snapshot), context: context) }
+            if let context, self.currentOutputContext != context { return }
+            self.onEpisodeRates?(occurrence, snapshot)
+        }
         self.episodeRates.didFinishSongReset = { [weak self] target, _ in self?.retireEpisodeRateScope(target) }
         self.configure(self.webView)
         self.videoPresentation.bind(view: { [weak self] in self?.webView },
@@ -222,6 +242,7 @@ final class WebPlayer: NSObject {
             self.fail(AppLocalization.text("The selected song no longer matches the playback request."), reason: .selectionMismatch)
             return
         }
+        self.outputObservation.revoke()
         self.episodeRates.prepareLoad(content: Self.rateContent(track))
         self.verifiedRateOccurrence = nil
         self.videoPresentation.invalidate()
@@ -300,6 +321,7 @@ final class WebPlayer: NSObject {
         let completeHistory = retiringOutputViews.historyIsComplete && retired.allSatisfy { $0.resource is WKWebView }
         let operation = outputHold.revoke(historyIsComplete: completeHistory, willRevoke: {
             let interrupted = self.occurrence
+            self.outputObservation.revoke()
             self.gate = PlaybackEventGate(); self.commandRevision += 1; self.navigationRevision += 1
             self.presentationRevision += 1; self.lastBoundDocumentID = nil
             self.navigation = nil; self.replacementPending = false; self.pendingSeek = nil
@@ -339,6 +361,7 @@ final class WebPlayer: NSObject {
         self.outputCommandEpoch = UUID()
         self.commandRevision += 1
         self.minimumOutputCommandRevision = self.commandRevision
+        self.prepareOutputObservation()
         self.presentationRevision += 1
         self.segmentIdentity = nil
         self.episodeRates.invalidate(clearOwnership: false)
@@ -364,12 +387,15 @@ final class WebPlayer: NSObject {
     }
 
     func pause() {
+        let context = self.currentOutputContext
         self.wantsPlaying = false
         self.sendCommand("pause")
         self.isPlaying = false
         self.isBuffering = false
         self.setStartingPlayback(false)
         self.updateIdleUnload()
+        self.emitOutput(.state, context: context)
+        if let context, self.currentOutputContext != context { return }
         self.onStateChanged?()
     }
 
@@ -397,6 +423,7 @@ final class WebPlayer: NSObject {
     }
 
     func stop() {
+        self.outputObservation.revoke()
         self.invalidateEpisodeRateControl()
         self.videoPresentation.close()
         self.cancelSessionRestore()
@@ -429,7 +456,14 @@ final class WebPlayer: NSObject {
     private func recoverNavigation() {
         guard let occurrence else { return }
         var position = self.pendingSeek ?? self.clock.position
-        if let onRecoveryRequested {
+        if let onOutputRecoveryRequested {
+            guard let context = self.currentOutputContext else {
+                self.fail(AppLocalization.text("YouTube Music's playback controls did not respond. Try again."), reason: .bridgeUnavailable)
+                return
+            }
+            guard let retained = onOutputRecoveryRequested(context, position), self.currentOutputContext == context else { return }
+            position = retained
+        } else if let onRecoveryRequested {
             guard let retained = onRecoveryRequested(occurrence, position) else { return }
             position = retained
         }
@@ -458,6 +492,7 @@ final class WebPlayer: NSObject {
         self.commandRevision = 0
         self.minimumOutputCommandRevision = 0
         self.outputCommandEpoch = UUID()
+        self.prepareOutputObservation()
         self.navigationRevision += 1
         self.failureReported = false
         self.isPlaying = false
@@ -549,6 +584,7 @@ final class WebPlayer: NSObject {
         self.commandRevision += 1
         let revision = self.commandRevision
         let outputEpoch = self.outputCommandEpoch
+        self.outputObservation.commandIssued(revision)
         var command: [String: Any] = ["loadID": loadID.uuidString, "revision": revision, "name": name]
         if let value { command["value"] = value }
         if let sectionGuard { command["sectionGuard"] = sectionGuard.payload }
@@ -582,12 +618,23 @@ final class WebPlayer: NSObject {
     }
 
     private func receive(_ message: PlaybackBridgeMessage) {
-        guard !outputHold.isHeld, message.commandRevision >= self.minimumOutputCommandRevision, self.gate.accept(message), !self.failureReported else { return }
+        guard !outputHold.isHeld, !self.failureReported,
+              let receipt = self.outputObservation.accept(message, gate: &self.gate) else { return }
+        let context = receipt.context
+        if receipt.needsBinding { self.onOutputBindingReady?(context) }
+        guard self.currentOutputContext == context else { return }
         if message.interruptsPlaybackOutput { self.segmentIdentity = nil }
-        if let occurrence, message.interruptsPlaybackOutput { self.onPlaybackOutputInterrupted?(occurrence) }
+        if let occurrence, message.interruptsPlaybackOutput {
+            self.emitOutput(.outputInterrupted, context: context)
+            guard self.currentOutputContext == context else { return }
+            self.onPlaybackOutputInterrupted?(occurrence)
+        }
         if let occurrence, !message.confirmsEpisodeProgress || (message.kind != .progress && message.kind != .ended) {
+            self.emitOutput(.listeningInterrupted, context: context)
+            guard self.currentOutputContext == context else { return }
             self.onListeningInterrupted?(occurrence)
         }
+        guard self.currentOutputContext == context else { return }
         self.acceptedPresentationContent = message.kind != .error && message.mediaReady && !message.isAd
         var presentation = message.videoPresentation ?? .init()
         if !self.acceptedPresentationContent { presentation.hasVideo = false; presentation.supportsPictureInPicture = false }
@@ -637,18 +684,48 @@ final class WebPlayer: NSObject {
                 self.segmentIdentity = identity
                 self.segmentConfirmedAt = PlaybackOutputTime.monotonic()
             } else { self.segmentIdentity = nil }
+            self.emitOutput(.progress(position: message.position, duration: message.duration, ended: message.kind == .ended), context: context)
+            guard self.currentOutputContext == context else { return }
             self.onVerifiedContentProgress?(occurrence, message.position, message.duration, message.kind == .ended)
+            guard self.currentOutputContext == context else { return }
             self.verifiedRateOccurrence = occurrence
         }
         self.acceptEpisodeRateMedia(message)
-        if message.kind == .ended, let occurrence = self.occurrence {
+        guard self.currentOutputContext == context else { return }
+        if message.kind == .ended {
+            let occurrence = context.occurrence
             self.isPlaying = false
             self.isBuffering = false
+            self.emitOutput(.state, context: context)
+            guard self.currentOutputContext == context else { return }
             self.onStateChanged?()
+            self.emitOutput(.ended, context: context)
+            guard self.currentOutputContext == context else { return }
             self.onEnded?(occurrence)
         } else if changed || message.kind != .progress {
+            self.emitOutput(.state, context: context)
+            guard self.currentOutputContext == context else { return }
             self.onStateChanged?()
         }
+    }
+
+    private func prepareOutputObservation() {
+        guard let loadID = self.gate.loadID, let occurrence = self.occurrence else {
+            self.outputObservation.revoke(); return
+        }
+        self.outputObservation.prepare(.init(engineInstanceID: self.outputInstanceID, loadID: loadID,
+            occurrence: occurrence, commandEpoch: self.outputCommandEpoch,
+            minimumCommandRevision: self.minimumOutputCommandRevision))
+    }
+
+    private func emitOutput(_ kind: WebPlaybackOutputEvent.Kind, context: WebPlaybackOutputContext?, informationalFailure: Bool = false) {
+        guard let context, !outputHold.isHeld else { return }
+        if informationalFailure {
+            guard self.requestedOutputContext == context else { return }
+        } else {
+            guard self.currentOutputContext == context else { return }
+        }
+        self.onOutputEvent?(.init(context: context, kind: kind))
     }
 
     private func retryNavigationOrFail(_ message: String, reason: PlaybackFailureReason = .bridgeUnavailable) {
@@ -663,6 +740,7 @@ final class WebPlayer: NSObject {
 
     private func fail(_ message: String, reason: PlaybackFailureReason = .bridgeUnavailable) {
         guard !outputHold.isHeld, !self.failureReported else { return }
+        let context = self.requestedOutputContext
         self.invalidateEpisodeRateControl()
         self.failureReported = true
         self.acceptedPresentationContent = false
@@ -677,6 +755,9 @@ final class WebPlayer: NSObject {
         self.setStartingPlayback(false)
         self.sendCommand("pause")
         self.updateIdleUnload()
+        self.emitOutput(.state, context: context)
+        self.emitOutput(.failure(message: message, reason: reason), context: context, informationalFailure: true)
+        if let context, self.requestedOutputContext != context { return }
         self.onStateChanged?()
         self.onFailure?()
     }
@@ -706,6 +787,7 @@ final class WebPlayer: NSObject {
     /// queue occurrence, and clock are kept, so play reloads where it stopped.
     private func replaceWebView() {
         guard !outputHold.isHeld else { return }
+        self.outputObservation.revoke()
         self.idleUnload?.cancel()
         self.idleUnload = nil
         self.deadline?.cancel()
