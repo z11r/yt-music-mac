@@ -887,3 +887,11 @@
 "YouTube Music did not supply credits for this recording." = "YouTube Music did not supply credits for this recording.";
 "Couldn't Load Song Credits" = "Couldn't Load Song Credits";
 "The request was stopped or could not finish. Try again to load this song's credits." = "The request was stopped or could not finish. Try again to load this song's credits.";
+/* Native control accent */
+"System Accent" = "System Accent";
+"Blue" = "Blue";
+"Purple" = "Purple";
+"Teal" = "Teal";
+"Control Accent" = "Control Accent";
+"Sets the tint of supported native controls in this local profile." = "Sets the tint of supported native controls in this local profile.";
+"Increase Contrast uses the system accent. Your chosen accent is kept for standard contrast." = "Increase Contrast uses the system accent. Your chosen accent is kept for standard contrast.";

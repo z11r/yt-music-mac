@@ -887,3 +887,11 @@
 "YouTube Music did not supply credits for this recording." = "YouTube Music n’a pas fourni de crédits pour cet enregistrement.";
 "Couldn't Load Song Credits" = "Impossible de charger les crédits du morceau";
 "The request was stopped or could not finish. Try again to load this song's credits." = "La requête a été interrompue ou n’a pas pu aboutir. Réessayez pour charger les crédits de ce morceau.";
+/* Native control accent */
+"System Accent" = "Accentuation du système";
+"Blue" = "Bleu";
+"Purple" = "Violet";
+"Teal" = "Sarcelle";
+"Control Accent" = "Accentuation des commandes";
+"Sets the tint of supported native controls in this local profile." = "Définit la teinte des commandes natives compatibles dans ce profil local.";
+"Increase Contrast uses the system accent. Your chosen accent is kept for standard contrast." = "L’option Augmenter le contraste utilise l’accentuation du système. Votre choix est conservé pour le contraste standard.";
