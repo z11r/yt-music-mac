@@ -182,6 +182,7 @@ final class AppSession {
     let searchHistory = SearchHistory()
     let lyrics: LyricsSession
     let credits: SongCreditsSession
+    let episodeDetails: EpisodeDetailsSession
     var libraryDisplayOrder: LibraryDisplayOrder = .serviceOrder
     var collectionFilter = ""
     var libraryFilter = ""
@@ -213,7 +214,7 @@ final class AppSession {
     @ObservationIgnored private var saveTask: Task<Void, Never>?
     @ObservationIgnored private var pageGeneration = UUID()
     @ObservationIgnored var accountGeneration = UUID() { didSet {
-        recommendations.cancel(); credits.clear(); commandReview.invalidate(); revokeSearchContext()
+        recommendations.cancel(); credits.clear(); episodeDetails.clear(); commandReview.invalidate(); revokeSearchContext()
         localAudioLibrary?.quiesce()
         preserveTransportPosition()
         player.invalidateOwner()
@@ -298,6 +299,11 @@ final class AppSession {
             await credentials.snapshot().scope
         }, fetch: { [client = configuration.client] reference, scope in
             try await client.songCredits(reference, expectedScope: scope)
+        })
+        episodeDetails = EpisodeDetailsSession(snapshot: { [credentials = configuration.credentials] in
+            await credentials.snapshot().scope
+        }, fetch: { [client = configuration.client] reference, scope in
+            try await client.episodeDetails(reference, expectedScope: scope)
         })
         player = PlaybackController(dataStore: configuration.dataStore,
             admission: configuration.playbackOutputAdmission ?? PlaybackOutputAdmission(),
@@ -1271,6 +1277,7 @@ final class AppSession {
     func request(_ occurrence: PlaybackOccurrence?, resumingAt position: TimeInterval = 0,
                          listeningIntent: ListeningStartIntent = .newListen) {
         guard acceptsProfileActions else { return }
+        episodeDetails.clear()
         guard !isSceneCheck else { return }
         streamingExport?.interrupt()
         episodeStartTask?.cancel(); episodeStartTask = nil; pendingEpisodeOccurrence = nil
@@ -1621,7 +1628,7 @@ final class AppSession {
         isProfileSuspended = true
         commandReview.invalidate()
         localAudioLibrary?.quiesce()
-        credits.clear()
+        credits.clear(); episodeDetails.clear()
         quickCommands.invalidate(); quickCommandProfile = nil
         streamingExport?.quiesce(); discordPresence?.quiesce(); sponsorBlock?.quiesce()
         player.invalidateEpisodeRateControl()

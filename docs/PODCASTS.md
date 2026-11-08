@@ -6,6 +6,10 @@ lists. Episodes use the existing playback owner and retain separate queue
 occurrences; native podcast playback still needs a controlled live check.
 No subscription or saved-episode mutation action is enabled.
 
+[Episode Details](EPISODE_DETAILS.md) makes an explicit read for the current
+episode description and supplied timestamp references. Those references are
+read-only and do not infer chapter titles or seek playback.
+
 Episode rows require a service episode browse identity or an explicit podcast
 video type. `Track.contentKind` distinguishes episodes from songs, and
 `EpisodeMetadata.identity` stores the provider and canonical episode browse

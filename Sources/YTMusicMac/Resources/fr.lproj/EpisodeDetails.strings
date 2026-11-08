@@ -1,0 +1,14 @@
+"Episode Details" = "Détails de l’épisode";
+"Close" = "Fermer";
+"Cancel" = "Annuler";
+"Try Again" = "Réessayer";
+"Loading episode details…" = "Chargement des détails de l’épisode…";
+"YouTube Music did not provide episode details." = "YouTube Music n’a pas fourni de détails pour cet épisode.";
+"Episode details could not be loaded." = "Impossible de charger les détails de l’épisode.";
+"The previous request is still finishing." = "La requête précédente se termine.";
+"Description" = "Description";
+"No description was provided." = "Aucune description n’a été fournie.";
+"Source Timestamp References" = "Références temporelles fournies";
+"These positions come from YouTube Music description links. They are not inferred chapters and do not seek playback." = "Ces positions proviennent de liens dans la description YouTube Music. Elles ne sont pas des chapitres déduits et ne déplacent pas la lecture.";
+"Provided by YouTube Music" = "Fourni par YouTube Music";
+"Load details for the current episode without changing playback." = "Charger les détails de l’épisode actuel sans modifier la lecture.";

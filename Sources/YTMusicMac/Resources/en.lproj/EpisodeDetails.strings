@@ -1,0 +1,14 @@
+"Episode Details" = "Episode Details";
+"Close" = "Close";
+"Cancel" = "Cancel";
+"Try Again" = "Try Again";
+"Loading episode details…" = "Loading episode details…";
+"YouTube Music did not provide episode details." = "YouTube Music did not provide episode details.";
+"Episode details could not be loaded." = "Episode details could not be loaded.";
+"The previous request is still finishing." = "The previous request is still finishing.";
+"Description" = "Description";
+"No description was provided." = "No description was provided.";
+"Source Timestamp References" = "Source Timestamp References";
+"These positions come from YouTube Music description links. They are not inferred chapters and do not seek playback." = "These positions come from YouTube Music description links. They are not inferred chapters and do not seek playback.";
+"Provided by YouTube Music" = "Provided by YouTube Music";
+"Load details for the current episode without changing playback." = "Load details for the current episode without changing playback.";

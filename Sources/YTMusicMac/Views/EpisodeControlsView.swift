@@ -14,6 +14,12 @@ struct EpisodeControlsView: View {
                     Button("Resume at \(playbackTime(session.episodePlayback.resumePosition(for: track)))", action: session.resumeEpisode)
                 }
                 Menu("Episode Options") {
+                    let detailsTarget = session.episodeDetailsTarget
+                    Button(EpisodeDetailsText.text("Episode Details")) {
+                        if let detailsTarget { _ = session.openEpisodeDetails(detailsTarget) }
+                    }.disabled(detailsTarget == nil || session.episodeDetails.isBusy)
+                        .help(session.episodeDetails.isBusy ? EpisodeDetailsText.text("The previous request is still finishing.") : EpisodeDetailsText.text("Load details for the current episode without changing playback."))
+                    Divider()
                     EpisodeLocalStatusActions(track: track, session: session)
                     Text("Local status does not change YouTube Music history or measured listening.")
                     Divider()
@@ -52,6 +58,11 @@ struct EpisodeControlsView: View {
             }
             .font(.caption).padding(.horizontal, 20).padding(.bottom, 8)
             .disabled(!session.account.isSignedIn)
+            .sheet(isPresented: Binding(get: { session.episodeDetails.isPresented }, set: { if !$0 { session.episodeDetails.clear() } })) {
+                EpisodeDetailsPanel(session: session)
+            }
+            .onChange(of: session.episodeDetailsTarget) { _, _ in session.episodeDetails.discardIfStale() }
+            .onDisappear { session.episodeDetails.clear() }
         }
     }
     private var canSkip: Bool {
