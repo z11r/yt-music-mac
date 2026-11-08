@@ -695,3 +695,9 @@
 "is unknown" = "is unknown";
 "more than 999 hours" = "more than 999 hours";
 "seconds" = "seconds";
+"Local episode progress" = "Local episode progress";
+"ListenBrainz records" = "ListenBrainz records";
+"Last.fm records" = "Last.fm records";
+"Pending playlist save" = "Pending playlist save";
+"Cache clearing preserves saved data, credentials and the WebKit sign-in session. Manage queues, organization, song rules, episode progress, scrobbling and pending playlist saves in their own controls." = "Cache clearing preserves saved data, credentials and the WebKit sign-in session. Manage queues, organization, song rules, episode progress, scrobbling and pending playlist saves in their own controls.";
+"Sign-out clears this app's session and current queue. Saved queues, organization, song rules, episode progress and optional scrobbling records remain on this Mac for their account." = "Sign-out clears this app's session and current queue. Saved queues, organization, song rules, episode progress and optional scrobbling records remain on this Mac for their account.";

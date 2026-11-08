@@ -146,7 +146,10 @@ struct LibraryMetadataCacheTests {
         let fixture = MetadataCacheFixture()
         defer { fixture.remove() }
         let protected: [(String, Int)] = [("queue.json", 21), ("SavedQueues/\(fixture.first)/queues.json", 33),
-            ("LocalCollections/\(fixture.first)/organization.json", 45), ("credentials-sentinel", 17), ("WebKit/session-sentinel", 27),
+            ("LocalCollections/\(fixture.first)/organization.json", 45),
+            ("LocalSongRules/\(fixture.first)/song-rules.json", 51), ("episode-progress/\(fixture.first).json", 61),
+            ("listenbrainz/\(fixture.first).json", 71), ("lastfm/\(fixture.first).json", 81),
+            ("PendingQueuePlaylists/\(fixture.first)/pending.json", 91), ("credentials-sentinel", 17), ("WebKit/session-sentinel", 27),
             ("SavedQueues/\(fixture.second)/queues.json", 99)]
         for (path, size) in protected {
             let url = fixture.directory.appendingPathComponent(path)
@@ -158,6 +161,8 @@ struct LibraryMetadataCacheTests {
         let inventory = ProtectedStorageInventory(directoryURL: fixture.directory)
         let before = try await inventory.measure(accountKey: fixture.first)
         #expect(before.currentQueueBytes == 21 && before.namedQueueBytes == 33 && before.organizationBytes == 45)
+        #expect(before.songRuleBytes == 51 && before.episodeProgressBytes == 61)
+        #expect(before.listenBrainzBytes == 71 && before.lastFMBytes == 81 && before.pendingPlaylistBytes == 91)
         try await cache.clear(accountKey: fixture.first)
         #expect(try await inventory.measure(accountKey: fixture.first) == before)
         #expect(try await inventory.measure(accountKey: fixture.second).namedQueueBytes == 99)

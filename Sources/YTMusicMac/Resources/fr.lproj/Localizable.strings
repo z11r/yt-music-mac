@@ -695,3 +695,9 @@
 "is unknown" = "est inconnu";
 "more than 999 hours" = "plus de 999 heures";
 "seconds" = "secondes";
+"Local episode progress" = "Progression locale des épisodes";
+"ListenBrainz records" = "Données ListenBrainz";
+"Last.fm records" = "Données Last.fm";
+"Pending playlist save" = "Enregistrement de playlist en attente";
+"Cache clearing preserves saved data, credentials and the WebKit sign-in session. Manage queues, organization, song rules, episode progress, scrobbling and pending playlist saves in their own controls." = "L’effacement du cache conserve les données enregistrées, les identifiants et la session de connexion WebKit. Gérez les files, l’organisation, les règles de titres, la progression des épisodes, le scrobbling et les enregistrements de playlists en attente dans leurs commandes respectives.";
+"Sign-out clears this app's session and current queue. Saved queues, organization, song rules, episode progress and optional scrobbling records remain on this Mac for their account." = "La déconnexion efface la session de cette app et la file actuelle. Les files enregistrées, l’organisation, les règles de titres, la progression des épisodes et les données de scrobbling facultatif restent sur ce Mac pour leur compte.";

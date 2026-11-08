@@ -64,7 +64,12 @@ struct StorageSettingsView: View {
                         LabeledContent("Current queue", value: bytes(usage.currentQueueBytes))
                         LabeledContent("Named queues for this account", value: bytes(usage.namedQueueBytes))
                         LabeledContent("Local collection organization", value: bytes(usage.organizationBytes))
-                        Text("Cache clearing preserves these files, your credentials, and the WebKit sign-in session. Manage named queues and local organization in their own views.")
+                        LabeledContent("Local Song Rules", value: bytes(usage.songRuleBytes))
+                        LabeledContent("Local episode progress", value: bytes(usage.episodeProgressBytes))
+                        LabeledContent("ListenBrainz records", value: bytes(usage.listenBrainzBytes))
+                        LabeledContent("Last.fm records", value: bytes(usage.lastFMBytes))
+                        LabeledContent("Pending playlist save", value: bytes(usage.pendingPlaylistBytes))
+                        Text("Cache clearing preserves saved data, credentials and the WebKit sign-in session. Manage queues, organization, song rules, episode progress, scrobbling and pending playlist saves in their own controls.")
                             .font(.caption).foregroundStyle(.secondary)
                     }
                 }

@@ -64,7 +64,7 @@ struct SettingsView: View {
                         }
                     }.disabled(isSigningOut)
                 }
-                Text("Sign-out clears this app's session and current queue. Named saved queues and local collection organization stay on this Mac for their account until deleted.")
+                Text("Sign-out clears this app's session and current queue. Saved queues, organization, song rules, episode progress and optional scrobbling records remain on this Mac for their account.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             ListenBrainzSettings(session: session)

@@ -9,6 +9,11 @@ public struct ProtectedStorageUsage: Equatable, Sendable {
     public let currentQueueBytes: Int
     public let namedQueueBytes: Int
     public let organizationBytes: Int
+    public let songRuleBytes: Int
+    public let episodeProgressBytes: Int
+    public let listenBrainzBytes: Int
+    public let lastFMBytes: Int
+    public let pendingPlaylistBytes: Int
 }
 
 /// Measures fixed metadata files only. It has no deletion operation or access to session storage.
@@ -20,7 +25,12 @@ public actor ProtectedStorageInventory {
         guard NamedQueueStore.acceptsAccountKey(accountKey) else { throw NamedQueueError.invalidAccount }
         return try ProtectedStorageUsage(currentQueueBytes: size(["queue.json"]),
             namedQueueBytes: size(["SavedQueues", accountKey, "queues.json"]),
-            organizationBytes: size(["LocalCollections", accountKey, "organization.json"]))
+            organizationBytes: size(["LocalCollections", accountKey, "organization.json"]),
+            songRuleBytes: size(["LocalSongRules", accountKey, "song-rules.json"]),
+            episodeProgressBytes: size(["episode-progress", accountKey + ".json"]),
+            listenBrainzBytes: size(["listenbrainz", accountKey + ".json"]),
+            lastFMBytes: size(["lastfm", accountKey + ".json"]),
+            pendingPlaylistBytes: size(["PendingQueuePlaylists", accountKey, "pending.json"]))
     }
     private func size(_ components: [String]) throws -> Int {
         let url = components.reduce(directoryURL) { $0.appendingPathComponent($1) }
