@@ -136,6 +136,7 @@ final class AppSession {
     let episodePlayback: EpisodePlaybackSession
     let listenBrainz: ListenBrainzSession
     let lastFM: LastFMSession
+    let streamingExport: StreamingMetadataExport?
     private(set) var destination: MusicDestination = .home
     private(set) var page: MusicPage?
     private(set) var chartCountries: [MusicChartCountry] = []
@@ -218,6 +219,10 @@ final class AppSession {
         listenBrainz = ListenBrainzSession(coordinator: configuration.listenBrainzCoordinator)
         queuePlaylistSave = QueuePlaylistSave(store: configuration.queuePlaylistJournal, service: configuration.client, sessions: configuration.credentials)
         lastFM = LastFMSession(coordinator: configuration.lastFMCoordinator)
+        streamingExport = configuration.streamingMetadataWriter.map {
+            StreamingMetadataExport(preferences: configuration.preferences, profileNamespace: configuration.profileNamespace,
+                sessions: configuration.credentials, writer: $0)
+        }
         isSceneCheck = configuration.isSceneCheck
         account = WebSession(dataStore: configuration.dataStore, credentials: configuration.credentials,
                              preferences: configuration.preferences)
@@ -250,11 +255,16 @@ final class AppSession {
             self.episodePlayback.record(occurrence: occurrence, position: position, duration: duration, confirmedContent: true, ended: ended)
             self.listenBrainz.sample(occurrence: occurrence, position: position, duration: duration, ended: ended)
             self.lastFM.sample(occurrence: occurrence, position: position, duration: duration, ended: ended)
+            if !ended, self.wantsPlayback, self.player.isPlaying, !self.player.isBuffering,
+               self.player.hasConfirmedPosition, self.player.errorMessage == nil, let track = self.currentTrack {
+                self.streamingExport?.sample(track: track, occurrence: occurrence, ended: false)
+            } else { self.streamingExport?.interrupt() }
         }
         player.onListeningInterrupted = { [weak self] occurrence in
             guard let self, self.queue.accepts(occurrence) else { return }
             self.listenBrainz.interrupt()
             self.lastFM.interrupt()
+            self.streamingExport?.interrupt()
         }
         player.onRecoveryRequested = { [weak self] occurrence, position in
             guard let self else { return nil }
@@ -271,7 +281,9 @@ final class AppSession {
                 }
                 self.wantsPlayback = self.player.playbackIntent
             }
-            if let self, !self.player.isPlaying || self.player.isBuffering { self.listenBrainz.interrupt(); self.lastFM.interrupt() }
+            if let self, !self.player.isPlaying || self.player.isBuffering {
+                self.listenBrainz.interrupt(); self.lastFM.interrupt(); self.streamingExport?.interrupt()
+            }
             self?.systemMedia?.refresh()
             self?.saveQueue()
         }
@@ -286,6 +298,7 @@ final class AppSession {
         account.onAccountConfirmed = { [weak self] hash in
             guard let self else { return }
             self.bindEpisodeAccount(hash)
+            self.streamingExport?.bindAccount(hash)
             let generation = self.accountGeneration
             self.listenBrainz.bindAccount(hash, currentPlayback: { [weak self] in
                 guard let self, self.accountGeneration == generation, self.account.isSignedIn,
@@ -784,6 +797,7 @@ final class AppSession {
     }
 
     func pause() {
+        streamingExport?.interrupt()
         listenBrainz.interrupt()
         lastFM.interrupt()
         episodeStartTask?.cancel(); episodeStartTask = nil
@@ -815,6 +829,7 @@ final class AppSession {
         collectionPlayback.cancel()
         guard value.isFinite, value >= 0 else { return }
         recommendations.cancel()
+        streamingExport?.interrupt()
         cancelPendingCollectionRadio()
         listenBrainz.interrupt()
         lastFM.interrupt()
@@ -961,6 +976,7 @@ final class AppSession {
     func request(_ occurrence: PlaybackOccurrence?, resumingAt position: TimeInterval = 0,
                          listeningIntent: ListeningStartIntent = .newListen) {
         guard !isSceneCheck else { return }
+        streamingExport?.interrupt()
         episodeStartTask?.cancel(); episodeStartTask = nil; pendingEpisodeOccurrence = nil
         guard let occurrence, let track = queue.currentTrack else { episodePlayback.clearPlayback(); return }
         sleepTimer.bind(to: occurrence)
@@ -1096,6 +1112,7 @@ final class AppSession {
     func signOut() async {
         chartCountries = []; chartCountryLabel = nil
         player.invalidateEpisodeRateControl()
+        streamingExport?.bindAccount(nil)
         episodeContinuation = nil
         cancelMusicLink()
         listenBrainz.bindAccount(nil)
@@ -1133,6 +1150,7 @@ final class AppSession {
         await spotlight.waitForIdle()
         _ = await progressFlush?.value
         await queuePlaylistSave.waitForIdle()
+        await streamingExport?.waitForIdle()
         await account.signOut()
         do { try await queueStore?.clear() }
         catch { queueError = AppLocalization.text("The saved queue could not be removed. Try signing out again.") }
@@ -1163,6 +1181,7 @@ final class AppSession {
         chartCountries = []; chartCountryLabel = nil
         if case .chartCountry = destination { destination = .discovery(.charts) }
         player.invalidateEpisodeRateControl()
+        streamingExport?.bindAccount(nil)
         episodeContinuation = replacedAccount ? nil : episodePlayback.continuationForRebind()
         cancelMusicLink(keepingPending: !links.isReady && !replacedAccount)
         spotlightPageSource = nil
@@ -1237,6 +1256,7 @@ final class AppSession {
     }
 
     func shutdown() async {
+        streamingExport?.disable()
         episodeContinuation = nil
         isShuttingDown = true
         queuePlaylistSave.cancel()
@@ -1257,6 +1277,7 @@ final class AppSession {
         await saveTask?.value
         await spotlight.waitForIdle()
         await queuePlaylistSave.waitForIdle()
+        await streamingExport?.stop()
         player.onStateChanged = nil
         player.onVerifiedContentProgress = nil
         player.onEpisodeRates = nil
