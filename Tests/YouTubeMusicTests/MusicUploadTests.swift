@@ -163,11 +163,19 @@ final class MusicUploadTests: XCTestCase {
     }
 
     func testCatalogResultsNeverUseUploadMenuIdentityOrMarkOrigin() async throws {
-        let transport = UploadTransport([shelf([uploadRow(videoID)])])
-        let page = try await client(transport).search(query: "Fixture")
-        XCTAssertTrue(page.tracks.isEmpty)
+        let catalog: [String: Any] = ["musicTwoRowItemRenderer": [
+            "title": ["runs": [["text": "Catalog fixture"]]],
+            "navigationEndpoint": ["watchEndpoint": ["videoId": "otherID12_3"]],
+        ]]
+        let transport = UploadTransport([shelf([uploadRow(videoID)]), shelf([uploadRow(videoID), catalog])])
+        let client = await client(transport)
+        do { _ = try await client.search(query: "Fixture"); XCTFail("Expected unsupported-only content") }
+        catch { XCTAssertEqual(error as? MusicServiceError, .unsupportedResponse) }
+        let page = try await client.search(query: "Fixture")
+        XCTAssertEqual(page.tracks.map(\.id), ["otherID12_3"])
+        XCTAssertTrue(page.tracks.allSatisfy { $0.origin != .upload })
         let requests = await transport.requests
-        XCTAssertNil(try body(requests[0])["params"])
+        XCTAssertTrue(try requests.allSatisfy { try body($0)["params"] == nil })
     }
 
     func testUploadShuffleControlIsNotACollectionOrPlaybackTrack() async throws {

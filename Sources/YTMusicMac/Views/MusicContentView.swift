@@ -293,6 +293,7 @@ private struct MusicCard: View {
         switch item {
         case let .track(track): track.origin == .upload
         case let .collection(collection): collection.isUploaded
+        case .browse: false
         }
     }
     private var trackID: String? { if case let .track(track) = item { track.id } else { nil } }

@@ -27,11 +27,24 @@ struct UploadedTrackPersistenceTests {
         #expect(restored.currentOccurrence == nil)
     }
 
-    @Test func metadataRefreshWithoutOriginPreservesKnownUploadProvenance() {
+    @Test func uploadedQueueExchangeDoesNotInventAPortablePublicLink() throws {
         var queue = PlaybackQueue()
         queue.replace(with: [Track(id: "abcDEF12_-3", title: "Upload", artist: "Fixture", origin: .upload)])
+        #expect(throws: NamedQueueExchangeError.uploadedMusicUnsupported) {
+            try NamedQueueExchange.encode(name: "Upload queue", snapshot: queue.snapshot())
+        }
+    }
+
+    @Test func metadataRefreshWithoutOriginPreservesKnownUploadProvenance() {
+        var queue = PlaybackQueue()
+        queue.replace(with: [Track(id: "abcDEF12_-3", title: "Upload", artist: "Fixture",
+            albumReference: .init(id: "album", title: "Record"), artistReferences: [.init(id: "artist", title: "Artist")],
+            isExplicit: true, origin: .upload)])
         queue.updateTrack(Track(id: "abcDEF12_-3", title: "Updated title", artist: "Fixture"))
         #expect(queue.currentTrack?.title == "Updated title")
         #expect(queue.currentTrack?.origin == .upload)
+        #expect(queue.currentTrack?.albumReference?.id == "album")
+        #expect(queue.currentTrack?.artistReferences?.first?.id == "artist")
+        #expect(queue.currentTrack?.isExplicit == true)
     }
 }
