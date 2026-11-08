@@ -9,10 +9,10 @@ public actor YouTubeMusicClient {
         case all, playlists, albums, artists
         public var title: String {
             switch self {
-            case .all: "Library"
-            case .playlists: "Playlists"
-            case .albums: "Albums"
-            case .artists: "Artists"
+            case .all: ServiceLocalization.text("Library")
+            case .playlists: ServiceLocalization.text("Playlists")
+            case .albums: ServiceLocalization.text("Albums")
+            case .artists: ServiceLocalization.text("Artists")
             }
         }
         var browseID: String {
@@ -51,8 +51,8 @@ public actor YouTubeMusicClient {
         self.now = now
     }
 
-    public func home() async throws -> MusicPage { try await browse("FEmusic_home", title: "Home") }
-    public func explore() async throws -> MusicPage { try await browse("FEmusic_explore", title: "Explore") }
+    public func home() async throws -> MusicPage { try await browse("FEmusic_home", title: ServiceLocalization.text("Home")) }
+    public func explore() async throws -> MusicPage { try await browse("FEmusic_explore", title: ServiceLocalization.text("Explore")) }
     public func discovery(_ category: MusicDiscoveryCategory) async throws -> MusicPage {
         try await browse(category.browseID, title: category.title)
     }
@@ -69,7 +69,7 @@ public actor YouTubeMusicClient {
         guard !query.isEmpty, query.count <= 500 else { throw MusicServiceError.invalidInput }
         var body = ["query": query]
         if let params = filter.params { body["params"] = params }
-        return try await firstPage(endpoint: .search, body: body, title: "Search", requiresAuthentication: false, preservesOccurrences: false)
+        return try await firstPage(endpoint: .search, body: body, title: ServiceLocalization.text("Search"), requiresAuthentication: false, preservesOccurrences: false)
     }
     public func library(category: LibraryCategory = .all) async throws -> MusicPage {
         var body = ["browseId": category.browseID]
@@ -79,27 +79,27 @@ public actor YouTubeMusicClient {
     /// Reads the account's listening history without changing it. Repeated
     /// plays remain distinct, including when they appear on different pages.
     public func history() async throws -> MusicPage {
-        try await browse("FEmusic_history", title: "Listening History", requiresAuthentication: true, preservesOccurrences: true)
+        try await browse("FEmusic_history", title: ServiceLocalization.text("Listening History"), requiresAuthentication: true, preservesOccurrences: true)
     }
     public func likedSongs() async throws -> MusicPage {
-        try await browse("VLLM", title: "Liked Songs", requiresAuthentication: true, preservesOccurrences: true)
+        try await browse("VLLM", title: ServiceLocalization.text("Liked Songs"), requiresAuthentication: true, preservesOccurrences: true)
     }
     public func playlist(id: String) async throws -> MusicPage {
         guard !MusicUploadRoutes.isCollectionID(id) else { throw MusicServiceError.invalidInput }
         try validateIdentifier(id)
         let browseID = Self.playlistBrowseID(id)
-        return try await browse(browseID, title: "Playlist", requiresAuthentication: ["VLLM", "VLSE"].contains(browseID), preservesOccurrences: true)
+        return try await browse(browseID, title: ServiceLocalization.text("Playlist"), requiresAuthentication: ["VLLM", "VLSE"].contains(browseID), preservesOccurrences: true)
     }
     public func album(id: String) async throws -> MusicPage {
         if MusicUploadRoutes.isCollectionID(id) { return try await uploadedAlbum(id: id) }
         try validateIdentifier(id)
         let browseID = id.hasPrefix("OLAK") ? "VL" + id : id
-        return try await browse(browseID, title: "Album", preservesOccurrences: true)
+        return try await browse(browseID, title: ServiceLocalization.text("Album"), preservesOccurrences: true)
     }
     public func artist(id: String) async throws -> MusicPage {
         if MusicUploadRoutes.isCollectionID(id) { return try await uploadedArtist(id: id) }
         try validateIdentifier(id)
-        return try await browse(id, title: "Artist")
+        return try await browse(id, title: ServiceLocalization.text("Artist"))
     }
 
     public func nextPage(_ continuation: MusicContinuation) async throws -> MusicPage {

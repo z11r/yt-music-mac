@@ -180,7 +180,7 @@ struct MusicContentView: View {
                 Label(session.account.isSignedIn ? "Couldn't Load Music" : "Listen with YouTube Music",
                       systemImage: session.account.isSignedIn ? "wifi.exclamationmark" : "music.note")
             } description: {
-                Text(session.pageError ?? "Browse music, bring your library, and keep listening on your Mac.")
+                Text(session.pageError ?? AppLocalization.text("Browse music, bring your library, and keep listening on your Mac."))
                     .frame(maxWidth: 390)
             } actions: {
                 if !session.account.isSignedIn {
@@ -233,7 +233,7 @@ private struct MusicCard: View {
                 ContentOriginBadge(isUploaded: isUploaded)
                 if case let .collection(value) = item, value.kind == .podcast { Text("Podcast").font(.caption).foregroundStyle(.secondary) }
                 if case let .track(track) = item, track.contentKind == .podcastEpisode { Text("Episode").font(.caption).foregroundStyle(.secondary) }
-                Text(item.subtitle ?? (isArtist ? "Artist" : ""))
+                Text(item.subtitle ?? (isArtist ? AppLocalization.text("Artist") : ""))
                     .font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
             }
             .frame(width: 176, alignment: .topLeading)
@@ -302,7 +302,7 @@ private struct MusicCard: View {
     }
     private var trackID: String? { if case let .track(track) = item { track.id } else { nil } }
     private var explicitLabel: String? {
-        if case let .track(track) = item, track.isExplicit == true { "Explicit content" } else { nil }
+        if case let .track(track) = item, track.isExplicit == true { AppLocalization.text("Explicit content") } else { nil }
     }
 }
 

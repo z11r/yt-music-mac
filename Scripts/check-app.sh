@@ -73,7 +73,7 @@ for module in ['YTMusicMac', 'MusicCore', 'YouTubeMusic']:
         if not strings.is_file():
             raise SystemExit(f'Missing {language} localization for {module}.')
         if module == 'YTMusicMac':
-            for filename in ['Localizable.strings', 'Localizable.stringsdict']:
+            for filename in ['Localizable.strings', 'Localizable.stringsdict', 'AppShortcuts.strings']:
                 main = root / f'{language}.lproj' / filename
                 if not main.is_file() or main.read_bytes() != (source / f'{language}.lproj' / filename).read_bytes():
                     raise SystemExit(f'Main-bundle {language} localization does not match package resources.')

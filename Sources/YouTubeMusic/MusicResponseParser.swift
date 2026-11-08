@@ -410,7 +410,7 @@ enum MusicResponseParser {
         let fallback = metadata.compactMap { $0["text"].string?.trimmingCharacters(in: .whitespacesAndNewlines) }.first {
             !$0.isEmpty && !["•", "·", "&", "Song", "Video", "Album", "Single", "EP"].contains($0) && parseDuration($0) == nil
         }
-        let artist = artists.isEmpty ? (fallback ?? "Unknown artist") : artists.joined(separator: ", ")
+        let artist = artists.isEmpty ? (fallback ?? ServiceLocalization.text("Unknown artist")) : artists.joined(separator: ", ")
         let isExplicit = ["badges", "subtitleBadges"].contains { key in
             node[key].array.contains { $0["musicInlineBadgeRenderer"]["icon"]["iconType"].string == "MUSIC_EXPLICIT_BADGE" }
         }

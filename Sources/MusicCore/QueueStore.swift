@@ -8,10 +8,23 @@ public enum QueuePersistenceError: Error, Equatable, LocalizedError, Sendable {
 
     public var errorDescription: String? {
         switch self {
-        case let .unsupportedVersion(version): "Saved queue version \(version) is not supported."
-        case let .invalidQueue(reason): "The saved queue is invalid: \(reason)."
-        case .fileTooLarge: "The saved queue exceeds the storage limit."
-        case .invalidStorageURL: "The queue store requires a local file URL."
+        case let .unsupportedVersion(version): CoreLocalization.format("Saved queue version %lld is not supported.", version)
+        case let .invalidQueue(reason): CoreLocalization.format("The saved queue is invalid: %@.", Self.localizedReason(reason))
+        case .fileTooLarge: CoreLocalization.text("The saved queue exceeds the storage limit.")
+        case .invalidStorageURL: CoreLocalization.text("The queue store requires a local file URL.")
+        }
+    }
+
+    private static func localizedReason(_ reason: String) -> String {
+        switch reason {
+        case "duplicate entry identifiers": CoreLocalization.text("duplicate entry identifiers")
+        case "missing track identifier": CoreLocalization.text("missing track identifier")
+        case "selection is missing from the queue": CoreLocalization.text("selection is missing from the queue")
+        case "shuffle order does not match the queue": CoreLocalization.text("shuffle order does not match the queue")
+        case "unshuffled entries are out of order": CoreLocalization.text("unshuffled entries are out of order")
+        case "invalid playback position": CoreLocalization.text("invalid playback position")
+        case "invalid track duration": CoreLocalization.text("invalid track duration")
+        default: reason
         }
     }
 }

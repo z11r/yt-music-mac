@@ -32,17 +32,17 @@ enum AppScriptingError: Error, Equatable, LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .unavailable: "The player is not ready. Wait for the app to finish opening."
-        case .invalidVideoID: "Use an 11-character YouTube video ID containing letters, digits, - or _."
-        case .signInRequired: "Sign in to YouTube Music in the app to continue."
-        case .noSelection: "Choose a song before starting playback."
-        case .trackNotFound: "The requested video ID was not found in YouTube Music."
-        case .superseded: "A newer playback or account action replaced this request."
-        case .lookupTimedOut: "The song lookup timed out."
-        case .lookupFailed: "YouTube Music could not look up the requested song."
-        case .libraryCheckTimedOut: "The library check timed out."
-        case .libraryCheckFailed: "YouTube Music could not complete the library check."
-        case .playlistCheckFailed: "The disposable playlist check could not complete. Check its cleanup status before trying again."
+        case .unavailable: AppLocalization.text("The player is not ready. Wait for the app to finish opening.")
+        case .invalidVideoID: AppLocalization.text("Use an 11-character YouTube video ID containing letters, digits, - or _.")
+        case .signInRequired: AppLocalization.text("Sign in to YouTube Music in the app to continue.")
+        case .noSelection: AppLocalization.text("Choose a song before starting playback.")
+        case .trackNotFound: AppLocalization.text("The requested video ID was not found in YouTube Music.")
+        case .superseded: AppLocalization.text("A newer playback or account action replaced this request.")
+        case .lookupTimedOut: AppLocalization.text("The song lookup timed out.")
+        case .lookupFailed: AppLocalization.text("YouTube Music could not look up the requested song.")
+        case .libraryCheckTimedOut: AppLocalization.text("The library check timed out.")
+        case .libraryCheckFailed: AppLocalization.text("YouTube Music could not complete the library check.")
+        case .playlistCheckFailed: AppLocalization.text("The disposable playlist check could not complete. Check its cleanup status before trying again.")
         }
     }
 

@@ -73,7 +73,7 @@ struct LyricsPanel: View {
                     EmptyView()
                 }
                 Divider()
-                Text(lyrics.source ?? "Provided by YouTube Music")
+                Text(lyrics.source ?? AppLocalization.text("Provided by YouTube Music"))
                     .font(.caption).foregroundStyle(.secondary)
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)

@@ -52,7 +52,7 @@ final class LoginItemController {
         errorMessage = nil
         defer { refresh(); isUpdating = false }
         do { try await access.setEnabled(enabled) }
-        catch { errorMessage = "The login item could not be changed. Check Login Items in System Settings." }
+        catch { errorMessage = AppLocalization.text("The login item could not be changed. Check Login Items in System Settings.") }
     }
 
     static var isInstalledApp: Bool {

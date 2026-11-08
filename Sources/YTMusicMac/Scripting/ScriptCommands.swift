@@ -93,7 +93,7 @@ final class SetVolumeScriptCommand: NSScriptCommand {
     override func performDefaultImplementation() -> Any? {
         guard let volume = ScriptingInput.volume(directParameter) else {
             scriptErrorNumber = -1700
-            scriptErrorString = "Use a volume between 0.0 and 1.0."
+            scriptErrorString = AppLocalization.text("Use a volume between 0.0 and 1.0.")
             return nil
         }
         let failure = MainActor.assumeIsolated { () -> AppScriptingError? in

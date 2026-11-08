@@ -188,7 +188,7 @@ final class SongChangeNotifier {
             return
         }
         guard let center else {
-            message = "Song notifications are available when the app runs from its application bundle."
+            message = AppLocalization.text("Song notifications are available when the app runs from its application bundle.")
             return
         }
         isRequesting = true
@@ -219,7 +219,7 @@ final class SongChangeNotifier {
         preferences.set(enabled, forKey: Self.preferenceKey)
     }
 
-    static let deniedMessage = "Notifications for \(AppIdentity.displayName) are turned off in System Settings."
+    static let deniedMessage = AppLocalization.format("Notifications for %@ are turned off in System Settings.", AppIdentity.displayName)
 
     static var settingsURL: URL? {
         var components = URLComponents(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension")

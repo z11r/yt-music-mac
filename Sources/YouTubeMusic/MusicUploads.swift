@@ -4,7 +4,13 @@ import Foundation
 
 public enum MusicUploadCategory: String, CaseIterable, Hashable, Sendable {
     case songs, albums, artists
-    public var title: String { rawValue.capitalized }
+    public var title: String {
+        switch self {
+        case .songs: ServiceLocalization.text("Songs")
+        case .albums: ServiceLocalization.text("Albums")
+        case .artists: ServiceLocalization.text("Artists")
+        }
+    }
     var browseID: String {
         switch self {
         case .songs: "FEmusic_library_privately_owned_tracks"
@@ -25,28 +31,28 @@ enum MusicUploadRoutes {
 
 extension YouTubeMusicClient {
     public func uploads(category: MusicUploadCategory = .songs) async throws -> MusicPage {
-        try await firstPage(endpoint: .browse, body: ["browseId": category.browseID], title: "Uploaded \(category.title)",
+        try await firstPage(endpoint: .browse, body: ["browseId": category.browseID], title: ServiceLocalization.format("Uploaded %@", category.title),
                             requiresAuthentication: true, preservesOccurrences: category == .songs, contentOrigin: .upload)
     }
 
     public func searchUploads(query: String) async throws -> MusicPage {
         let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty, query.count <= 500 else { throw MusicServiceError.invalidInput }
-        return try await firstPage(endpoint: .search, body: ["query": query, "params": "agIYAw%3D%3D"], title: "Search Uploads",
+        return try await firstPage(endpoint: .search, body: ["query": query, "params": "agIYAw%3D%3D"], title: ServiceLocalization.text("Search Uploads"),
                                    requiresAuthentication: true, preservesOccurrences: false, contentOrigin: .upload)
     }
 
     public func uploadedAlbum(id: String) async throws -> MusicPage {
         try validateIdentifier(id)
         guard id.hasPrefix(MusicUploadRoutes.albumPrefix), id.count > MusicUploadRoutes.albumPrefix.count else { throw MusicServiceError.invalidInput }
-        return try await firstPage(endpoint: .browse, body: ["browseId": id], title: "Uploaded Album",
+        return try await firstPage(endpoint: .browse, body: ["browseId": id], title: ServiceLocalization.text("Uploaded Album"),
                                    requiresAuthentication: true, preservesOccurrences: true, contentOrigin: .upload)
     }
 
     public func uploadedArtist(id: String) async throws -> MusicPage {
         try validateIdentifier(id)
         guard id.hasPrefix(MusicUploadRoutes.artistPrefix), id.count > MusicUploadRoutes.artistPrefix.count else { throw MusicServiceError.invalidInput }
-        return try await firstPage(endpoint: .browse, body: ["browseId": id], title: "Uploaded Artist",
+        return try await firstPage(endpoint: .browse, body: ["browseId": id], title: ServiceLocalization.text("Uploaded Artist"),
                                    requiresAuthentication: true, preservesOccurrences: true, contentOrigin: .upload)
     }
 }

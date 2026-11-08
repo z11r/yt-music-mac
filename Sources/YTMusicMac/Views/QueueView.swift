@@ -15,12 +15,13 @@ struct QueueView: View {
         let duration = QueuePresentation.remaining(in: session.queue, position: session.remainingQueuePosition,
             confirmedCurrentDuration: session.player.hasConfirmedPosition ? session.player.clock.duration : nil)
         guard duration.songCount > 0 else { return "" }
-        if duration.knownSeconds == 0, duration.unknownCount > 0 { return "Remaining duration unknown" }
+        if duration.knownSeconds == 0, duration.unknownCount > 0 { return AppLocalization.text("Remaining duration unknown") }
         let time: String
-        if duration.knownSeconds > 3_599_999 { time = "more than 999 hours" }
-        else if duration.knownSeconds >= 360_000 { time = "\(Int(duration.knownSeconds / 3_600)) hours" }
+        if duration.knownSeconds > 3_599_999 { time = AppLocalization.text("more than 999 hours") }
+        else if duration.knownSeconds >= 360_000 { time = AppLocalization.format("%lld hours", Int(duration.knownSeconds / 3_600)) }
         else { time = playbackTime(duration.knownSeconds) }
-        return duration.unknownCount == 0 ? "\(time) remaining" : "At least \(time) remaining · \(duration.unknownCount) unknown"
+        return duration.unknownCount == 0 ? AppLocalization.format("%@ remaining", time)
+            : AppLocalization.format("At least %@ remaining · %lld unknown", time, duration.unknownCount)
     }
 
     var body: some View {
@@ -144,7 +145,7 @@ struct QueueView: View {
         }
         .padding(.vertical, 5)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(entry.track.title), \(entry.track.artist)\(entry.track.origin == .upload ? ", uploaded music" : "")\(entry.track.isExplicit == true ? ", Explicit content" : "")")
+        .accessibilityLabel("\(entry.track.title), \(entry.track.artist)\(entry.track.origin == .upload ? AppLocalization.text(", uploaded music") : "")\(entry.track.isExplicit == true ? AppLocalization.text(", Explicit content") : "")")
         .accessibilityValue(queuePosition(entry, index: index))
         .help("\(entry.track.title) — \(entry.track.artist)")
         .accessibilityActions {
@@ -169,9 +170,10 @@ struct QueueView: View {
     }
 
     private func queuePosition(_ entry: QueueEntry, index: Int) -> String {
-        let position = "\(index + 1) of \(session.queue.entries.count)"
+        let position = AppLocalization.format("%lld of %lld", index + 1, session.queue.entries.count)
         guard entry.id == session.queue.currentEntryID else { return position }
-        return "\(session.player.isPlaying ? "Now playing" : "Current song"), \(position)"
+        let state = session.player.isPlaying ? AppLocalization.text("Now playing") : AppLocalization.text("Current song")
+        return AppLocalization.format("%@, %@", state, position)
     }
 
     private func playSelection(_ ids: Set<UUID>) {

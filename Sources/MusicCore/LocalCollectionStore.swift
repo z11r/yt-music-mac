@@ -86,18 +86,18 @@ public enum LocalCollectionError: Error, Equatable, LocalizedError, Sendable {
     case unsupportedVersion(Int)
     public var errorDescription: String? {
         switch self {
-        case .invalidName: "Use a name of 1–100 characters without control characters."
-        case .duplicateName: "An item of this type already has this name."
-        case .missingFolder: "This local folder no longer exists. Refresh the list."
-        case .missingTag: "This local tag no longer exists. Refresh the list."
-        case .missingFilter: "This saved filter no longer exists. Refresh the list."
-        case .referencedByFilter: "Update or delete the saved filters using this folder or tag first."
-        case .invalidFilter: "The filter contains unsupported criteria or a title longer than 200 characters."
-        case .invalidCollection: "This collection could not be saved as a local bookmark."
-        case .invalidArchive: "The local collection organization could not be read. The file has been kept."
-        case .fileTooLarge: "The local collection organization exceeds its storage limit."
-        case .capacityReached: "The local collection limit was reached. Remove an unused bookmark or folder first."
-        case let .unsupportedVersion(version): "Local collection organization version \(version) is not supported."
+        case .invalidName: CoreLocalization.text("Use a name of 1–100 characters without control characters.")
+        case .duplicateName: CoreLocalization.text("An item of this type already has this name.")
+        case .missingFolder: CoreLocalization.text("This local folder no longer exists. Refresh the list.")
+        case .missingTag: CoreLocalization.text("This local tag no longer exists. Refresh the list.")
+        case .missingFilter: CoreLocalization.text("This saved filter no longer exists. Refresh the list.")
+        case .referencedByFilter: CoreLocalization.text("Update or delete the saved filters using this folder or tag first.")
+        case .invalidFilter: CoreLocalization.text("The filter contains unsupported criteria or a title longer than 200 characters.")
+        case .invalidCollection: CoreLocalization.text("This collection could not be saved as a local bookmark.")
+        case .invalidArchive: CoreLocalization.text("The local collection organization could not be read. The file has been kept.")
+        case .fileTooLarge: CoreLocalization.text("The local collection organization exceeds its storage limit.")
+        case .capacityReached: CoreLocalization.text("The local collection limit was reached. Remove an unused bookmark or folder first.")
+        case let .unsupportedVersion(version): CoreLocalization.format("Local collection organization version %lld is not supported.", version)
         }
     }
 }

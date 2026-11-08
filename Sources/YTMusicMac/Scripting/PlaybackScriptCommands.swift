@@ -22,7 +22,7 @@ final class PlayVideosScriptCommand: NSScriptCommand {
     override func performDefaultImplementation() -> Any? {
         guard let ids = QueueScriptingInput.videoIDs(directParameter) else {
             scriptErrorNumber = -1700
-            scriptErrorString = "Use 1 to 100 video IDs, with at most 10 different songs."
+            scriptErrorString = AppLocalization.text("Use 1 to 100 video IDs, with at most 10 different songs.")
             return nil
         }
         let request = MainActor.assumeIsolated { () -> Result<(AppSession, UUID), AppScriptingError> in
@@ -53,7 +53,7 @@ final class SeekScriptCommand: NSScriptCommand {
     override func performDefaultImplementation() -> Any? {
         guard let position = QueueScriptingInput.position(directParameter) else {
             scriptErrorNumber = -1700
-            scriptErrorString = "Use a finite position in seconds from 0 to 604800."
+            scriptErrorString = AppLocalization.text("Use a finite position in seconds from 0 to 604800.")
             return nil
         }
         let error = MainActor.assumeIsolated { () -> AppScriptingError? in
@@ -100,7 +100,7 @@ final class SetRepeatScriptCommand: NSScriptCommand {
     override func performDefaultImplementation() -> Any? {
         guard let mode = QueueScriptingInput.repeatMode(directParameter) else {
             scriptErrorNumber = -1700
-            scriptErrorString = "Use off, all, or one for repeat."
+            scriptErrorString = AppLocalization.text("Use off, all, or one for repeat.")
             return nil
         }
         let error = MainActor.assumeIsolated { () -> AppScriptingError? in

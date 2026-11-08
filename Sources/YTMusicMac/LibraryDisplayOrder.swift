@@ -8,9 +8,9 @@ enum LibraryDisplayOrder: String, CaseIterable {
 
     var title: String {
         switch self {
-        case .serviceOrder: "Service Order"
-        case .titleAscending: "Title A–Z"
-        case .titleDescending: "Title Z–A"
+        case .serviceOrder: AppLocalization.text("Service Order")
+        case .titleAscending: AppLocalization.text("Title A–Z")
+        case .titleDescending: AppLocalization.text("Title Z–A")
         }
     }
 

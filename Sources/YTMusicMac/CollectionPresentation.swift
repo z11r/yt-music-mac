@@ -7,13 +7,13 @@ enum CollectionDisplayOrder: String, CaseIterable {
 
     var title: String {
         switch self {
-        case .serviceOrder: "Service Order"
-        case .titleAscending: "Title A–Z"
-        case .titleDescending: "Title Z–A"
-        case .artistAscending: "Artist A–Z"
-        case .albumAscending: "Album A–Z"
-        case .durationAscending: "Shortest First"
-        case .durationDescending: "Longest First"
+        case .serviceOrder: AppLocalization.text("Service Order")
+        case .titleAscending: AppLocalization.text("Title A–Z")
+        case .titleDescending: AppLocalization.text("Title Z–A")
+        case .artistAscending: AppLocalization.text("Artist A–Z")
+        case .albumAscending: AppLocalization.text("Album A–Z")
+        case .durationAscending: AppLocalization.text("Shortest First")
+        case .durationDescending: AppLocalization.text("Longest First")
         }
     }
 }

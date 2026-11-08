@@ -123,7 +123,7 @@ final class NamedQueueLibrary {
         case let error as NamedQueueExchangeError: errorMessage = error.localizedDescription
         case let error as QueuePersistenceError: errorMessage = error.localizedDescription
         case let error as SavedQueueAccessError: errorMessage = error.localizedDescription
-        default: errorMessage = "Could not read or save these local queues. Existing files have been kept."
+        default: errorMessage = AppLocalization.text("Could not read or save these local queues. Existing files have been kept.")
         }
     }
 }
@@ -132,10 +132,10 @@ enum SavedQueueAccessError: Error, Equatable, LocalizedError {
     case inProgress, unavailable, signInRequired, accountChanged
     var errorDescription: String? {
         switch self {
-        case .inProgress: "Wait for the saved queue operation to finish."
-        case .unavailable: "Local saved queue storage is unavailable."
-        case .signInRequired: "Sign in to a confirmed account to use its local saved queues."
-        case .accountChanged: "The account changed. Open Saved Queues again."
+        case .inProgress: AppLocalization.text("Wait for the saved queue operation to finish.")
+        case .unavailable: AppLocalization.text("Local saved queue storage is unavailable.")
+        case .signInRequired: AppLocalization.text("Sign in to a confirmed account to use its local saved queues.")
+        case .accountChanged: AppLocalization.text("The account changed. Open Saved Queues again.")
         }
     }
 }

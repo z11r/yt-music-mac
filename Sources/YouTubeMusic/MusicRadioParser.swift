@@ -82,7 +82,7 @@ enum MusicRadioParser {
         // The byline reads "Artist • Album • Year" for songs and "Artist • views • likes" for videos.
         let credits = runs.prefix { !isSeparator($0["text"].string) }
         let artistText = credits.compactMap { $0["text"].string }.joined().trimmingCharacters(in: .whitespacesAndNewlines)
-        let artist = artistText.isEmpty ? (renderer["shortBylineText"].text ?? "Unknown artist") : artistText
+        let artist = artistText.isEmpty ? (renderer["shortBylineText"].text ?? ServiceLocalization.text("Unknown artist")) : artistText
         let album = runs.first { MusicResponseParser.collectionKind($0["navigationEndpoint"]["browseEndpoint"]) == .album }?["text"].string
         let duration = renderer["lengthText"].text.flatMap(MusicResponseParser.parseDuration)
         return Track(id: id, title: title, artist: artist, album: album,

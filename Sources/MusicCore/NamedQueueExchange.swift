@@ -5,13 +5,13 @@ public enum NamedQueueExchangeError: Error, Equatable, LocalizedError, Sendable 
 
     public var errorDescription: String? {
         switch self {
-        case let .unsupportedVersion(version): "Saved queue exchange version \(version) is not supported."
-        case .invalidDocument: "This file is not valid saved queue metadata."
-        case .invalidSong: "The file contains invalid song identifiers, text, or durations."
-        case .invalidLink: "Song links must identify the matching song on YouTube Music."
-        case .tooManySongs: "This file contains too many songs to import."
-        case .uploadedMusicUnsupported: "Uploaded music has no verified portable service link. Save this queue locally instead."
-        case .protectedDestination: "Choose an export location outside the app's saved queue storage."
+        case let .unsupportedVersion(version): CoreLocalization.format("Saved queue exchange version %lld is not supported.", version)
+        case .invalidDocument: CoreLocalization.text("This file is not valid saved queue metadata.")
+        case .invalidSong: CoreLocalization.text("The file contains invalid song identifiers, text, or durations.")
+        case .invalidLink: CoreLocalization.text("Song links must identify the matching song on YouTube Music.")
+        case .tooManySongs: CoreLocalization.text("This file contains too many songs to import.")
+        case .uploadedMusicUnsupported: CoreLocalization.text("Uploaded music has no verified portable service link. Save this queue locally instead.")
+        case .protectedDestination: CoreLocalization.text("Choose an export location outside the app's saved queue storage.")
         }
     }
 }

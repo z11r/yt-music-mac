@@ -304,7 +304,7 @@ private struct AccountView: View {
 
 struct InlineMessage: View {
     let message: String
-    var actionTitle: String? = nil
+    var actionTitle: LocalizedStringKey? = nil
     var action: (() -> Void)? = nil
 
     var body: some View {

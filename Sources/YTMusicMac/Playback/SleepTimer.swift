@@ -91,12 +91,13 @@ final class SleepTimer {
     var blocksAutoplay: Bool { state.blocksAutoplay }
     var isArmed: Bool { state.schedule != .off }
     var label: String {
-        if blocksAutoplay { return "Finished" }
+        if blocksAutoplay { return AppLocalization.text("Finished") }
         switch state.schedule {
-        case .off: return "Off"
-        case .endOfTrack: return "End of Current Song"
+        case .off: return AppLocalization.text("Off")
+        case .endOfTrack: return AppLocalization.text("End of Current Song")
         case .deadline:
-            return displayDeadline.map { "Until " + $0.formatted(date: .omitted, time: .shortened) } ?? "Timer On"
+            return displayDeadline.map { AppLocalization.format("Until %@", $0.formatted(date: .omitted, time: .shortened)) }
+                ?? AppLocalization.text("Timer On")
         }
     }
 

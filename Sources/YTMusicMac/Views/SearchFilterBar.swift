@@ -61,18 +61,19 @@ private struct SearchFilterChip: View {
 
 extension MusicSearchFilter {
     var hint: String {
-        self == .all ? "Shows every kind of result" : "Shows only \(title.lowercased()) in the results"
+        self == .all ? AppLocalization.text("Shows every kind of result")
+            : AppLocalization.format("Shows only %@ in the results", title)
     }
 
     var title: String {
         switch self {
-        case .all: "All"
-        case .songs: "Songs"
-        case .videos: "Videos"
-        case .albums: "Albums"
-        case .artists: "Artists"
-        case .communityPlaylists: "Community Playlists"
-        case .featuredPlaylists: "Featured Playlists"
+        case .all: AppLocalization.text("All")
+        case .songs: AppLocalization.text("Songs")
+        case .videos: AppLocalization.text("Videos")
+        case .albums: AppLocalization.text("Albums")
+        case .artists: AppLocalization.text("Artists")
+        case .communityPlaylists: AppLocalization.text("Community Playlists")
+        case .featuredPlaylists: AppLocalization.text("Featured Playlists")
         }
     }
 }

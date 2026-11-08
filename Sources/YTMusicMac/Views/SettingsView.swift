@@ -50,7 +50,7 @@ struct SettingsView: View {
             }
             SpotlightSettingsSection(session: session)
             Section("Account") {
-                LabeledContent("YouTube Music", value: session.account.isSignedIn ? "Signed in" : "Not signed in")
+                LabeledContent("YouTube Music", value: session.account.isSignedIn ? AppLocalization.text("Signed in") : AppLocalization.text("Not signed in"))
                 Button(session.account.isSignedIn ? "Open Account" : "Sign In") {
                     openWindow(id: "main")
                     session.openAccount()

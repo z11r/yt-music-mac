@@ -12,10 +12,10 @@ struct ExpandedPlayerView: View {
                             videoID: session.currentTrack?.id)
                     .accessibilityHidden(true)
                 VStack(spacing: 8) {
-                    Text(session.currentTrack?.title ?? "Choose a Song")
+                    Text(session.currentTrack?.title ?? AppLocalization.text("Choose a Song"))
                         .font(.title.bold()).multilineTextAlignment(.center)
                         .textSelection(.enabled).accessibilityAddTraits(.isHeader)
-                    Text(session.currentTrack?.artist ?? "Open your library or search for music.")
+                    Text(session.currentTrack?.artist ?? AppLocalization.text("Open your library or search for music."))
                         .font(.title3).foregroundStyle(.secondary).multilineTextAlignment(.center)
                         .textSelection(.enabled)
                     if let track = session.currentTrack {

@@ -112,15 +112,15 @@ public enum MusicLibraryEditError: Error, Equatable, LocalizedError, Sendable {
 
     public var errorDescription: String? {
         switch self {
-        case .featureUnavailable: "Library editing is not available in this version."
-        case .operationInProgress: "Wait for the current library change to finish."
-        case .invalidTitle: "Enter a playlist title of 1–150 characters, without angle brackets or control characters."
-        case .invalidPlaylistItems: "The playlist selection is missing valid song or occurrence identifiers. Reload the playlist and try again."
-        case .serviceRejected: "YouTube Music declined this change. Check that you can edit this playlist."
-        case .interactionRequired: "YouTube Music requires an account action before making this change. Open YouTube Music to continue."
-        case .unconfirmedOutcome: "YouTube Music did not confirm the change. Check your library before trying again."
-        case .verificationCleanupRequired: "A previous verification playlist still needs cleanup before another check can start."
-        case .collectionStateUnavailable: "Reload this collection to confirm its current permissions, occurrences, and library state before editing."
+        case .featureUnavailable: ServiceLocalization.text("Library editing is not available in this version.")
+        case .operationInProgress: ServiceLocalization.text("Wait for the current library change to finish.")
+        case .invalidTitle: ServiceLocalization.text("Enter a playlist title of 1–150 characters, without angle brackets or control characters.")
+        case .invalidPlaylistItems: ServiceLocalization.text("The playlist selection is missing valid song or occurrence identifiers. Reload the playlist and try again.")
+        case .serviceRejected: ServiceLocalization.text("YouTube Music declined this change. Check that you can edit this playlist.")
+        case .interactionRequired: ServiceLocalization.text("YouTube Music requires an account action before making this change. Open YouTube Music to continue.")
+        case .unconfirmedOutcome: ServiceLocalization.text("YouTube Music did not confirm the change. Check your library before trying again.")
+        case .verificationCleanupRequired: ServiceLocalization.text("A previous verification playlist still needs cleanup before another check can start.")
+        case .collectionStateUnavailable: ServiceLocalization.text("Reload this collection to confirm its current permissions, occurrences, and library state before editing.")
         }
     }
 }

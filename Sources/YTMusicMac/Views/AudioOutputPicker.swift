@@ -8,8 +8,8 @@ import SwiftUI
 /// the picker offers the Mac's audio outputs rather than a route for a single
 /// player.
 struct AudioOutputPicker: NSViewRepresentable {
-    static let label = "Audio Output"
-    static let help = "Choose AirPlay speakers or another audio output."
+    static let label = AppLocalization.text("Audio Output")
+    static let help = AppLocalization.text("Choose AirPlay speakers or another audio output.")
 
     func makeNSView(context: Context) -> LabeledRoutePickerView {
         let picker = LabeledRoutePickerView(frame: NSRect(x: 0, y: 0, width: 20, height: 20))
@@ -18,7 +18,7 @@ struct AudioOutputPicker: NSViewRepresentable {
         picker.setRoutePickerButtonColor(.labelColor, for: .normalHighlighted)
         picker.setRoutePickerButtonColor(.controlAccentColor, for: .active)
         picker.setRoutePickerButtonColor(.controlAccentColor, for: .activeHighlighted)
-        picker.toolTip = "Choose Audio Output"
+        picker.toolTip = AppLocalization.text("Choose Audio Output")
         return picker
     }
 

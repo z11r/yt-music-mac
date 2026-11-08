@@ -32,7 +32,7 @@ struct AppSessionConfiguration {
                     dataStore: WKWebsiteDataStore(forIdentifier: AppIdentity.websiteDataIdentifier),
                     credentials: credentials, client: YouTubeMusicClient(sessions: credentials),
                     queueStore: queueStore,
-                    queueStorageError: queueStore == nil ? "The queue cannot be saved because application storage is unavailable." : nil,
+                    queueStorageError: queueStore == nil ? AppLocalization.text("The queue cannot be saved because application storage is unavailable.") : nil,
                     installsSystemMedia: true, isSceneCheck: false,
                     namedQueueStore: directory.map { NamedQueueStore(directoryURL: $0.appendingPathComponent("SavedQueues", isDirectory: true)) },
                     localCollectionStore: directory.map { LocalCollectionStore(directoryURL: $0.appendingPathComponent("LocalCollections", isDirectory: true)) },

@@ -10,12 +10,12 @@ struct TrackRatingActions: View {
         let current = session.rating(for: track)
         let scope = session.libraryEditingScope
         if track.origin != .upload && track.contentKind != .podcastEpisode && session.canEditRating(.liked) {
-            ratingButton(current == .liked ? "Remove Like" : "Like",
+            ratingButton(current == .liked ? AppLocalization.text("Remove Like") : AppLocalization.text("Like"),
                          symbol: current == .liked ? "hand.thumbsup.fill" : "hand.thumbsup",
                          target: current == .liked ? .neutral : .liked, scope: scope)
         }
         if track.origin != .upload && track.contentKind != .podcastEpisode && session.canEditRating(.disliked) {
-            ratingButton(current == .disliked ? "Remove Dislike" : "Dislike",
+            ratingButton(current == .disliked ? AppLocalization.text("Remove Dislike") : AppLocalization.text("Dislike"),
                          symbol: current == .disliked ? "hand.thumbsdown.fill" : "hand.thumbsdown",
                          target: current == .disliked ? .neutral : .disliked, scope: scope)
         }
@@ -63,10 +63,10 @@ struct TrackRatingMenu: View {
 
     private func description(_ rating: MusicRating?) -> String {
         switch rating {
-        case .liked: "Liked"
-        case .disliked: "Disliked"
-        case .neutral: "No rating"
-        case nil: "Rating unknown"
+        case .liked: AppLocalization.text("Liked")
+        case .disliked: AppLocalization.text("Disliked")
+        case .neutral: AppLocalization.text("No rating")
+        case nil: AppLocalization.text("Rating unknown")
         }
     }
 }

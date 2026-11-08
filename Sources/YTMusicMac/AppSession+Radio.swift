@@ -205,11 +205,12 @@ extension AppSession {
         switch reason {
         case let .failed(error):
             let detail = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
-            message = (isAutoplay ? "Autoplay could not load related songs. " : "This radio could not start. ") + detail
+            message = isAutoplay ? AppLocalization.format("Autoplay could not load related songs. %@", detail)
+                                 : AppLocalization.format("This radio could not start. %@", detail)
             offersRetry = true
         case .nothingFound:
-            message = isAutoplay ? "Autoplay found no new related songs, so playback stopped."
-                                 : "YouTube Music offered no songs for this radio."
+            message = isAutoplay ? AppLocalization.text("Autoplay found no new related songs, so playback stopped.")
+                                 : AppLocalization.text("YouTube Music offered no songs for this radio.")
             offersRetry = false
         }
         return RadioStatus(message: message, isLoading: false, retry: offersRetry ? retry : nil,
@@ -217,8 +218,8 @@ extension AppSession {
     }
 
     private func updateRadioStatus() {
-        let loading: String? = if radio.state.isWaitingAtQueueEnd { "Finding related songs…" }
-            else if radio.state.isStartingCollectionRadio { "Starting radio…" } else { nil }
+        let loading: String? = if radio.state.isWaitingAtQueueEnd { AppLocalization.text("Finding related songs…") }
+            else if radio.state.isStartingCollectionRadio { AppLocalization.text("Starting radio…") } else { nil }
         if let loading {
             radio.show(RadioStatus(message: loading, isLoading: true, retry: nil,
                                    revision: queue.revision, occurrence: queue.currentOccurrence))

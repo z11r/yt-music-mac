@@ -6,13 +6,13 @@ public enum NamedQueueError: Error, Equatable, LocalizedError, Sendable {
 
     public var errorDescription: String? {
         switch self {
-        case .invalidName: "Use a saved queue name of 1–100 characters without control characters."
-        case .invalidAccount: "Sign in to a confirmed account to use saved queues."
-        case .notFound: "This saved queue no longer exists. Refresh the list."
-        case .tooManyQueues: "The saved queue limit was reached. Delete an unused saved queue first."
-        case .tooManyEntries: "This queue has too many entries to save."
-        case let .unsupportedVersion(version): "Saved queues version \(version) is not supported."
-        case .invalidArchive: "The saved queue collection could not be read. The file has been kept."
+        case .invalidName: CoreLocalization.text("Use a saved queue name of 1–100 characters without control characters.")
+        case .invalidAccount: CoreLocalization.text("Sign in to a confirmed account to use saved queues.")
+        case .notFound: CoreLocalization.text("This saved queue no longer exists. Refresh the list.")
+        case .tooManyQueues: CoreLocalization.text("The saved queue limit was reached. Delete an unused saved queue first.")
+        case .tooManyEntries: CoreLocalization.text("This queue has too many entries to save.")
+        case let .unsupportedVersion(version): CoreLocalization.format("Saved queues version %lld is not supported.", version)
+        case .invalidArchive: CoreLocalization.text("The saved queue collection could not be read. The file has been kept.")
         }
     }
 }

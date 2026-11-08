@@ -36,8 +36,8 @@ final class CollectionPlayback {
 
         var errorDescription: String? {
             switch self {
-            case .tooManySongs: "This collection is too large to queue at once. Select a smaller group of loaded songs."
-            case .noSongs: "This collection has no playable songs."
+            case .tooManySongs: AppLocalization.text("This collection is too large to queue at once. Select a smaller group of loaded songs.")
+            case .noSongs: AppLocalization.text("This collection has no playable songs.")
             }
         }
     }

@@ -34,25 +34,25 @@ enum LibraryEditorRequest: Identifiable {
 
     var title: String {
         switch self {
-        case .createPlaylist: "New Playlist"
-        case .renamePlaylist: "Rename Playlist"
-        case .editDescription: "Edit Playlist Description"
-        case .editPrivacy: "Edit Playlist Visibility"
-        case .deletePlaylist: "Delete Playlist?"
-        case .addItems: "Add to Playlist"
-        case .removeItems: "Remove Songs?"
+        case .createPlaylist: AppLocalization.text("New Playlist")
+        case .renamePlaylist: AppLocalization.text("Rename Playlist")
+        case .editDescription: AppLocalization.text("Edit Playlist Description")
+        case .editPrivacy: AppLocalization.text("Edit Playlist Visibility")
+        case .deletePlaylist: AppLocalization.text("Delete Playlist?")
+        case .addItems: AppLocalization.text("Add to Playlist")
+        case .removeItems: AppLocalization.text("Remove Songs?")
         }
     }
 
     var actionTitle: String {
         switch self {
-        case .createPlaylist: "Create Playlist"
-        case .renamePlaylist: "Save Name"
-        case .editDescription: "Save Description"
-        case .editPrivacy: "Save Visibility"
-        case .deletePlaylist: "Delete Playlist"
-        case .addItems: "Add Songs"
-        case .removeItems: "Remove Songs"
+        case .createPlaylist: AppLocalization.text("Create Playlist")
+        case .renamePlaylist: AppLocalization.text("Save Name")
+        case .editDescription: AppLocalization.text("Save Description")
+        case .editPrivacy: AppLocalization.text("Save Visibility")
+        case .deletePlaylist: AppLocalization.text("Delete Playlist")
+        case .addItems: AppLocalization.text("Add Songs")
+        case .removeItems: AppLocalization.text("Remove Songs")
         }
     }
 
@@ -211,7 +211,7 @@ struct LibraryEditorView: View {
 
     private var selectionSummary: some View {
         VStack(alignment: .leading, spacing: 5) {
-            Text(request.tracks.count == 1 ? "1 song selected" : "\(request.tracks.count) songs selected")
+            Text("\(request.tracks.count) songs selected")
                 .font(.callout.weight(.medium))
             Text(request.tracks.prefix(3).map(\.title).joined(separator: ", "))
                 .font(.caption).foregroundStyle(.secondary).lineLimit(3)
@@ -220,9 +220,9 @@ struct LibraryEditorView: View {
 
     private var privacyDescription: String {
         switch privacy {
-        case .private: "Only you can see this playlist."
-        case .unlisted: "Anyone with the link can see this playlist."
-        case .public: "Anyone can find and view this playlist."
+        case .private: AppLocalization.text("Only you can see this playlist.")
+        case .unlisted: AppLocalization.text("Anyone with the link can see this playlist.")
+        case .public: AppLocalization.text("Anyone can find and view this playlist.")
         }
     }
 
@@ -242,17 +242,17 @@ struct LibraryEditorView: View {
             if cleanedTitle.isEmpty { return nil }
             if cleanedTitle.count > 150 || cleanedTitle.contains("<") || cleanedTitle.contains(">") ||
                 cleanedTitle.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }) {
-                return "Use a name of up to 150 characters without angle brackets or control characters."
+                return AppLocalization.text("Use a name of up to 150 characters without angle brackets or control characters.")
             }
-            if description.count > 5_000 { return "Keep the description within 5,000 characters." }
+            if description.count > 5_000 { return AppLocalization.text("Keep the description within 5,000 characters.") }
         case .editDescription:
-            if description.count > 5_000 { return "Keep the description within 5,000 characters." }
+            if description.count > 5_000 { return AppLocalization.text("Keep the description within 5,000 characters.") }
         default: break
         }
-        if request.tracks.count > 100 { return "Choose up to 100 songs for one change." }
+        if request.tracks.count > 100 { return AppLocalization.text("Choose up to 100 songs for one change.") }
         if case .addItems = request, !allowDuplicates,
            Set(request.tracks.map(\.id)).count != request.tracks.count {
-            return "This selection includes repeated songs. Allow duplicates to add every occurrence."
+            return AppLocalization.text("This selection includes repeated songs. Allow duplicates to add every occurrence.")
         }
         return nil
     }
@@ -290,7 +290,7 @@ struct LibraryEditorView: View {
             guard session.libraryEditingScope == operationScope else { return }
             isSubmitting = false
             if confirmed { dismiss() }
-            else { errorMessage = session.libraryEditError ?? "The change was not confirmed. Check your library before trying again." }
+            else { errorMessage = session.libraryEditError ?? AppLocalization.text("The change was not confirmed. Check your library before trying again.") }
         }
     }
 

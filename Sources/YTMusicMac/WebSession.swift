@@ -80,7 +80,7 @@ final class WebSession: NSObject {
         epoch = UUID()
         refreshTask?.cancel()
         isWorking = false
-        errorMessage = "Could not restore the YouTube Music session. Open Account to sign in again."
+        errorMessage = AppLocalization.text("Could not restore the YouTube Music session. Open Account to sign in again.")
     }
 
     func openLogin() {
@@ -141,7 +141,7 @@ final class WebSession: NSObject {
         guard values["loggedIn"] as? Bool == true else {
             isWorking = false
             // An expired session needs an explicit reauthentication; a page failure never erases cookies.
-            if isSignedIn { errorMessage = "Open your account to check the YouTube Music session." }
+            if isSignedIn { errorMessage = AppLocalization.text("Open your account to check the YouTube Music session.") }
             return false
         }
         let index = values["authUser"] as? Int ?? 0
@@ -149,7 +149,7 @@ final class WebSession: NSObject {
         let delegated = values["delegated"] as? String ?? ""
         guard let accountIdentity = values["account"] as? String, !accountIdentity.isEmpty else {
             isWorking = false
-            errorMessage = "YouTube Music has not confirmed the selected account. Reload the account page and try again."
+            errorMessage = AppLocalization.text("YouTube Music has not confirmed the selected account. Reload the account page and try again.")
             return false
         }
         let identity = "\(accountIdentity):\(index):\(delegated)"
@@ -277,7 +277,7 @@ extension WebSession: WKNavigationDelegate, WKUIDelegate {
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: any Error) {
         guard (error as NSError).code != NSURLErrorCancelled else { return }
         isWorking = false
-        errorMessage = "Could not open YouTube Music. Check your connection and try again."
+        errorMessage = AppLocalization.text("Could not open YouTube Music. Check your connection and try again.")
     }
 
     func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration,

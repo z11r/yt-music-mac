@@ -3,7 +3,7 @@ import Foundation
 /// Only native copy uses this lookup. Catalog titles and other service text
 /// go directly to their views and never become localization keys.
 enum AppLocalization {
-    static var bundle: Bundle { AppIdentity.resourceBundle }
+    static let bundle: Bundle = AppIdentity.resourceBundle
 
     static func text(_ key: StaticString) -> String {
         bundle.localizedString(forKey: String(describing: key), value: nil, table: "Localizable")

@@ -209,20 +209,20 @@ public enum MusicServiceError: Error, Equatable, Sendable, LocalizedError {
 
     public var errorDescription: String? {
         switch self {
-        case .signInRequired: "Sign in to view your library."
-        case .authenticationRejected: "YouTube Music did not accept this session. Open the sign-in window to check your account."
-        case .accessDenied: "YouTube Music declined this request. Your session has been kept."
-        case .sessionChanged: "The account changed while this page was loading."
-        case .configurationUnavailable: "YouTube Music could not provide its web client configuration. Open YouTube Music and try again."
-        case .invalidInput: "Enter a valid search or music identifier."
-        case .invalidResponse: "YouTube Music returned an unreadable response."
-        case .unsupportedResponse: "This YouTube Music page uses a format this version cannot read."
-        case .paginationLoop: "YouTube Music repeated a page. Loading stopped to avoid a loop."
-        case .pageLimitReached: "The page limit was reached. Load the remaining pages separately."
-        case .rateLimited: "YouTube Music is limiting requests. Try again later."
-        case .serviceUnavailable: "YouTube Music is temporarily unavailable."
-        case let .httpStatus(code): "YouTube Music returned HTTP \(code)."
-        case .network: "Could not connect to YouTube Music. Check your connection and try again."
+        case .signInRequired: ServiceLocalization.text("Sign in to view your library.")
+        case .authenticationRejected: ServiceLocalization.text("YouTube Music did not accept this session. Open the sign-in window to check your account.")
+        case .accessDenied: ServiceLocalization.text("YouTube Music declined this request. Your session has been kept.")
+        case .sessionChanged: ServiceLocalization.text("The account changed while this page was loading.")
+        case .configurationUnavailable: ServiceLocalization.text("YouTube Music could not provide its web client configuration. Open YouTube Music and try again.")
+        case .invalidInput: ServiceLocalization.text("Enter a valid search or music identifier.")
+        case .invalidResponse: ServiceLocalization.text("YouTube Music returned an unreadable response.")
+        case .unsupportedResponse: ServiceLocalization.text("This YouTube Music page uses a format this version cannot read.")
+        case .paginationLoop: ServiceLocalization.text("YouTube Music repeated a page. Loading stopped to avoid a loop.")
+        case .pageLimitReached: ServiceLocalization.text("The page limit was reached. Load the remaining pages separately.")
+        case .rateLimited: ServiceLocalization.text("YouTube Music is limiting requests. Try again later.")
+        case .serviceUnavailable: ServiceLocalization.text("YouTube Music is temporarily unavailable.")
+        case let .httpStatus(code): ServiceLocalization.format("YouTube Music returned HTTP %lld.", code)
+        case .network: ServiceLocalization.text("Could not connect to YouTube Music. Check your connection and try again.")
         }
     }
 }

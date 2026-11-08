@@ -14,10 +14,10 @@ struct QueueDisplayGroup: Identifiable {
 
     var title: String {
         switch origin {
-        case .unknown: "Queue"
-        case .manual: "Added by You"
-        case .radio: "Radio"
-        case .autoplay: "Autoplay"
+        case .unknown: AppLocalization.text("Queue")
+        case .manual: AppLocalization.text("Added by You")
+        case .radio: AppLocalization.text("Radio")
+        case .autoplay: AppLocalization.text("Autoplay")
         }
     }
 }

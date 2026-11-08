@@ -1,0 +1,9 @@
+/* Keep the applicationName token in every shortcut phrase. */
+"Next song in ${applicationName}" = "Next song in ${applicationName}";
+"Open a music link in ${applicationName}" = "Open a music link in ${applicationName}";
+"Pause music in ${applicationName}" = "Pause music in ${applicationName}";
+"Play a song by ID in ${applicationName}" = "Play a song by ID in ${applicationName}";
+"Previous song in ${applicationName}" = "Previous song in ${applicationName}";
+"Resume music in ${applicationName}" = "Resume music in ${applicationName}";
+"Search music in ${applicationName}" = "Search music in ${applicationName}";
+"Set music volume in ${applicationName}" = "Set music volume in ${applicationName}";

@@ -132,7 +132,7 @@ final class LocalCollectionsLibrary {
         let request = expectedScope ?? scope
         guard scope == request else { return }
         guard !isWorking else { return }
-        guard let store else { errorMessage = "Local collection storage is unavailable."; return }
+        guard let store else { errorMessage = AppLocalization.text("Local collection storage is unavailable."); return }
         isWorking = true
         errorMessage = nil
         defer { if scope == request { isWorking = false } }
@@ -154,7 +154,7 @@ final class LocalCollectionsLibrary {
             switch error {
             case let error as LocalCollectionError: errorMessage = error.localizedDescription
             case let error as AccessError: errorMessage = error.localizedDescription
-            default: errorMessage = "Could not read or save local collection organization. Existing files have been kept."
+            default: errorMessage = AppLocalization.text("Could not read or save local collection organization. Existing files have been kept.")
             }
         }
     }
@@ -163,8 +163,8 @@ final class LocalCollectionsLibrary {
         case signInRequired, accountChanged
         var errorDescription: String? {
             switch self {
-            case .signInRequired: "Sign in to a confirmed account to use local collection organization."
-            case .accountChanged: "The account changed. Open local collection organization again."
+            case .signInRequired: AppLocalization.text("Sign in to a confirmed account to use local collection organization.")
+            case .accountChanged: AppLocalization.text("The account changed. Open local collection organization again.")
             }
         }
     }

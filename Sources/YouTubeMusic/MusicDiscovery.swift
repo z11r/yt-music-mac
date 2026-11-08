@@ -7,9 +7,9 @@ public enum MusicDiscoveryCategory: String, CaseIterable, Hashable, Sendable {
 
     public var title: String {
         switch self {
-        case .charts: "Charts"
-        case .moodsAndGenres: "Moods & Genres"
-        case .newReleases: "New Releases"
+        case .charts: ServiceLocalization.text("Charts")
+        case .moodsAndGenres: ServiceLocalization.text("Moods & Genres")
+        case .newReleases: ServiceLocalization.text("New Releases")
         }
     }
 

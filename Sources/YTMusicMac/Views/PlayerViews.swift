@@ -75,7 +75,7 @@ struct TrackIdentityView: View {
             ArtworkView(url: session.currentTrack?.artworkURL, size: artworkSize, videoID: session.currentTrack?.id)
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 5) {
-                    Text(session.currentTrack?.title ?? "Choose a song")
+                    Text(session.currentTrack?.title ?? AppLocalization.text("Choose a song"))
                         .font(.headline).lineLimit(1)
                     if let track = session.currentTrack { ExplicitContentBadge(track: track) }
                 }
@@ -83,7 +83,7 @@ struct TrackIdentityView: View {
                     if session.player.isBuffering {
                         ProgressView().controlSize(.mini).accessibilityLabel("Buffering")
                     }
-                    Text(session.currentTrack?.artist ?? "Your music starts here")
+                    Text(session.currentTrack?.artist ?? AppLocalization.text("Your music starts here"))
                         .font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
                 }
             }
@@ -254,8 +254,8 @@ struct RepeatButton: View {
             .labelStyle(.iconOnly).buttonStyle(.borderless)
             .foregroundStyle(session.queue.repeatMode == .off ? Color.secondary : Color.accentColor)
             .modifier(PlaybackStateMark(isActive: session.queue.repeatMode != .off))
-            .accessibilityValue(session.queue.repeatMode.rawValue.capitalized)
-            .help("Repeat: \(session.queue.repeatMode.rawValue.capitalized)")
+            .accessibilityValue(session.queue.repeatMode.localizedTitle)
+            .help("Repeat: \(session.queue.repeatMode.localizedTitle)")
             .disabled(session.queue.entries.isEmpty)
     }
 }

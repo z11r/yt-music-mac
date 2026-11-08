@@ -36,7 +36,7 @@ final class LyricsSession {
                 if error is MusicServiceError || error is MusicLyricsError {
                     self.state = .failed(error.localizedDescription)
                 } else {
-                    self.state = .failed("Could not load lyrics. Try again.")
+                    self.state = .failed(AppLocalization.text("Could not load lyrics. Try again."))
                 }
             }
         }

@@ -133,7 +133,7 @@ struct SavedQueuesView: View {
         panel.allowedContentTypes = [.json]
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = false
-        panel.message = "Import song information and links as a new local saved queue."
+        panel.message = AppLocalization.text("Import song information and links as a new local saved queue.")
         panel.begin { response in
             Task { @MainActor in
                 guard response == .OK, let url = panel.url else { return }
@@ -152,7 +152,7 @@ struct SavedQueuesView: View {
         panel.canCreateDirectories = true
         panel.nameFieldStringValue = selected.name.replacingOccurrences(of: "/", with: "-")
             .replacingOccurrences(of: ":", with: "-") + ".json"
-        panel.message = "Export song information and links without account information or playback position."
+        panel.message = AppLocalization.text("Export song information and links without account information or playback position.")
         panel.begin { response in
             Task { @MainActor in
                 guard response == .OK, let url = panel.url else { return }

@@ -25,15 +25,15 @@ enum MusicDestination: Hashable {
 
     var title: String {
         switch self {
-        case .home: "Home"
-        case .explore: "Explore"
-        case .library: "Library"
-        case .likedSongs: "Liked Songs"
-        case .history: "Listening History"
+        case .home: AppLocalization.text("Home")
+        case .explore: AppLocalization.text("Explore")
+        case .library: AppLocalization.text("Library")
+        case .likedSongs: AppLocalization.text("Liked Songs")
+        case .history: AppLocalization.text("Listening History")
         case let .libraryCategory(category): category.title
-        case .search: "Search"
-        case let .uploads(category): "Uploaded \(category.title)"
-        case .uploadSearch: "Search Uploads"
+        case .search: AppLocalization.text("Search")
+        case let .uploads(category): AppLocalization.format("Uploaded %@", category.title)
+        case .uploadSearch: AppLocalization.text("Search Uploads")
         case .podcasts: "Podcasts"
         case .podcastLibrary: "Your Podcasts"
         case .savedEpisodes: "Saved Episodes"
@@ -317,7 +317,7 @@ final class AppSession {
                     queue = try PlaybackQueue(snapshot: saved)
                     resumeState.restore(saved)
                 }
-            } catch { queueError = "The saved queue could not be restored. You can start a new queue." }
+            } catch { queueError = AppLocalization.text("The saved queue could not be restored. You can start a new queue.") }
         }
         let volume = preferences.object(forKey: "volume") as? Double ?? 0.7
         setVolume(volume)
@@ -607,41 +607,41 @@ final class AppSession {
             switch result {
             case let .liked(videoID, isLiked):
                 songRatings.confirm(isLiked ? .liked : .neutral, for: videoID)
-                libraryEditMessage = "Your song rating was updated."
+                libraryEditMessage = AppLocalization.text("Your song rating was updated.")
                 if destination == startingDestination { reload() }
             case let .rated(videoID, rating):
                 songRatings.confirm(rating, for: videoID)
-                libraryEditMessage = "Your song rating was updated."
+                libraryEditMessage = AppLocalization.text("Your song rating was updated.")
                 if destination == startingDestination { reload() }
             case let .playlistCreated(playlistID):
-                libraryEditMessage = "Playlist created."
+                libraryEditMessage = AppLocalization.text("Playlist created.")
                 if destination == startingDestination, case let .createPlaylist(title, _, _, _) = action {
                     navigate(to: .collection(MusicCollection(id: playlistID, kind: .playlist, title: title)))
                 }
             case let .playlistRenamed(playlistID, title):
-                libraryEditMessage = "Playlist renamed."
+                libraryEditMessage = AppLocalization.text("Playlist renamed.")
                 if isCurrentPlaylist(playlistID), case let .collection(collection) = destination {
                     navigate(to: .collection(MusicCollection(id: collection.id, kind: .playlist,
                         title: title, subtitle: collection.subtitle, artworkURL: collection.artworkURL)), recordHistory: false)
                 } else if destination.libraryCategory != nil { reload() }
             case let .playlistDeleted(playlistID):
-                libraryEditMessage = "Playlist deleted."
+                libraryEditMessage = AppLocalization.text("Playlist deleted.")
                 if isCurrentPlaylist(playlistID) { navigate(to: .library) }
                 else if destination.libraryCategory != nil { reload() }
             case let .itemsAdded(playlistID, _):
-                libraryEditMessage = "Songs added to the playlist."
+                libraryEditMessage = AppLocalization.text("Songs added to the playlist.")
                 if isCurrentPlaylist(playlistID) { reload() }
             case let .itemsRemoved(playlistID, _):
-                libraryEditMessage = "Songs removed from the playlist."
+                libraryEditMessage = AppLocalization.text("Songs removed from the playlist.")
                 if isCurrentPlaylist(playlistID) { reload() }
             case let .playlistDescriptionChanged(playlistID), let .playlistPrivacyChanged(playlistID, _):
-                libraryEditMessage = "Playlist details updated. Reloading service details."
+                libraryEditMessage = AppLocalization.text("Playlist details updated. Reloading service details.")
                 if isCurrentPlaylist(playlistID) { reload() }
             case let .playlistItemMoved(playlistID, _, _):
-                libraryEditMessage = "Playlist order updated. Reloading service order."
+                libraryEditMessage = AppLocalization.text("Playlist order updated. Reloading service order.")
                 if isCurrentPlaylist(playlistID) { reload() }
             case .albumSaved, .artistSubscribed:
-                libraryEditMessage = "Library change confirmed. Reloading service state."
+                libraryEditMessage = AppLocalization.text("Library change confirmed. Reloading service state.")
                 if destination == startingDestination { reload() }
             }
             return true
@@ -656,7 +656,7 @@ final class AppSession {
                 }
             }
             libraryEditError = error is CancellationError
-                ? "The change was interrupted. Check your library before trying again."
+                ? AppLocalization.text("The change was interrupted. Check your library before trying again.")
                 : error.localizedDescription
             return false
         }
@@ -838,7 +838,7 @@ final class AppSession {
               accountGeneration == generation, account.isSignedIn, savedQueues.scope == expectedScope,
               scriptingPlayGeneration == request, queue.revision == revision else { return false }
         do { try restoreSavedQueueSnapshot(snapshot); return true }
-        catch { queueError = "This saved queue could not be opened. The current queue has been kept."; return false }
+        catch { queueError = AppLocalization.text("This saved queue could not be opened. The current queue has been kept."); return false }
     }
 
     /// Validation precedes mutation, so a corrupt named snapshot cannot erase the current queue.
@@ -1012,7 +1012,7 @@ final class AppSession {
         _ = await progressFlush?.value
         await account.signOut()
         do { try await queueStore?.clear() }
-        catch { queueError = "The saved queue could not be removed. Try signing out again." }
+        catch { queueError = AppLocalization.text("The saved queue could not be removed. Try signing out again.") }
         showsAccount = false
         backHistory.removeAll()
         forwardHistory.removeAll()
@@ -1080,7 +1080,7 @@ final class AppSession {
             } catch is CancellationError { }
             catch {
                 guard let self, self.accountGeneration == generation else { return }
-                self.queueError = "The queue could not be saved. Playback can continue."
+                self.queueError = AppLocalization.text("The queue could not be saved. Playback can continue.")
             }
         }
     }

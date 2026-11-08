@@ -38,7 +38,7 @@ struct PlaybackCommands: Commands {
                 run(.shuffle, action: session.toggleShuffle)
             }
             .keyboardShortcut(shortcut(.shuffle))
-            Button("Repeat: \(session.queue.repeatMode.rawValue.capitalized)") {
+            Button("Repeat: \(session.queue.repeatMode.localizedTitle)") {
                 run(.repeatMode, action: session.cycleRepeat)
             }
             .keyboardShortcut(shortcut(.repeatMode))

@@ -118,9 +118,9 @@ final class MusicAutomation {
                 catch AppScriptingError.superseded { throw MusicAutomationError.superseded }
                 catch AppScriptingError.signInRequired { throw MusicAutomationError.signInRequired }
                 catch { throw MusicAutomationError.lookupFailed }
-            case let .album(id): session.navigate(to: .collection(MusicCollection(id: id, kind: .album, title: "Album")), recordHistory: true)
-            case let .artist(id): session.navigate(to: .collection(MusicCollection(id: id, kind: .artist, title: "Artist")), recordHistory: true)
-            case let .playlist(id): session.navigate(to: .collection(MusicCollection(id: id, kind: .playlist, title: "Playlist")), recordHistory: true)
+            case let .album(id): session.navigate(to: .collection(MusicCollection(id: id, kind: .album, title: AppLocalization.text("Album"))), recordHistory: true)
+            case let .artist(id): session.navigate(to: .collection(MusicCollection(id: id, kind: .artist, title: AppLocalization.text("Artist"))), recordHistory: true)
+            case let .playlist(id): session.navigate(to: .collection(MusicCollection(id: id, kind: .playlist, title: AppLocalization.text("Playlist"))), recordHistory: true)
             }
         case let .search(query):
             session.searchForAutomation(query)

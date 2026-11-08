@@ -48,7 +48,7 @@ public enum MusicLyrics: Equatable, Sendable {
 public enum MusicLyricsError: Error, Equatable, Sendable, LocalizedError {
     case timedOut
 
-    public var errorDescription: String? { "Loading lyrics timed out. Try again." }
+    public var errorDescription: String? { ServiceLocalization.text("Loading lyrics timed out. Try again.") }
 }
 
 struct MusicLyricsReference {

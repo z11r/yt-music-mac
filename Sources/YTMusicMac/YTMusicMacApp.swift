@@ -210,9 +210,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
         let menu = NSMenu()
         let entries: [(String, Selector)] = [
-            (session?.player.isPlaying == true ? "Pause" : "Play", #selector(togglePlayback)),
-            ("Next Song", #selector(nextSong)),
-            ("Show Main Window", #selector(showMainWindow)),
+            (session?.player.isPlaying == true ? AppLocalization.text("Pause") : AppLocalization.text("Play"), #selector(togglePlayback)),
+            (AppLocalization.text("Next Song"), #selector(nextSong)),
+            (AppLocalization.text("Show Main Window"), #selector(showMainWindow)),
         ]
         for (title, action) in entries {
             let item = NSMenuItem(title: title, action: action, keyEquivalent: "")

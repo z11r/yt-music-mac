@@ -15,7 +15,7 @@ final class MusicLinkState {
 extension AppSession {
     func receiveMusicLink(_ url: URL) {
         guard MusicLink(url: url) != nil else {
-            links.error = "Open a YouTube Music song, album, artist, or playlist link."
+            links.error = AppLocalization.text("Open a YouTube Music song, album, artist, or playlist link.")
             return
         }
         links.pending = url
@@ -33,7 +33,7 @@ extension AppSession {
         switch link {
         case let .track(id):
             guard account.isSignedIn else {
-                links.error = "Sign in, then open the song link again."
+                links.error = AppLocalization.text("Sign in, then open the song link again.")
                 openAccount()
                 return
             }
@@ -44,15 +44,15 @@ extension AppSession {
                 catch AppScriptingError.superseded { return }
                 catch {
                     guard self.links.generation == generation, !Task.isCancelled else { return }
-                    self.links.error = "The linked song could not be opened. Your existing queue has been kept."
+                    self.links.error = AppLocalization.text("The linked song could not be opened. Your existing queue has been kept.")
                 }
             }
         case let .playlist(id):
-            navigate(to: .collection(MusicCollection(id: id, kind: .playlist, title: "Playlist")))
+            navigate(to: .collection(MusicCollection(id: id, kind: .playlist, title: AppLocalization.text("Playlist"))))
         case let .album(id):
-            navigate(to: .collection(MusicCollection(id: id, kind: .album, title: "Album")))
+            navigate(to: .collection(MusicCollection(id: id, kind: .album, title: AppLocalization.text("Album"))))
         case let .artist(id):
-            navigate(to: .collection(MusicCollection(id: id, kind: .artist, title: "Artist")))
+            navigate(to: .collection(MusicCollection(id: id, kind: .artist, title: AppLocalization.text("Artist"))))
         }
     }
 
