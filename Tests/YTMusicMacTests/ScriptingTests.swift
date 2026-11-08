@@ -118,6 +118,23 @@ struct ScriptingValueTests {
 @MainActor
 @Suite("Scripting commands", .serialized)
 struct ScriptingCommandTests {
+    @Test func diagnosticCommandsRejectAQuiescedRetainedSessionBeforeSuspending() async {
+        let preferences = SceneCheckPreferences(); defer { preferences.remove() }
+        let transport = SceneCheckTransport()
+        let session = AppSession(configuration: .sceneCheck(preferences: preferences.defaults, transport: transport))
+        session.quiesceForProfileSwitch()
+        AppScripting.session = session
+        defer { AppScripting.session = nil }
+        let check = CheckPlaylistEditsScriptCommand(); check.directParameter = "abcDEF12_-3"
+        let commands: [NSScriptCommand] = [check, RetryPlaylistCleanupScriptCommand(), CheckLibraryScriptCommand(), CheckLibraryNavigationScriptCommand()]
+        for command in commands {
+            #expect(command.performDefaultImplementation() == nil)
+            #expect(command.scriptErrorNumber == AppScriptingError.superseded.scriptErrorNumber)
+        }
+        #expect(await transport.attempts == 0)
+        await session.shutdown()
+    }
+
     @Test func commandsFailCleanlyWithoutAnAppSession() {
         AppScripting.session = nil
         let commands: [NSScriptCommand] = [PlayScriptCommand(), PauseScriptCommand(), GetPlayerInfoScriptCommand(), CheckLibraryScriptCommand(), CheckLibraryNavigationScriptCommand(), RetryPlaylistCleanupScriptCommand()]

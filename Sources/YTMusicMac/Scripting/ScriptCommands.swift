@@ -133,18 +133,14 @@ class LibraryReadScriptCommand: NSScriptCommand {
     var checksNavigation: Bool { false }
 
     override func performDefaultImplementation() -> Any? {
-        let session = MainActor.assumeIsolated { AppScripting.session }
-        guard let session else { setScriptError(self, .unavailable); return nil }
-        guard MainActor.assumeIsolated({ session.account.isSignedIn }) else {
-            setScriptError(self, .signInRequired)
-            return nil
-        }
+        guard let (session, generation) = diagnosticContext(self) else { return nil }
         suspendExecution()
         let reply = SuspendedScriptReply(self)
         let navigation = checksNavigation
         Task { @MainActor in
             do {
-                let report = try await navigation ? session.checkLibraryNavigation() : session.checkLibrary()
+                let report = try await navigation ? session.checkLibraryNavigation(expectedAccountGeneration: generation) :
+                    session.checkLibrary(expectedAccountGeneration: generation)
                 let encoder = JSONEncoder()
                 encoder.outputFormatting = [.sortedKeys]
                 reply.resume(result: String(decoding: try encoder.encode(report), as: UTF8.self), error: nil)
@@ -186,34 +182,46 @@ final class RetryPlaylistCleanupScriptCommand: NSScriptCommand {
 }
 
 private func beginPlaylistVerificationReply(_ command: NSScriptCommand, videoID: String?) -> Any? {
-    let session = MainActor.assumeIsolated { AppScripting.session }
-    guard let session else { setScriptError(command, .unavailable); return nil }
-    guard MainActor.assumeIsolated({ session.account.isSignedIn }) else {
-        setScriptError(command, .signInRequired)
-        return nil
-    }
+    guard let (session, generation) = diagnosticContext(command) else { return nil }
     command.suspendExecution()
     let reply = SuspendedScriptReply(command)
     Task { @MainActor in
         do {
-            let client = session.playlistVerificationClient
-            let scope = try await client.libraryEditScope()
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.sortedKeys]
             let data: Data
             if let videoID {
-                data = try encoder.encode(await client.checkPlaylistEdits(videoID: videoID, expectedScope: scope))
+                data = try encoder.encode(await session.checkPlaylistEdits(videoID: videoID, expectedAccountGeneration: generation))
             } else {
-                data = try encoder.encode(await client.retryPlaylistEditCleanup(expectedScope: scope))
+                data = try encoder.encode(await session.retryPlaylistEditCleanup(expectedAccountGeneration: generation))
             }
             reply.resume(result: String(decoding: data, as: UTF8.self), error: nil)
+        } catch let error as AppScriptingError {
+            reply.resume(result: nil, error: error)
         } catch MusicServiceError.sessionChanged {
             reply.resume(result: nil, error: .superseded)
         } catch MusicServiceError.signInRequired {
             reply.resume(result: nil, error: .signInRequired)
+        } catch is CancellationError {
+            reply.resume(result: nil, error: .superseded)
         } catch {
             reply.resume(result: nil, error: .playlistCheckFailed)
         }
     }
     return nil
+}
+
+/// Capture the native owner before suspension or task scheduling; an old command
+/// cannot acquire a new generation after a failed profile switch rolls back.
+private func diagnosticContext(_ command: NSScriptCommand) -> (AppSession, UUID)? {
+    let result = MainActor.assumeIsolated { () -> Result<(AppSession, UUID), AppScriptingError> in
+        guard let session = AppScripting.session else { return .failure(.unavailable) }
+        guard session.acceptsProfileActions else { return .failure(.superseded) }
+        guard session.account.isSignedIn else { return .failure(.signInRequired) }
+        return .success((session, session.accountGeneration))
+    }
+    switch result {
+    case let .success(context): return context
+    case let .failure(error): setScriptError(command, error); return nil
+    }
 }

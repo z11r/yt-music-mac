@@ -665,20 +665,50 @@ final class AppSession {
         return tracks.count
     }
 
-    func checkLibrary() async throws -> MusicLibraryCheck {
+    func checkLibrary(expectedAccountGeneration generation: UUID) async throws -> MusicLibraryCheck {
+        guard acceptsProfileActions, accountGeneration == generation else { throw AppScriptingError.superseded }
         guard account.isSignedIn else { throw AppScriptingError.signInRequired }
-        let generation = accountGeneration
+        guard sessionOperations.begin() else { throw AppScriptingError.superseded }
+        defer { sessionOperations.end() }
         let result = try await client.checkLibrary(maximumPlaylists: 50)
         guard accountGeneration == generation, account.isSignedIn else { throw AppScriptingError.superseded }
         return result
     }
 
-    func checkLibraryNavigation() async throws -> MusicLibraryCheck {
+    func checkLibraryNavigation(expectedAccountGeneration generation: UUID) async throws -> MusicLibraryCheck {
+        guard acceptsProfileActions, accountGeneration == generation else { throw AppScriptingError.superseded }
         guard account.isSignedIn else { throw AppScriptingError.signInRequired }
-        let generation = accountGeneration
+        guard sessionOperations.begin() else { throw AppScriptingError.superseded }
+        defer { sessionOperations.end() }
         let result = try await client.checkLibraryNavigation()
         guard accountGeneration == generation, account.isSignedIn else { throw AppScriptingError.superseded }
         return result
+    }
+
+    func checkPlaylistEdits(videoID: String, expectedAccountGeneration: UUID) async throws -> MusicPlaylistEditCheck {
+        try await withPlaylistDiagnostic(expectedAccountGeneration: expectedAccountGeneration) { client, scope in
+            try await client.checkPlaylistEdits(videoID: videoID, expectedScope: scope)
+        }
+    }
+
+    func retryPlaylistEditCleanup(expectedAccountGeneration: UUID) async throws -> MusicPlaylistEditCheck.Cleanup {
+        try await withPlaylistDiagnostic(expectedAccountGeneration: expectedAccountGeneration) { client, scope in
+            try await client.retryPlaylistEditCleanup(expectedScope: scope)
+        }
+    }
+
+    /// The script entry point validates native sign-in and captures the generation before scheduling.
+    /// Once service work starts, keep its original outcome and cleanup visible while the owner waits.
+    private func withPlaylistDiagnostic<Result: Sendable>(expectedAccountGeneration: UUID,
+        operation: @Sendable (YouTubeMusicClient, UUID) async throws -> Result) async throws -> Result {
+        try Task.checkCancellation()
+        guard acceptsProfileActions, accountGeneration == expectedAccountGeneration,
+              sessionOperations.begin() else { throw AppScriptingError.superseded }
+        defer { sessionOperations.end() }
+        let scope = try await playlistVerificationClient.libraryEditScope()
+        try Task.checkCancellation()
+        guard acceptsProfileActions, accountGeneration == expectedAccountGeneration else { throw AppScriptingError.superseded }
+        return try await operation(playlistVerificationClient, scope)
     }
 
     func clearLibraryEditFeedback() {

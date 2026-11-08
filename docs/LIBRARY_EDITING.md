@@ -79,6 +79,14 @@ playlist, account, title, and occurrence identifiers. `passed` requires every
 step and deletion to be confirmed. `cleanupNeeded` and `uncertainOutcome`
 identify incomplete or uncertain work.
 
+AppleScript diagnostics capture the current account generation before their
+asynchronous work is scheduled. Profile quiescence rejects new or stale checks
+and cleanup requests. A check admitted before the switch retains its original
+service scope and result, including uncertain creation and cleanup status;
+profile replacement waits for that work to settle. A failed profile switch
+does not give an earlier queued command a new account generation. Read-only
+library diagnostics follow the same native admission boundary.
+
 Retain the verification client until cleanup is confirmed. It keeps the
 created playlist identifier in memory and blocks another check while cleanup
 is unresolved. An explicit `retryPlaylistEditCleanup` checks the original
