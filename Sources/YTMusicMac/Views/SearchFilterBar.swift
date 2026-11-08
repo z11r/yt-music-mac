@@ -9,10 +9,18 @@ struct SearchFilterBar: View {
     var body: some View {
         ScrollView(.horizontal) {
             HStack(spacing: 8) {
+                if session.searchScope == .library {
+                    ForEach(MusicLibrarySearchFilter.allCases, id: \.self) { filter in
+                        SearchFilterChip(title: filter.title, hint: AppLocalization.text("Searches your service library"), isSelected: session.librarySearchFilter == filter) {
+                            session.librarySearchFilter = filter
+                        }
+                    }
+                } else {
                 ForEach(MusicSearchFilter.allCases, id: \.self) { filter in
                     SearchFilterChip(title: filter.title, hint: filter.hint, isSelected: session.searchFilter == filter) {
                         session.searchFilter = filter
                     }
+                }
                 }
             }
             .padding(4)
@@ -21,6 +29,38 @@ struct SearchFilterBar: View {
         .padding(.horizontal, -4)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Search filters")
+    }
+}
+
+struct SearchScopeMenu: View {
+    let session: AppSession
+    var body: some View {
+        Menu {
+            Button("Catalog") { session.setSearchScope(.catalog) }
+            Button("Your Library") { session.setSearchScope(.library) }
+                .disabled(session.librarySearchOwner == nil)
+            if session.librarySearchOwner == nil {
+                Text("Sign in to search your service library.")
+            }
+        } label: {
+            Label(session.searchScope == .library ? AppLocalization.text("Your Library") : AppLocalization.text("Catalog"), systemImage: "magnifyingglass")
+        }
+        .accessibilityLabel("Search source")
+        .help("Choose catalog search or search your signed-in service library")
+    }
+}
+
+extension MusicLibrarySearchFilter {
+    var title: String {
+        switch self {
+        case .songs: AppLocalization.text("Songs")
+        case .videos: AppLocalization.text("Videos")
+        case .albums: AppLocalization.text("Albums")
+        case .artists: AppLocalization.text("Artists")
+        case .playlists: AppLocalization.text("Playlists")
+        case .podcasts: AppLocalization.text("Podcasts")
+        case .episodes: AppLocalization.text("Episodes")
+        }
     }
 }
 

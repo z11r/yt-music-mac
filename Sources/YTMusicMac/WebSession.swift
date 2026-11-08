@@ -63,6 +63,8 @@ final class WebSession: NSObject {
         dataStore.httpCookieStore.remove(self)
     }
 
+    var confirmedAccountKey: String? { isSignedIn && !isSuspended && !isClearing ? accountKey : nil }
+
     func resumeOwnership() {
         guard isSuspended else { return }
         isSuspended = false

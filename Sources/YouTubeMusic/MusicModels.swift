@@ -177,12 +177,15 @@ public struct MusicContinuation: Sendable, CustomStringConvertible, CustomDebugS
     let previousTokens: Set<String>
     let previousItems: Set<String>
     let contentOrigin: MusicContentOrigin?
+    let librarySearch: MusicLibrarySearchContext?
 
     init(token: String, endpoint: MusicEndpoint, scope: UUID, title: String, requiresAuthentication: Bool,
-         preservesOccurrences: Bool, previousTokens: Set<String>, previousItems: Set<String>, contentOrigin: MusicContentOrigin? = nil) {
+         preservesOccurrences: Bool, previousTokens: Set<String>, previousItems: Set<String>, contentOrigin: MusicContentOrigin? = nil,
+         librarySearch: MusicLibrarySearchContext? = nil) {
         self.token = token; self.endpoint = endpoint; self.scope = scope; self.title = title
         self.requiresAuthentication = requiresAuthentication; self.preservesOccurrences = preservesOccurrences
         self.previousTokens = previousTokens; self.previousItems = previousItems; self.contentOrigin = contentOrigin
+        self.librarySearch = librarySearch
     }
     public var description: String { "MusicContinuation" }
     public var debugDescription: String { description }

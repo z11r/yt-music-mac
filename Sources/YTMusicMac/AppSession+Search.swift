@@ -6,6 +6,7 @@ extension AppSession {
     /// Searches for the highlighted suggestion, or for the typed text when none is highlighted.
     func submitSearch() {
         guard acceptsProfileActions else { return }
+        if searchScope == .library { searchSuggestions.close(); searchYourLibrary(); return }
         if let suggestion = searchSuggestions.highlighted {
             search(for: suggestion)
             return
@@ -24,14 +25,39 @@ extension AppSession {
 
     func searchTextChanged() {
         guard acceptsProfileActions else { return }
+        guard searchScope == .catalog else { searchSuggestions.close(); return }
         searchSuggestions.textChanged(searchText)
     }
 
     /// Runs the current search again with the new filter. `navigate` cancels the
     /// older request and ignores its response, so it cannot replace the new results.
     func searchFilterChanged() {
-        guard case .search = destination else { return }
-        reload()
+        guard !syncingSearchDestination, case let .search(query, _) = destination else { return }
+        navigate(to: .search(query, filter: searchFilter))
+    }
+
+    func librarySearchFilterChanged() {
+        guard !syncingSearchDestination, case let .librarySearch(query, _) = destination else { return }
+        navigate(to: .librarySearch(query, librarySearchFilter))
+    }
+
+    func searchYourLibrary() {
+        guard acceptsProfileActions else { return }
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return }
+        searchHistory.record(query, source: .library(librarySearchFilter))
+        navigate(to: .librarySearch(query, librarySearchFilter))
+    }
+
+    func repeatSearch(_ entry: RecentSearch) {
+        guard acceptsProfileActions else { return }
+        searchSuggestions.close(ignoringNextChangeTo: entry.query)
+        searchText = entry.query
+        switch entry.source {
+        case let .catalog(filter): navigate(to: .search(entry.query, filter: filter))
+        case let .library(filter): navigate(to: .librarySearch(entry.query, filter))
+        }
+        searchHistory.record(entry.query, source: entry.source)
     }
 }
 

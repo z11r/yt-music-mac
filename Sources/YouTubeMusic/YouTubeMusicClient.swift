@@ -128,12 +128,20 @@ public actor YouTubeMusicClient {
         let session = await sessions.snapshot()
         guard session.scope == continuation.scope else { throw MusicServiceError.sessionChanged }
         guard !continuation.previousTokens.contains(continuation.token) else { throw MusicServiceError.paginationLoop }
-        let data = try await request(endpoint: continuation.endpoint, body: ["continuation": continuation.token],
-                                     session: session, requiresAuthentication: continuation.requiresAuthentication)
+        if let context = continuation.librarySearch {
+            guard context.isValid, continuation.endpoint == .search, continuation.requiresAuthentication,
+                  continuation.previousTokens.count < 100, continuation.previousItems.count < 10_000 else { throw MusicServiceError.pageLimitReached }
+        }
+        let data = try await request(endpoint: continuation.endpoint, body: continuation.librarySearch?.body ?? ["continuation": continuation.token],
+                                     session: session, requiresAuthentication: continuation.requiresAuthentication,
+                                     continuationQueryToken: continuation.librarySearch == nil ? nil : continuation.token,
+                                     checksScopeBeforeBootstrap: continuation.librarySearch != nil)
         let parsed: ParsedMusicPage
         do {
             let prepared = try continuation.contentOrigin == .upload ? MusicUploadResponseAdapter.prepare(data, isSearch: continuation.endpoint == .search) : data
-            parsed = try MusicResponseParser.parse(prepared, preservesOccurrences: continuation.preservesOccurrences)
+            let scoped = try continuation.librarySearch == nil ? prepared : MusicLibrarySearchAdapter.prepare(prepared, continuation: true)
+            parsed = try MusicResponseParser.parse(scoped, preservesOccurrences: continuation.preservesOccurrences)
+            if continuation.librarySearch != nil { try MusicLibrarySearchAdapter.validate(parsed) }
             try validateUploadTracks(parsed, origin: continuation.contentOrigin)
         }
         catch MusicServiceError.unsupportedResponse {
@@ -142,10 +150,12 @@ public actor YouTubeMusicClient {
         var tokens = continuation.previousTokens
         tokens.insert(continuation.token)
         if let token = parsed.token, tokens.contains(token) { throw MusicServiceError.paginationLoop }
+        if continuation.librarySearch != nil,
+           continuation.previousItems.union(parsed.items.map(\.id)).count > 10_000 { throw MusicServiceError.pageLimitReached }
         return .page(makePage(parsed, title: continuation.title, endpoint: continuation.endpoint, session: session,
                         requiresAuthentication: continuation.requiresAuthentication,
                         preservesOccurrences: continuation.preservesOccurrences, previousTokens: tokens,
-                        previousItems: continuation.previousItems, contentOrigin: continuation.contentOrigin))
+                        previousItems: continuation.previousItems, contentOrigin: continuation.contentOrigin, librarySearch: continuation.librarySearch))
     }
 
     /// Bounded collection for explicit exports or queue construction. The UI should load one page at a time.
@@ -203,7 +213,8 @@ public actor YouTubeMusicClient {
 
     func makePage(_ parsed: ParsedMusicPage, title: String, endpoint: MusicEndpoint, session: MusicSession,
                           requiresAuthentication: Bool, preservesOccurrences: Bool,
-                          previousTokens: Set<String> = [], previousItems: Set<String> = [], contentOrigin: MusicContentOrigin? = nil) -> MusicPage {
+                          previousTokens: Set<String> = [], previousItems: Set<String> = [], contentOrigin: MusicContentOrigin? = nil,
+                          librarySearch: MusicLibrarySearchContext? = nil) -> MusicPage {
         var seen = previousItems
         let sections = parsed.sections.compactMap { section -> MusicSection? in
             let items = section.items.filter { preservesOccurrences || seen.insert($0.id).inserted }.map { item in
@@ -221,7 +232,7 @@ public actor YouTubeMusicClient {
         let next = parsed.token.map {
             MusicContinuation(token: $0, endpoint: endpoint, scope: session.scope, title: parsed.title ?? title,
                               requiresAuthentication: requiresAuthentication, preservesOccurrences: preservesOccurrences,
-                              previousTokens: previousTokens, previousItems: seen, contentOrigin: contentOrigin)
+                              previousTokens: previousTokens, previousItems: seen, contentOrigin: contentOrigin, librarySearch: librarySearch)
         }
         return MusicPage(title: parsed.title ?? title, sections: sections, items: sections.flatMap(\.items), continuation: next,
                          playlistItems: parsed.playlistItems.map { item in
@@ -244,9 +255,11 @@ public actor YouTubeMusicClient {
         }
     }
 
-    func request(endpoint: MusicEndpoint, body: [String: Any], session: MusicSession, requiresAuthentication: Bool) async throws -> Data {
+    func request(endpoint: MusicEndpoint, body: [String: Any], session: MusicSession, requiresAuthentication: Bool,
+                 continuationQueryToken: String? = nil, checksScopeBeforeBootstrap: Bool = false) async throws -> Data {
         try Task.checkCancellation()
         if requiresAuthentication && !session.isAuthenticated { throw MusicServiceError.signInRequired }
+        if checksScopeBeforeBootstrap { try await validateScope(session.scope) }
         let configuration: MusicClientConfiguration
         if let supplied = session.configuration { configuration = supplied }
         else { configuration = try await bootstrapConfiguration() }
@@ -256,6 +269,10 @@ public actor YouTubeMusicClient {
         else { throw MusicServiceError.configurationUnavailable }
         var url = URLComponents(url: Self.origin.appendingPathComponent("youtubei/v1/\(endpoint.rawValue)"), resolvingAgainstBaseURL: false)!
         url.queryItems = [URLQueryItem(name: "key", value: configuration.apiKey), URLQueryItem(name: "prettyPrint", value: "false")]
+        if let token = continuationQueryToken {
+            guard endpoint == .search, !token.isEmpty, token.utf8.count <= 16_384 else { throw MusicServiceError.invalidInput }
+            url.queryItems?.append(contentsOf: [URLQueryItem(name: "ctoken", value: token), URLQueryItem(name: "continuation", value: token)])
+        }
         var request = URLRequest(url: url.url!)
         request.httpMethod = "POST"
         request.httpShouldHandleCookies = false

@@ -7,7 +7,8 @@ import YouTubeMusic
 enum MusicDestination: Hashable {
     case home, explore, library, likedSongs, history
     case libraryCategory(YouTubeMusicClient.LibraryCategory)
-    case search(String)
+    case search(String, filter: MusicSearchFilter = .all)
+    case librarySearch(String, MusicLibrarySearchFilter)
     case collection(MusicCollection)
     case discovery(MusicDiscoveryCategory)
     case chartCountry(MusicChartCountry)
@@ -37,6 +38,7 @@ enum MusicDestination: Hashable {
         case .history: AppLocalization.text("Listening History")
         case let .libraryCategory(category): category.title
         case .search: AppLocalization.text("Search")
+        case .librarySearch: AppLocalization.text("Search Your Library")
         case let .uploads(category): AppLocalization.format("Uploaded %@", category.title)
         case .uploadSearch: AppLocalization.text("Search Uploads")
         case .podcasts: AppLocalization.text("Podcasts")
@@ -162,6 +164,11 @@ final class AppSession {
     private(set) var libraryEditingScope = UUID()
     private(set) var sceneCheckRevision = 0
     var searchText = ""
+    private(set) var searchScope: NativeSearchScope = .catalog
+    var librarySearchFilter: MusicLibrarySearchFilter = .songs {
+        didSet { if librarySearchFilter != oldValue { librarySearchFilterChanged() } }
+    }
+    @ObservationIgnored var syncingSearchDestination = false
     /// Applies to the current search and every later one until changed.
     var searchFilter: MusicSearchFilter = .all {
         didSet { if searchFilter != oldValue { searchFilterChanged() } }
@@ -196,7 +203,7 @@ final class AppSession {
     @ObservationIgnored private let queuePersistenceGate = LocalPersistenceGate()
     @ObservationIgnored private var saveTask: Task<Void, Never>?
     @ObservationIgnored private var pageGeneration = UUID()
-    @ObservationIgnored var accountGeneration = UUID() { didSet { recommendations.cancel(); credits.clear(); commandReview.invalidate() } }
+    @ObservationIgnored var accountGeneration = UUID() { didSet { recommendations.cancel(); credits.clear(); commandReview.invalidate(); revokeSearchContext() } }
     @ObservationIgnored private var backHistory: [MusicDestination] = []
     @ObservationIgnored private var forwardHistory: [MusicDestination] = []
     @ObservationIgnored private var resumeState = PlaybackResumeState()
@@ -464,6 +471,15 @@ final class AppSession {
             forwardHistory.removeAll()
         }
         destination = target
+        syncingSearchDestination = true
+        switch target {
+        case let .search(query, filter):
+            searchScope = .catalog; searchText = query; searchFilter = filter; searchSuggestions.close()
+        case let .librarySearch(query, filter):
+            searchScope = .library; searchText = query; librarySearchFilter = filter; searchSuggestions.close()
+        default: break
+        }
+        syncingSearchDestination = false
         if !target.isChartDestination { chartCountries = []; chartCountryLabel = nil }
         canGoBack = !backHistory.isEmpty
         canGoForward = !forwardHistory.isEmpty
@@ -479,7 +495,7 @@ final class AppSession {
         pageTask?.cancel()
         let generation = UUID()
         pageGeneration = generation
-        let filter = searchFilter
+        let searchOwner = librarySearchOwner
         let ratingsRead = songRatings.beginRead()
         pageTask = Task { [weak self, client] in
             do {
@@ -505,7 +521,10 @@ final class AppSession {
                 case let .libraryCategory(category): result = try await client.library(category: category)
                 case .likedSongs: result = try await client.likedSongs()
                 case .history: result = try await client.history()
-                case let .search(query): result = try await client.search(query: query, filter: filter)
+                case let .search(query, selected): result = try await client.search(query: query, filter: selected)
+                case let .librarySearch(query, selected):
+                    guard let self else { return }
+                    result = try await self.readLibrarySearch(query: query, filter: selected, owner: searchOwner, generation: generation)
                 case let .uploads(category): result = try await client.uploads(category: category)
                 case let .uploadSearch(query): result = try await client.searchUploads(query: query)
                 case .podcasts: result = try await client.podcasts()
@@ -543,8 +562,30 @@ final class AppSession {
         guard acceptsProfileActions else { return }
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return }
-        searchHistory.record(query)
-        navigate(to: .search(query))
+        searchHistory.record(query, source: .catalog(searchFilter))
+        navigate(to: .search(query, filter: searchFilter))
+    }
+
+    func setSearchScope(_ scope: NativeSearchScope) {
+        guard acceptsProfileActions, scope != searchScope else { return }
+        searchSuggestions.close()
+        pageTask?.cancel(); pageGeneration = UUID()
+        searchScope = scope
+        if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { navigate(to: scope == .library ? .library : .home) }
+        else { submitSearch() }
+    }
+
+    private func revokeSearchContext() {
+        if destination.isSearchDestination {
+            pageTask?.cancel(); pageGeneration = UUID(); isLoading = false; isLoadingMore = false
+        }
+        searchSuggestions.close(); searchHistory.clear(); searchText = ""; searchScope = .catalog
+        backHistory.removeAll(); forwardHistory.removeAll(); canGoBack = false; canGoForward = false
+        switch destination {
+        case .librarySearch: destination = .library; page = nil
+        case .search: destination = .home; page = nil
+        default: break
+        }
     }
 
     func goBack() {
@@ -607,6 +648,9 @@ final class AppSession {
         let generation = pageGeneration
         let ratingsRead = songRatings.beginRead()
         let cachesLibrary = destination == .library
+        let searchOwner = librarySearchOwner
+        let searchesLibrary: Bool
+        if case .librarySearch = destination { searchesLibrary = true } else { searchesLibrary = false }
         pageTask = Task { [weak self, client] in
             do {
                 let songRuleSource = await self?.songRules.beginSource()
@@ -616,7 +660,11 @@ final class AppSession {
                 else { metadataContext = nil }
                 if cachesLibrary { spotlightSource = await self?.spotlight.beginSource() }
                 else { spotlightSource = nil }
-                let next = try await client.nextPage(continuation)
+                let next: MusicPage
+                if searchesLibrary {
+                    guard let self else { return }
+                    next = try await self.readLibrarySearchContinuation(continuation, owner: searchOwner, generation: generation)
+                } else { next = try await client.nextPage(continuation) }
                 guard let self, !Task.isCancelled, self.pageGeneration == generation else { return }
                 let combined = MusicPage(title: initial.title, sections: initial.sections + next.sections,
                     items: initial.items + next.items, continuation: next.continuation,
@@ -698,6 +746,19 @@ final class AppSession {
         try Task.checkCancellation()
         guard catalogQueueOwner == owner else { throw MusicServiceError.sessionChanged }
         return page
+    }
+
+    private func readLibrarySearch(query: String, filter: MusicLibrarySearchFilter, owner: LibrarySearchOwner?, generation: UUID) async throws -> MusicPage {
+        guard let owner else { throw MusicServiceError.signInRequired }
+        return try await LibrarySearchRead.perform(owner: owner, operations: sessionOperations, snapshot: { await self.account.credentials.snapshot() },
+            isCurrent: { self.librarySearchOwner == owner && self.pageGeneration == generation },
+            load: { try await self.client.searchLibrary(query: query, filter: filter, expectedScope: $0) })
+    }
+
+    private func readLibrarySearchContinuation(_ continuation: MusicContinuation, owner: LibrarySearchOwner?, generation: UUID) async throws -> MusicPage {
+        guard let owner else { throw MusicServiceError.signInRequired }
+        return try await LibrarySearchRead.perform(owner: owner, operations: sessionOperations, snapshot: { await self.account.credentials.snapshot() },
+            isCurrent: { self.librarySearchOwner == owner && self.pageGeneration == generation }, load: { _ in try await self.client.nextPage(continuation) })
     }
 
     func checkLibrary(expectedAccountGeneration generation: UUID) async throws -> MusicLibraryCheck {

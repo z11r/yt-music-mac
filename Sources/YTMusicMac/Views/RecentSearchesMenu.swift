@@ -7,9 +7,8 @@ struct RecentSearchesMenu: View {
     var body: some View {
         Menu {
             Text("This App Session")
-            ForEach(session.searchHistory.queries, id: \.self) { query in
-                Button(query) { session.search(for: MusicSearchSuggestion(query: query)) }
-                    .accessibilityLabel("Search again for \(query)")
+            ForEach(session.searchHistory.entries) { entry in
+                Button { session.repeatSearch(entry) } label: { Text(verbatim: title(entry)) }
             }
             Divider()
             Button("Clear Recent Searches", role: .destructive) { session.searchHistory.clear() }
@@ -18,5 +17,14 @@ struct RecentSearchesMenu: View {
         }
         .disabled(session.searchHistory.queries.isEmpty)
         .help("Recent searches from this app session")
+    }
+
+    private func title(_ entry: RecentSearch) -> String {
+        let source: String
+        switch entry.source {
+        case let .catalog(filter): source = AppLocalization.format("Catalog · %@", filter.title)
+        case let .library(filter): source = AppLocalization.format("Your Library · %@", filter.title)
+        }
+        return entry.query + " · " + source
     }
 }

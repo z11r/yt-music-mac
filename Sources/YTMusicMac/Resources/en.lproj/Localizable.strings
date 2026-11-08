@@ -1013,3 +1013,13 @@
 "Known duration of loaded playable items; unavailable rows and unloaded pages are excluded." = "Known duration of loaded playable items; unavailable rows and unloaded pages are excluded.";
 "Description…" = "Description…";
 "Description" = "Description";
+"Search Your Library" = "Search Your Library";
+"Searches your service library" = "Searches your service library";
+"Catalog" = "Catalog";
+"Episodes" = "Episodes";
+"Sign in to search your service library." = "Sign in to search your service library.";
+"Search source" = "Search source";
+"Choose catalog search or search your signed-in service library" = "Choose catalog search or search your signed-in service library";
+"Your library matching “%@”" = "Your library matching “%@”";
+"Catalog · %@" = "Catalog · %@";
+"Your Library · %@" = "Your Library · %@";

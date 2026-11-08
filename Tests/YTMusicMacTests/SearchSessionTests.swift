@@ -49,7 +49,7 @@ struct SearchSessionTests {
         await transport.release("search:example|")
         await older?.value
         #expect(trackIDs(session) == ["song"])
-        #expect(session.destination == .search("example"))
+        #expect(session.destination == .search("example", filter: .songs))
         #expect(await transport.keys == ["search:example|", "search:example|\(Self.songs)"])
     }
 

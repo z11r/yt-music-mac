@@ -1,5 +1,8 @@
 # Library categories
 
+[Search Your Library](LIBRARY_SEARCH.md) sends explicit category searches to
+the signed-in service library. It is separate from filtering already loaded rows.
+
 Library provides All, Playlists, Songs, Albums, Artists and Followed Artists.
 These are separate authenticated service destinations. Liked Songs remains a
 separate playlist destination; it can overlap the saved-song library and can

@@ -48,7 +48,7 @@ struct RootView: View {
                 .navigationTitle(session.destination.title)
             }
             .searchable(text: $session.searchText, isPresented: $isSearchPresented,
-                        placement: .toolbar, prompt: Text("Search music"))
+                        placement: .toolbar, prompt: Text(session.searchScope == .library ? AppLocalization.text("Search Your Library") : AppLocalization.text("Search music")))
             .modifier(CatalogSearchFocus(focus: $isSearchFocused))
             .onSubmit(of: .search) { session.submitSearch() }
             .onChange(of: session.searchText) { session.searchTextChanged() }
@@ -60,6 +60,7 @@ struct RootView: View {
                         .disabled(!session.canGoForward)
                 }
                 ToolbarItemGroup(placement: .primaryAction) {
+                    SearchScopeMenu(session: session)
                     RecentSearchesMenu(session: session)
                     Button("Account", systemImage: session.account.isSignedIn ? "person.crop.circle.fill" : "person.crop.circle",
                            action: session.openAccount)

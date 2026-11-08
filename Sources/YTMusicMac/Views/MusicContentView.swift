@@ -19,6 +19,7 @@ struct MusicContentView: View {
     private var showsResultGrid: Bool {
         switch session.destination {
         case .search: session.searchFilter != .all
+        case .librarySearch: true
         case let .browse(reference): reference.kind == .discography
         default: false
         }
@@ -56,7 +57,7 @@ struct MusicContentView: View {
         }
         // Outside the page content, so the filters stay in place (and keep focus) while results load.
         .safeAreaInset(edge: .top, spacing: 0) {
-            if case .search = session.destination {
+            if session.destination.isSearchDestination {
                 VStack(spacing: 0) {
                     SearchFilterBar(session: session)
                         .padding(.horizontal, 28)
@@ -97,8 +98,10 @@ struct MusicContentView: View {
                 HStack(alignment: .firstTextBaseline) {
                     VStack(alignment: .leading, spacing: 6) {
                         Text(session.destination.title).font(.largeTitle.bold()).accessibilityAddTraits(.isHeader)
-                        if case let .search(query) = session.destination {
+                        if case let .search(query, _) = session.destination {
                             Text("Results for “\(query)”").foregroundStyle(.secondary)
+                        } else if case let .librarySearch(query, _) = session.destination {
+                            Text("Your library matching “\(query)”").foregroundStyle(.secondary)
                         } else if session.destination == .history {
                             Text("Listening history from your YouTube Music account")
                                 .font(.subheadline).foregroundStyle(.secondary)
@@ -121,9 +124,11 @@ struct MusicContentView: View {
                 }
                 UnavailableMusicNotice(page: page)
                 if page.sections.isEmpty && page.items.isEmpty {
-                    if case let .search(query) = session.destination {
+                    if case let .search(query, _) = session.destination {
                         ContentUnavailableView.search(text: query)
                             .frame(maxWidth: .infinity, minHeight: 240)
+                    } else if case let .librarySearch(query, _) = session.destination {
+                        ContentUnavailableView.search(text: query).frame(maxWidth: .infinity, minHeight: 240)
                     } else {
                         ContentUnavailableView("Nothing Here Yet", systemImage: "music.note.list",
                                                description: Text("Try another page or search for something to play."))
