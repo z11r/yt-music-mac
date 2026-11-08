@@ -98,6 +98,7 @@ final class AppSession {
     let radio: RadioSession
     let sleepTimer = SleepTimer()
     let savedQueues: NamedQueueLibrary
+    let localCollections: LocalCollectionsLibrary
     var queue = PlaybackQueue()
     let collectionPlayback: CollectionPlayback
     let songRatings = SongRatings()
@@ -125,6 +126,7 @@ final class AppSession {
     var collectionFilter = ""
     var showsQueue = false
     var showsAccount = false
+    var showsLocalFolders = false
     var showsWebPlayer = false {
         didSet { player.isPresented = showsWebPlayer }
     }
@@ -153,6 +155,7 @@ final class AppSession {
         preferences = configuration.preferences
         radio = RadioSession(preferences: configuration.preferences)
         savedQueues = NamedQueueLibrary(store: configuration.namedQueueStore, sessions: configuration.credentials)
+        localCollections = LocalCollectionsLibrary(store: configuration.localCollectionStore, sessions: configuration.credentials)
         isSceneCheck = configuration.isSceneCheck
         account = WebSession(dataStore: configuration.dataStore, credentials: configuration.credentials,
                              preferences: configuration.preferences)
@@ -797,6 +800,8 @@ final class AppSession {
         searchSuggestions.close()
         searchHistory.clear()
         savedQueues.invalidate()
+        localCollections.invalidate()
+        showsLocalFolders = false
         sleepTimer.cancel()
         cancelRadio()
         resetLibraryEditing()
@@ -823,6 +828,13 @@ final class AppSession {
     private func accountChanged(replacedAccount: Bool) {
         cancelMusicLink(keepingPending: !links.isReady && !replacedAccount)
         savedQueues.invalidate()
+        localCollections.invalidate()
+        showsLocalFolders = false
+        if account.isSignedIn {
+            let library = localCollections
+            let scope = library.scope
+            Task { await library.refresh(expectedScope: scope) }
+        }
         sleepTimer.cancel()
         collectionPlayback.cancel()
         accountGeneration = UUID()

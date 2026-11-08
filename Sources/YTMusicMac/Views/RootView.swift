@@ -27,6 +27,7 @@ struct RootView: View {
                         Label("Liked Songs", systemImage: "heart").tag(MusicDestination.likedSongs)
                         Label("Listening History", systemImage: "clock").tag(MusicDestination.history)
                     }
+                    LocalCollectionsSidebar(session: session)
                 }
                 .listStyle(.sidebar)
                 .accessibilityLabel("Music navigation")
@@ -67,6 +68,9 @@ struct RootView: View {
                     .inspectorColumnWidth(min: 260, ideal: 310, max: 420)
             }
             if libraryEditor == nil { LibraryEditFeedbackView(session: session) }
+            if let message = session.localCollections.errorMessage {
+                InlineMessage(message: message, actionTitle: "Local Folders") { session.showsLocalFolders = true }
+            }
             Divider()
             PlayerBar(session: session)
         }
@@ -81,6 +85,7 @@ struct RootView: View {
             LibraryEditorView(session: session, request: request)
         }
         .sheet(isPresented: $session.showsLyrics) { LyricsPanel(session: session) }
+        .sheet(isPresented: $session.showsLocalFolders) { LocalFoldersView(session: session) }
         .onChange(of: session.remoteLibraryEditingEnabled) {
             if !session.remoteLibraryEditingEnabled { libraryEditor = nil }
         }

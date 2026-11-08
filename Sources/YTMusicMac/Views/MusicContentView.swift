@@ -224,8 +224,11 @@ private struct MusicCard: View {
                 Button("Add to Queue") { session.addToQueue([track]) }
                 Button("Start Radio") { session.startRadio(from: track) }
                 LibraryTrackActions(session: session, tracks: [track], presentEditor: presentEditor)
-            } else if case let .collection(collection) = item, collection.radioPlaylistID != nil {
-                Button("Start Radio") { session.startRadio(from: collection) }
+            } else if case let .collection(collection) = item {
+                LocalCollectionActions(session: session, collection: collection)
+                if collection.radioPlaylistID != nil {
+                    Button("Start Radio") { session.startRadio(from: collection) }
+                }
             }
         }
     }

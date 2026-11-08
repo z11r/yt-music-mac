@@ -14,6 +14,7 @@ struct AppSessionConfiguration {
     let installsSystemMedia: Bool
     let isSceneCheck: Bool
     var namedQueueStore: NamedQueueStore? = nil
+    var localCollectionStore: LocalCollectionStore? = nil
 
     static func live() -> Self {
         let credentials = MusicSessionStore()
@@ -27,7 +28,8 @@ struct AppSessionConfiguration {
                     queueStore: queueStore,
                     queueStorageError: queueStore == nil ? "The queue cannot be saved because application storage is unavailable." : nil,
                     installsSystemMedia: true, isSceneCheck: false,
-                    namedQueueStore: directory.map { NamedQueueStore(directoryURL: $0.appendingPathComponent("SavedQueues", isDirectory: true)) })
+                    namedQueueStore: directory.map { NamedQueueStore(directoryURL: $0.appendingPathComponent("SavedQueues", isDirectory: true)) },
+                    localCollectionStore: directory.map { LocalCollectionStore(directoryURL: $0.appendingPathComponent("LocalCollections", isDirectory: true)) })
     }
 
     static func sceneCheck(preferences: UserDefaults, transport: SceneCheckTransport) -> Self {
