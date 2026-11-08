@@ -48,9 +48,13 @@ Error codes distinguish blocked playback, unavailable media, a changed target,
 missing controls, bridge failures, load timeouts, failed navigation, and a
 terminated playback process. Page error text and URLs are never returned.
 
-`check library` reads up to 25 pages each from the library, liked songs, and one
-discovered playlist, with a 20-second deadline. Its report states whether more
-pages remain, so it is not a complete-library export. It includes no song titles,
+`check library` reads up to 25 pages per surface, with a 20-second deadline.
+After checking the library and liked songs, it tries up to 50 discovered
+playlists until one has pagination or a read fails. The report includes a
+`playlist` surface for every attempted playlist, in order, including those that
+fit on one page. `pageItemCounts` records the retained item count for each
+page. The report states whether more pages remain, so it is not a
+complete-library export. It includes no song titles,
 playlist IDs, account identities, continuation tokens, or credentials. It does
 not change playback, navigation, likes, or playlists.
 

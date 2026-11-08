@@ -85,6 +85,57 @@ final class MusicLibraryCheckTests: XCTestCase {
         XCTAssertEqual(count, 4)
     }
 
+    func testCheckFindsAPaginatedPlaylistAfterASinglePagePlaylist() async throws {
+        let transport = LibraryCheckTransport([
+            page([playlist(), playlist("VLprivate-second")]), page([]),
+            page([song("private-short")]),
+            page([song("private-repeated")], token: "private-next"),
+            page([song("private-repeated"), song("private-last")], continuation: true),
+        ])
+        let result = try await YouTubeMusicClient(transport: transport, sessions: session()).checkLibrary(maximumPlaylists: 10)
+        let playlists = result.surfaces.filter { $0.surface == .playlist }
+        XCTAssertEqual(playlists.map(\.pageCount), [1, 2])
+        XCTAssertEqual(playlists.map(\.playlistOccurrenceCount), [1, 3])
+        XCTAssertEqual(playlists.map(\.pageItemCounts), [[1], [1, 2]])
+        XCTAssertEqual(playlists.map(\.pagination), [.notAvailable, .checked])
+        XCTAssertTrue(playlists.allSatisfy { $0.status == .ok && !$0.continuationAvailable })
+        XCTAssertFalse(String(decoding: try JSONEncoder().encode(result), as: UTF8.self).contains("private-"))
+        let count = await transport.requests.count
+        XCTAssertEqual(count, 5)
+    }
+
+    func testPlaylistCandidateLimitDoesNotReadAnotherPlaylist() async throws {
+        let transport = LibraryCheckTransport([page([playlist(), playlist("VLprivate-second")]), page([]), page([])])
+        let result = try await YouTubeMusicClient(transport: transport, sessions: session()).checkLibrary(maximumPlaylists: 1)
+        XCTAssertEqual(result.surfaces.filter { $0.surface == .playlist }.count, 1)
+        let count = await transport.requests.count
+        XCTAssertEqual(count, 3)
+    }
+
+    func testPlaylistFailureStopsCandidateSearchAndStaysInTheReport() async throws {
+        let transport = LibraryCheckTransport([
+            page([playlist(), playlist("VLprivate-second")]), page([]),
+            MusicHTTPResponse(data: Data(), statusCode: 403),
+        ])
+        let result = try await YouTubeMusicClient(transport: transport, sessions: session()).checkLibrary(maximumPlaylists: 10)
+        XCTAssertEqual(result.surfaces.last?.status, .accessDenied)
+        XCTAssertEqual(result.surfaces.filter { $0.surface == .playlist }.count, 1)
+        let count = await transport.requests.count
+        XCTAssertEqual(count, 3)
+    }
+
+    func testInvalidPlaylistCandidateLimitsDoNotSendRequests() async throws {
+        let transport = LibraryCheckTransport([])
+        let store = await session()
+        let client = YouTubeMusicClient(transport: transport, sessions: store)
+        for limit in [0, 51] {
+            do { _ = try await client.checkLibrary(maximumPlaylists: limit); XCTFail("Expected bounded candidate limit") }
+            catch { XCTAssertEqual(error as? MusicServiceError, .invalidInput) }
+        }
+        let count = await transport.requests.count
+        XCTAssertEqual(count, 0)
+    }
+
     func testPartialPaginationFailureRetainsCountsAndSession() async throws {
         let store = await session()
         let original = await store.snapshot().scope
@@ -119,6 +170,32 @@ final class MusicLibraryCheckTests: XCTestCase {
         let encoded = String(decoding: try JSONEncoder().encode(result), as: UTF8.self)
         XCTAssertFalse(encoded.contains("private-"))
         XCTAssertFalse(encoded.contains("visitorData"))
+    }
+
+    func testUnreadableCursorReportsPartialPaginationWithoutExposingValues() async throws {
+        let store = await session()
+        let original = await store.snapshot().scope
+        let malformed = MusicHTTPResponse(data: try JSONSerialization.data(withJSONObject: [
+            "continuationContents": ["musicShelfContinuation": ["contents": [
+                song("private-song-two"),
+                ["continuationItemRenderer": ["continuationEndpoint": ["continuationCommand": [
+                    "unknownToken": "private-token",
+                ]]]],
+            ]]],
+        ]), statusCode: 200)
+        let transport = LibraryCheckTransport([page([song("private-song-one")], token: "private-next"), malformed, page([])])
+        let result = try await YouTubeMusicClient(transport: transport, sessions: store).checkLibrary()
+        let library = try XCTUnwrap(result.surfaces.first)
+        XCTAssertEqual(library.status, .unsupportedResponse)
+        XCTAssertEqual(library.pagination, .failed)
+        XCTAssertEqual(library.pageCount, 1)
+        XCTAssertEqual(library.trackCount, 1)
+        XCTAssertTrue(library.continuationAvailable)
+        XCTAssertNotNil(library.responseStructure)
+        let current = await store.snapshot()
+        XCTAssertTrue(current.isAuthenticated)
+        XCTAssertEqual(current.scope, original)
+        XCTAssertFalse(String(decoding: try JSONEncoder().encode(result), as: UTF8.self).contains("private-"))
     }
 
     func testStructuralReportHasABoundedTraversalWithoutExposingScalarValues() throws {
@@ -238,9 +315,9 @@ final class MusicLibraryCheckTests: XCTestCase {
             "flexColumns": [["musicResponsiveListItemFlexColumnRenderer": ["text": ["runs": [["text": "private-title"]]]]]]]]
     }
 
-    private func playlist() -> [String: Any] {
+    private func playlist(_ id: String = "VLprivate-playlist") -> [String: Any] {
         ["musicTwoRowItemRenderer": ["title": ["runs": [["text": "private-title"]]],
-            "navigationEndpoint": ["browseEndpoint": ["browseId": "VLprivate-playlist",
+            "navigationEndpoint": ["browseEndpoint": ["browseId": id,
                 "browseEndpointContextSupportedConfigs": ["browseEndpointContextMusicConfig": ["pageType": "MUSIC_PAGE_TYPE_PLAYLIST"]]]]]]
     }
 }

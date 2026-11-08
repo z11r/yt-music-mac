@@ -122,6 +122,32 @@ final class MusicClientTests: XCTestCase {
         XCTAssertEqual(next.tracks.map(\.id), ["two"])
     }
 
+    func testUnreadablePlaylistContinuationCanBeRetriedWithoutLosingOccurrences() async throws {
+        let malformed = json(["continuationContents": ["musicPlaylistShelfContinuation": ["contents": [
+            song("two"), ["continuationItemRenderer": ["continuationEndpoint": [String: Any]()]],
+        ]]]])
+        let transport = StubTransport([
+            .response(response(shelf(["one", "one"], token: "next"))),
+            .response(response(malformed)),
+            .response(response(shelf(["one", "two"], continuation: true))),
+        ])
+        let client = client(transport)
+        let first = try await client.playlist(id: "PLexample")
+        let continuation = try XCTUnwrap(first.continuation)
+        do { _ = try await client.nextPage(continuation); XCTFail("Expected unreadable cursor error") }
+        catch { XCTAssertEqual(error as? MusicServiceError, .unsupportedResponse) }
+
+        let next = try await client.nextPage(continuation)
+        XCTAssertEqual(first.tracks.map(\.id), ["one", "one"])
+        XCTAssertEqual(next.tracks.map(\.id), ["one", "two"])
+        XCTAssertNil(next.continuation)
+        let requests = await transport.requests
+        XCTAssertEqual(requests.count, 3)
+        for request in requests.dropFirst() {
+            XCTAssertEqual(try body(request)["continuation"] as? String, "next")
+        }
+    }
+
     func testSessionChangeRejectsOldContinuationBeforeNetwork() async throws {
         let store = MusicSessionStore()
         await setFixtureSession(store)

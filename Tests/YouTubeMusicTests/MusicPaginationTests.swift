@@ -76,6 +76,63 @@ final class MusicPaginationTests: XCTestCase {
         XCTAssertEqual(try parse(both, preservesOccurrences: false).token, "shelf-two")
     }
 
+    func testUnreadablePlaylistCursorDoesNotLookLikeTheLastPage() throws {
+        let cursors: [[String: Any]] = [
+            ["continuationItemRenderer": [String: Any]()],
+            continuationItem(""),
+            ["continuationItemRenderer": ["continuationEndpoint": ["commandExecutorCommand": ["commands": [
+                ["playlistVotingRefreshPopupCommand": [String: Any]()],
+            ]]]]],
+        ]
+        for cursor in cursors {
+            XCTAssertThrowsError(try parse(playlistPage(shelf: ["contents": [song("one"), cursor]]))) {
+                XCTAssertEqual($0 as? MusicServiceError, .unsupportedResponse)
+            }
+        }
+    }
+
+    func testUnreadableContainerCursorDoesNotLookLikeTheLastPage() throws {
+        let cursors: [Any] = [
+            [["nextContinuationData": [String: Any]()]],
+            [next("")],
+            [["unknownContinuationData": ["continuation": "unknown"]]],
+            "unexpected-shape",
+        ]
+        for cursor in cursors {
+            let data = json(["continuationContents": ["gridContinuation": [
+                "items": [collection("VLsecond")], "continuations": cursor,
+            ]]])
+            XCTAssertThrowsError(try parse(data, preservesOccurrences: false)) {
+                XCTAssertEqual($0 as? MusicServiceError, .unsupportedResponse)
+            }
+        }
+    }
+
+    func testUnreadableAppendedCursorIsRejected() throws {
+        let data = json(["onResponseReceivedActions": [["appendContinuationItemsAction": [
+            "continuationItems": [song("two"), continuationItem("")],
+        ]]]])
+        XCTAssertThrowsError(try parse(data)) {
+            XCTAssertEqual($0 as? MusicServiceError, .unsupportedResponse)
+        }
+    }
+
+    func testCollectionCursorStillWinsOverUnreadableParentCursor() throws {
+        let data = json(["contents": ["sectionListRenderer": [
+            "contents": [["gridRenderer": ["items": [collection("VLfirst")], "continuations": [next("grid-two")]]]],
+            "continuations": [["unknownContinuationData": [String: Any]()]],
+        ]]])
+        XCTAssertEqual(try parse(data, preservesOccurrences: false).token, "grid-two")
+    }
+
+    func testUnreadableSuggestionsCursorIsIgnoredAfterPlaylistEnds() throws {
+        let data = json(["continuationContents": ["sectionListContinuation": [
+            "contents": [["musicPlaylistShelfRenderer": ["contents": [song("two")]]]],
+            "continuations": [["unknownContinuationData": [String: Any]()]],
+        ]]])
+        XCTAssertNil(try parse(data).token)
+    }
+
     private func parse(_ data: Data, preservesOccurrences: Bool = true) throws -> ParsedMusicPage {
         try MusicResponseParser.parse(data, preservesOccurrences: preservesOccurrences)
     }

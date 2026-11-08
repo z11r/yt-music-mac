@@ -35,7 +35,7 @@
             <cocoa class="YTMusicGetPlayerInfoCommand"/>
             <result type="text" description="Playing, buffering, sign-in state, current video ID, position, duration, volume, queue count and a generic playback error when present."/>
         </command>
-        <command name="check library" code="YTMcclib" description="Read up to 25 pages each from the library, liked songs, and one playlist within a 20-second deadline. Returns counts, status codes, and bounded response structure on failure.">
+        <command name="check library" code="YTMcclib" description="Read up to 25 pages per surface within 20 seconds. Try up to 50 discovered playlists until one has pagination or a read fails. Returns counts and status for every attempted surface.">
             <cocoa class="YTMusicCheckLibraryCommand"/>
             <result type="text" description="JSON with page counts, item counts, and pagination status. No music or account identifiers."/>
         </command>

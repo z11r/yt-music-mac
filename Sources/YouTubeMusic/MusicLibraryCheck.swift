@@ -26,6 +26,7 @@ public struct MusicLibrarySurfaceCheck: Codable, Equatable, Sendable {
     public let surface: Surface
     public var status: Status
     public var pageCount = 0
+    public var pageItemCounts: [Int] = []
     public var itemCount = 0
     public var trackCount = 0
     public var collectionCount = 0
@@ -45,6 +46,7 @@ public struct MusicLibrarySurfaceCheck: Codable, Equatable, Sendable {
 
     mutating func include(_ page: MusicPage) {
         pageCount += 1
+        pageItemCounts.append(page.items.count)
         itemCount += page.items.count
         trackCount += page.tracks.count
         collectionCount += page.items.filter { if case .collection = $0 { true } else { false } }.count
@@ -55,11 +57,14 @@ public struct MusicLibrarySurfaceCheck: Codable, Equatable, Sendable {
 }
 
 extension YouTubeMusicClient {
-    /// Reads a bounded number of pages from each surface, without changing playback, navigation, or the library.
-    public func checkLibrary(maximumPages: Int = 25, timeout: Duration = .seconds(20)) async throws -> MusicLibraryCheck {
-        guard (1...50).contains(maximumPages), timeout > .zero, timeout <= .seconds(25) else { throw MusicServiceError.invalidInput }
+    /// Tries discovered playlists until one has pagination, a read fails, or the candidate limit is reached.
+    /// Does not change playback, navigation, or the library. Every attempted playlist is included in the report.
+    public func checkLibrary(maximumPages: Int = 25, maximumPlaylists: Int = 1,
+                             timeout: Duration = .seconds(20)) async throws -> MusicLibraryCheck {
+        guard (1...50).contains(maximumPages), (1...50).contains(maximumPlaylists),
+              timeout > .zero, timeout <= .seconds(25) else { throw MusicServiceError.invalidInput }
         return try await withThrowingTaskGroup(of: MusicLibraryCheck.self) { group in
-            group.addTask { try await self.readLibraryCheck(maximumPages: maximumPages) }
+            group.addTask { try await self.readLibraryCheck(maximumPages: maximumPages, maximumPlaylists: maximumPlaylists) }
             group.addTask {
                 try await Task.sleep(for: timeout)
                 throw MusicLibraryCheckError.timedOut
@@ -71,36 +76,45 @@ extension YouTubeMusicClient {
         }
     }
 
-    private func readLibraryCheck(maximumPages: Int) async throws -> MusicLibraryCheck {
+    private func readLibraryCheck(maximumPages: Int, maximumPlaylists: Int) async throws -> MusicLibraryCheck {
         let session = await sessions.snapshot()
         guard session.isAuthenticated else { throw MusicServiceError.signInRequired }
-        let (library, playlistID) = try await inspectLibrarySurface(.library, scope: session.scope, maximumPages: maximumPages) {
+        let (library, playlistIDs) = try await inspectLibrarySurface(.library, scope: session.scope, maximumPages: maximumPages) {
             try await self.library()
         }
         let (liked, _) = try await inspectLibrarySurface(.likedSongs, scope: session.scope, maximumPages: maximumPages) {
             try await self.likedSongs()
         }
-        let playlist: MusicLibrarySurfaceCheck
-        if let playlistID {
-            (playlist, _) = try await inspectLibrarySurface(.playlist, scope: session.scope, maximumPages: maximumPages) {
+        var playlistChecks: [MusicLibrarySurfaceCheck] = []
+        for playlistID in playlistIDs.prefix(maximumPlaylists) {
+            let (playlist, _) = try await inspectLibrarySurface(.playlist, scope: session.scope, maximumPages: maximumPages) {
                 try await self.playlist(id: playlistID)
             }
-        } else {
-            playlist = MusicLibrarySurfaceCheck(surface: .playlist, status: .notAvailable)
+            playlistChecks.append(playlist)
+            if playlist.status != .ok || playlist.pageCount > 1 || playlist.continuationAvailable { break }
+        }
+        if playlistChecks.isEmpty {
+            playlistChecks.append(MusicLibrarySurfaceCheck(surface: .playlist, status: .notAvailable))
         }
         try await validateScope(session.scope)
-        return MusicLibraryCheck(surfaces: [library, liked, playlist])
+        return MusicLibraryCheck(surfaces: [library, liked] + playlistChecks)
     }
 
     private func inspectLibrarySurface(_ surface: MusicLibrarySurfaceCheck.Surface, scope: UUID, maximumPages: Int,
-                                       firstPage: () async throws -> MusicPage) async throws -> (MusicLibrarySurfaceCheck, String?) {
+                                       firstPage: () async throws -> MusicPage) async throws -> (MusicLibrarySurfaceCheck, [String]) {
         var result = MusicLibrarySurfaceCheck(surface: surface)
-        var playlistID: String?
+        var playlistIDs: [String] = []
+        var seenPlaylists = Set<String>()
+        func collectPlaylists(in page: MusicPage) {
+            for id in Self.playlistIDs(in: page) where seenPlaylists.insert(id).inserted {
+                playlistIDs.append(id)
+            }
+        }
         do {
             try await validateScope(scope)
             var page = try await firstPage()
             try await validateScope(scope)
-            playlistID = Self.firstPlaylistID(in: page)
+            collectPlaylists(in: page)
             result.include(page)
             while let continuation = page.continuation, result.pageCount < maximumPages {
                 try Task.checkCancellation()
@@ -110,11 +124,11 @@ extension YouTubeMusicClient {
                 guard case let .page(next) = inspection else {
                     if case let .unsupported(structure) = inspection { result.responseStructure = structure }
                     result.status = .unsupportedResponse
-                    return (result, playlistID)
+                    return (result, playlistIDs)
                 }
                 result.include(next)
                 page = next
-                playlistID = playlistID ?? Self.firstPlaylistID(in: next)
+                collectPlaylists(in: next)
                 result.pagination = .checked
             }
         } catch {
@@ -126,15 +140,15 @@ extension YouTubeMusicClient {
                 result.httpStatusCode = code
             }
         }
-        return (result, playlistID)
+        return (result, playlistIDs)
     }
 
-    private static func firstPlaylistID(in page: MusicPage) -> String? {
+    private static func playlistIDs(in page: MusicPage) -> [String] {
         page.items.compactMap { item -> String? in
             guard case let .collection(value) = item, value.kind == .playlist,
                   value.id != "LM", value.id != "VLLM" else { return nil }
             return value.id
-        }.first
+        }
     }
 
     private static func libraryCheckStatus(_ error: any Error) -> MusicLibrarySurfaceCheck.Status {

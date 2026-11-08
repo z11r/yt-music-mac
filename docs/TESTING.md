@@ -89,10 +89,14 @@ No response bodies, configuration keys, or account data should be saved in logs.
 On November 6, 2026, a Premium account check completed a liked-song collection
 larger than one page, but library and playlist paging failed. On November 7, a
 release build of commit `fdc2b32` loaded the library and liked songs across two
-pages each, with no pages remaining. The checked playlist fit on one page, and
-the check made no further request for it. A playlist longer than one page,
-recovery after a failed page, and agreement with the counts shown by the service
-still need checking. Remote likes and playlist edits remain unavailable while
+pages each, with no pages remaining. The checked playlist fit on one page.
+A later local release build completed another playlist with 618 playable song
+occurrences across seven pages. Its per-page counts were 97, 99, 100, 100, 99,
+100, and 23, with no continuation remaining and no reported errors. In the same
+check, the library returned 44 collections across two pages and liked songs
+returned 124 occurrences across two pages. Playback stayed paused.
+Recovery after a failed live page and agreement with the counts shown by the
+service still need checking. Remote likes and playlist edits remain unavailable while
 service validation is pending. Do not run automatic account mutations as part
 of CI.
 
@@ -104,6 +108,8 @@ Pagination tests now cover cursor selection with synthetic responses:
   suggestions instead of more tracks.
 - A refresh cursor is not treated as the next page.
 - A cursor wrapped in a command list is found.
+- An advertised next-page cursor with no readable token reports an error.
+  Retrying the page keeps the previously loaded playlist occurrences.
 - A rejected request is reported with its HTTP status instead of as an outage.
 
 These rules match the library and playlist parsers in Kaset at the pinned

@@ -59,13 +59,13 @@ enum MusicResponseParser {
         result.title = headerTitle(root["header"])
         playlistControls(root["header"], result: &result)
         let contents = root["contents"]
-        visit(contents, result: &result, path: "content", preservesOccurrences: preservesOccurrences)
+        try visit(contents, result: &result, path: "content", preservesOccurrences: preservesOccurrences)
         for key in ["singleColumnBrowseResultsRenderer", "twoColumnBrowseResultsRenderer", "tabbedSearchResultsRenderer"] {
             let renderer = contents[key]
             for (index, tab) in renderer["tabs"].array.enumerated() {
-                visit(tab["tabRenderer"]["content"], result: &result, path: "tab\(index)", preservesOccurrences: preservesOccurrences)
+                try visit(tab["tabRenderer"]["content"], result: &result, path: "tab\(index)", preservesOccurrences: preservesOccurrences)
             }
-            visit(renderer["secondaryContents"], result: &result, path: "secondary", preservesOccurrences: preservesOccurrences)
+            try visit(renderer["secondaryContents"], result: &result, path: "secondary", preservesOccurrences: preservesOccurrences)
         }
         for key in ["sectionListContinuation", "itemSectionContinuation", "musicShelfContinuation", "musicPlaylistShelfContinuation", "gridContinuation"] {
             let container = root["continuationContents"][key]
@@ -74,12 +74,12 @@ enum MusicResponseParser {
                 result.token = nil
                 result.recognized = true
                 if key == "sectionListContinuation" || key == "itemSectionContinuation" {
-                    visitChildren(container["contents"].array + container["items"].array,
+                    try visitChildren(container["contents"].array + container["items"].array,
                                   result: &result, path: "next", preservesOccurrences: preservesOccurrences)
                 } else {
-                    appendShelf(container, result: &result, path: "next", preservesOccurrences: preservesOccurrences)
+                    try appendShelf(container, result: &result, path: "next", preservesOccurrences: preservesOccurrences)
                 }
-                result.token = key == "sectionListContinuation"
+                result.token = try key == "sectionListContinuation"
                     ? sectionListToken(container, collectionToken: result.token, previousToken: previousToken)
                     : result.token ?? continuation(container) ?? previousToken
             }
@@ -90,7 +90,7 @@ enum MusicResponseParser {
                     let container = action[actionKey]
                     if container.exists {
                         result.recognized = true
-                        appendShelfItems(container["continuationItems"].array, title: "", result: &result, path: "action\(index)",
+                        try appendShelfItems(container["continuationItems"].array, title: "", result: &result, path: "action\(index)",
                                          preservesOccurrences: preservesOccurrences)
                     }
                 }
@@ -100,22 +100,22 @@ enum MusicResponseParser {
         return result
     }
 
-    private static func visit(_ node: JSONNode, result: inout ParsedMusicPage, path: String, preservesOccurrences: Bool, depth: Int = 0) {
+    private static func visit(_ node: JSONNode, result: inout ParsedMusicPage, path: String, preservesOccurrences: Bool, depth: Int = 0) throws {
         guard depth < 16 else { return }
         if node["sectionListRenderer"].exists {
             let container = node["sectionListRenderer"]
             let previousToken = result.token
             result.token = nil
             result.recognized = true
-            visitChildren(container["contents"].array, result: &result, path: path, preservesOccurrences: preservesOccurrences, depth: depth + 1)
-            result.token = sectionListToken(container, collectionToken: result.token, previousToken: previousToken)
+            try visitChildren(container["contents"].array, result: &result, path: path, preservesOccurrences: preservesOccurrences, depth: depth + 1)
+            result.token = try sectionListToken(container, collectionToken: result.token, previousToken: previousToken)
         } else if node["itemSectionRenderer"].exists {
             let container = node["itemSectionRenderer"]
             let previousToken = result.token
             result.token = nil
             result.recognized = true
-            visitChildren(container["contents"].array, result: &result, path: path, preservesOccurrences: preservesOccurrences, depth: depth + 1)
-            result.token = result.token ?? continuation(container) ?? previousToken
+            try visitChildren(container["contents"].array, result: &result, path: path, preservesOccurrences: preservesOccurrences, depth: depth + 1)
+            result.token = try result.token ?? continuation(container) ?? previousToken
         } else if node["musicResponsiveHeaderRenderer"].exists {
             result.title = node["musicResponsiveHeaderRenderer"]["title"].text ?? result.title
             playlistControls(node, result: &result)
@@ -123,7 +123,7 @@ enum MusicResponseParser {
             for key in ["musicCarouselShelfRenderer", "musicShelfRenderer", "musicPlaylistShelfRenderer", "musicCardShelfRenderer", "musicImmersiveCarouselShelfRenderer", "gridRenderer"] {
                 if node[key].exists {
                     result.recognized = true
-                    appendShelf(node[key], result: &result, path: path, preservesOccurrences: preservesOccurrences,
+                    try appendShelf(node[key], result: &result, path: path, preservesOccurrences: preservesOccurrences,
                                 includesCard: key == "musicCardShelfRenderer")
                     return
                 }
@@ -136,42 +136,42 @@ enum MusicResponseParser {
                     result.playlistItems.append(playlistItem(node, track: track))
                 }
             }
-            result.token = continuationItem(node) ?? result.token
+            result.token = try continuationItem(node) ?? result.token
         }
     }
 
     private static func visitChildren(_ children: [JSONNode], result: inout ParsedMusicPage, path: String,
-                                      preservesOccurrences: Bool, depth: Int = 0) {
+                                      preservesOccurrences: Bool, depth: Int = 0) throws {
         // An explicit playlist shelf is authoritative, including when it is empty.
         let hasPlaylist = preservesOccurrences && children.contains { $0["musicPlaylistShelfRenderer"].exists }
         for (index, child) in children.enumerated() {
             if hasPlaylist && !child["musicPlaylistShelfRenderer"].exists && !child["musicResponsiveHeaderRenderer"].exists { continue }
             if preservesOccurrences, let title = child["musicShelfRenderer"]["title"].text?.lowercased(),
                title.contains("suggestion") || title == "recommended" { continue }
-            visit(child, result: &result, path: "\(path).\(index)", preservesOccurrences: preservesOccurrences, depth: depth)
+            try visit(child, result: &result, path: "\(path).\(index)", preservesOccurrences: preservesOccurrences, depth: depth)
         }
     }
 
     private static func appendShelf(_ node: JSONNode, result: inout ParsedMusicPage, path: String,
-                                    preservesOccurrences: Bool, includesCard: Bool = false) {
+                                    preservesOccurrences: Bool, includesCard: Bool = false) throws {
         let title = node["title"].text ?? node["header"]["musicCarouselShelfBasicHeaderRenderer"]["title"].text ?? ""
         let previousToken = result.token
         result.token = nil
         var children = node["contents"].array + node["items"].array
         if includesCard { children.insert(.object(["musicTwoRowItemRenderer": node]), at: 0) }
-        appendShelfItems(children, title: title, result: &result, path: path, preservesOccurrences: preservesOccurrences)
-        result.token = result.token ?? continuation(node) ?? previousToken
+        try appendShelfItems(children, title: title, result: &result, path: path, preservesOccurrences: preservesOccurrences)
+        result.token = try result.token ?? continuation(node) ?? previousToken
     }
 
     /// A track or grid cursor belongs to the collection and takes precedence over the section list's own cursor.
     /// When the section list holds a playlist shelf, its own cursor loads suggestions, so it is never followed.
-    private static func sectionListToken(_ container: JSONNode, collectionToken: String?, previousToken: String?) -> String? {
+    private static func sectionListToken(_ container: JSONNode, collectionToken: String?, previousToken: String?) throws -> String? {
         if container["contents"].array.contains(where: { $0["musicPlaylistShelfRenderer"].exists }) { return collectionToken }
-        return collectionToken ?? continuation(container) ?? previousToken
+        return try collectionToken ?? continuation(container) ?? previousToken
     }
 
     private static func appendShelfItems(_ nodes: [JSONNode], title: String, result: inout ParsedMusicPage, path: String,
-                                         preservesOccurrences: Bool) {
+                                         preservesOccurrences: Bool) throws {
         let items = nodes.compactMap { node -> MusicItem? in
             guard let item = item(node) else { return nil }
             if case let .track(track) = item { recordLikeState(node, track: track, result: &result) }
@@ -181,23 +181,32 @@ enum MusicResponseParser {
             return item
         }
         if !items.isEmpty { result.sections.append(MusicSection(id: path, title: title, items: items)) }
-        for node in nodes { result.token = continuationItem(node) ?? result.token }
+        for node in nodes { result.token = try continuationItem(node) ?? result.token }
     }
 
-    private static func continuation(_ node: JSONNode) -> String? {
-        for value in node["continuations"].array {
+    private static func continuation(_ node: JSONNode) throws -> String? {
+        let continuations = node["continuations"]
+        guard continuations.exists else { return nil }
+        guard case let .array(values) = continuations else { throw MusicServiceError.unsupportedResponse }
+        for value in values {
             if let token = value["nextContinuationData"]["continuation"].string { return token }
+        }
+        // Refresh-only cursors do not promise another page. Any other advertised cursor
+        // must be readable, or a partial collection would appear complete.
+        guard values.allSatisfy({ $0["reloadContinuationData"].exists && !$0["nextContinuationData"].exists }) else {
+            throw MusicServiceError.unsupportedResponse
         }
         return nil
     }
 
-    private static func continuationItem(_ node: JSONNode) -> String? {
+    private static func continuationItem(_ node: JSONNode) throws -> String? {
+        guard node["continuationItemRenderer"].exists else { return nil }
         let endpoint = node["continuationItemRenderer"]["continuationEndpoint"]
         if let token = endpoint["continuationCommand"]["token"].string { return token }
         for command in endpoint["commandExecutorCommand"]["commands"].array {
             if let token = command["continuationCommand"]["token"].string { return token }
         }
-        return nil
+        throw MusicServiceError.unsupportedResponse
     }
 
     private static func headerTitle(_ node: JSONNode) -> String? {

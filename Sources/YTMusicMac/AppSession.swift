@@ -346,7 +346,7 @@ final class AppSession {
     func checkLibrary() async throws -> MusicLibraryCheck {
         guard account.isSignedIn else { throw AppScriptingError.signInRequired }
         let generation = accountGeneration
-        let result = try await client.checkLibrary()
+        let result = try await client.checkLibrary(maximumPlaylists: 50)
         guard accountGeneration == generation, account.isSignedIn else { throw AppScriptingError.superseded }
         return result
     }

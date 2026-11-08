@@ -17,12 +17,12 @@ checks, playback, and performance are separate checks.
 | Packaged app on macOS 14, physical Intel and Apple silicon | Pending |
 | Initial Premium sign-in and playback on the development Mac | Manually reported working; extended cases pending |
 | Packaged release: retained sign-in, queue restore without autoplay, saved-position playback, pause, and resume | Verified through native commands on the development Mac |
-| Premium liked-song pagination | Completed a collection larger than one page locally; extended library and playlist pagination still fail |
+| Premium library and playlist pagination | Local release completed 44 library collections across two pages, 124 liked songs across two pages, and another playlist with 618 playable occurrences across seven pages; live failed-page recovery and count reconciliation pending |
 | Signed-in playback, session restoration, and library browsing across the OS matrix | Pending |
 | Short background playback and paused resource comparison with Kaset on the development Mac | [Measured](PERFORMANCE.md#november-6-2026-comparison); battery and AC results kept separate |
 | Long listening sessions and memory growth | Pending |
 
-The local checks above were run on November 6, 2026. They do not establish
+The local checks above were run on November 6–7, 2026. They do not establish
 runtime compatibility on older systems or a performance improvement over
 another player.
 
