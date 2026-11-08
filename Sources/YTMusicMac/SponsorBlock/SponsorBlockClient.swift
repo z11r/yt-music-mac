@@ -65,30 +65,54 @@ enum SponsorBlockRequest {
     }
 }
 
+/// Process-local rate admission contains no account, profile or song metadata.
+final class SponsorBlockAdmission: @unchecked Sendable {
+    static let process = SponsorBlockAdmission()
+    private let lock = NSLock()
+    private var permission: UUID?
+    private var nextAttempt = -Double.infinity
+
+    func begin(at instant: TimeInterval) throws -> UUID {
+        try lock.withLock {
+            guard instant.isFinite else { throw SponsorBlockError.invalidRequest }
+            guard permission == nil else { throw SponsorBlockError.busy }
+            guard instant >= nextAttempt else { throw SponsorBlockError.cooldown(nextAttempt - instant) }
+            let value = UUID(); permission = value; nextAttempt = instant + 30
+            return value
+        }
+    }
+    func extend(_ value: UUID, until deadline: TimeInterval) {
+        lock.withLock {
+            guard permission == value, deadline.isFinite else { return }
+            nextAttempt = max(nextAttempt, deadline)
+        }
+    }
+    func finish(_ value: UUID) {
+        lock.withLock { if permission == value { permission = nil } }
+    }
+}
+
 /// A single explicit read; constructing the client creates no URLSession or task.
 actor SponsorBlockClient: SponsorBlockProviding {
     private let transport: (any SponsorBlockTransport)?
     private let makeTransport: @Sendable () -> any SponsorBlockTransport
     private let monotonic: @Sendable () -> TimeInterval
     private let now: @Sendable () -> Date
-    private var working = false
-    private var nextAttempt = -Double.infinity
+    private let admission: SponsorBlockAdmission
     init(transport: (any SponsorBlockTransport)? = nil,
          makeTransport: @escaping @Sendable () -> any SponsorBlockTransport = { SponsorBlockHTTPTransport() },
          monotonic: @escaping @Sendable () -> TimeInterval = PlaybackOutputTime.monotonic,
-         now: @escaping @Sendable () -> Date = Date.init) {
-        self.transport = transport; self.makeTransport = makeTransport; self.monotonic = monotonic; self.now = now
+         now: @escaping @Sendable () -> Date = Date.init,
+         admission: SponsorBlockAdmission = .process) {
+        self.transport = transport; self.makeTransport = makeTransport; self.monotonic = monotonic; self.now = now; self.admission = admission
     }
     func sections(videoID: String, duration: TimeInterval) async throws -> [SponsorBlockSection] {
         try Task.checkCancellation()
         guard duration.isFinite, duration > 0, duration <= 43_200 else { throw SponsorBlockError.invalidRequest }
         let request = try SponsorBlockRequest.make(videoID: videoID)
         let instant = monotonic()
-        guard instant.isFinite else { throw SponsorBlockError.invalidRequest }
-        guard !working else { throw SponsorBlockError.busy }
-        guard instant >= nextAttempt else { throw SponsorBlockError.cooldown(nextAttempt - instant) }
-        working = true; nextAttempt = instant + 30
-        defer { working = false }
+        let permission = try admission.begin(at: instant)
+        defer { admission.finish(permission) }
         let transport: any SponsorBlockTransport
         if let existing = self.transport { transport = existing }
         else { transport = makeTransport() }
@@ -100,7 +124,7 @@ actor SponsorBlockClient: SponsorBlockProviding {
         guard response.data.count <= SponsorBlockRequest.byteLimit else { throw SponsorBlockError.invalidResponse }
         if response.statusCode == 429 {
             let delay = Self.retryDelay(response.retryAfter, now: now())
-            nextAttempt = max(nextAttempt, monotonic() + delay)
+            admission.extend(permission, until: monotonic() + delay)
             throw SponsorBlockError.cooldown(delay)
         }
         if response.statusCode == 404 { return [] }

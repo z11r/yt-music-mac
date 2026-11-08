@@ -58,8 +58,10 @@ installation, or provider account is created.
 
 ## Bounds and stale results
 
-- One explicit read at a time and at least 30 seconds between admitted attempts.
-  A canceled read retains its slot until the underlying transfer settles.
+- One explicit read per app process at a time and at least 30 seconds between
+  admitted attempts. These bounds also apply across profile/client replacement.
+  Cancellation requests do not release the slot: the transport and continuation
+  remain owned until URLSession completes its task and removes its delegate entry.
   Provider rate limits and `Retry-After` extend the local cooldown; nothing
   automatically retries or waits in a background loop.
 - Exact HTTPS provider origin and read-only path/query whitelist, fixed headers,

@@ -44,6 +44,44 @@ private final class SponsorBlockFactoryProbe: @unchecked Sendable {
         deinit { trace.release() }
     }
 }
+/// Holds the exact production transfer state machine after cancel and before delegate completion.
+private final class SponsorBlockHeldCompletion: SponsorBlockTransport, @unchecked Sendable {
+    let transfer = SponsorBlockTransfer(maximumResponseBytes: 128)
+    private let lock = NSLock()
+    private var started = false, canceled = false, finished = false
+    private var startWaiters: [CheckedContinuation<Void, Never>] = []
+    private var cancelWaiters: [CheckedContinuation<Void, Never>] = []
+    var didFinish: Bool { lock.withLock { finished } }
+    func send(_ request: URLRequest) async throws -> SponsorBlockResponse {
+        defer { lock.withLock { finished = true } }
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                if transfer.install(cancel: { self.markCanceled() }, continuation: continuation) {
+                    let waiting = lock.withLock { started = true; defer { startWaiters = [] }; return startWaiters }
+                    waiting.forEach { $0.resume() }
+                }
+            }
+        } onCancel: { self.transfer.fail(CancellationError()) }
+    }
+    private func markCanceled() {
+        let waiting = lock.withLock { canceled = true; defer { cancelWaiters = [] }; return cancelWaiters }
+        waiting.forEach { $0.resume() }
+    }
+    func waitForStart() async {
+        await withCheckedContinuation { continuation in
+            let ready = lock.withLock { if started { return true }; startWaiters.append(continuation); return false }
+            if ready { continuation.resume() }
+        }
+    }
+    func waitForCancel() async {
+        await withCheckedContinuation { continuation in
+            let ready = lock.withLock { if canceled { return true }; cancelWaiters.append(continuation); return false }
+            if ready { continuation.resume() }
+        }
+    }
+    func complete() { transfer.complete(error: URLError(.cancelled)) }
+}
+
 func sponsorBlockPayload(_ segments: [[String: Any]], videoID: String = "abcDEF12_-3") throws -> Data {
     try JSONSerialization.data(withJSONObject: [["videoID": videoID, "segments": segments]])
 }
@@ -57,13 +95,48 @@ func sponsorBlockSegment(_ changes: [String: Any] = [:]) -> [String: Any] {
 struct SponsorBlockClientTests {
     @Test func transportFactoryStaysUnusedUntilLookupAndEachAdmittedReadReleasesItsTransport() async throws {
         let probe = SponsorBlockFactoryProbe(), clock = SponsorBlockTestClock()
-        let client = SponsorBlockClient(makeTransport: probe.make, monotonic: clock.now)
+        let client = SponsorBlockClient(makeTransport: probe.make, monotonic: clock.now, admission: .init())
         #expect(probe.counts == (0, 0))
         _ = try await client.sections(videoID: "abcDEF12_-3", duration: 100)
         #expect(probe.counts == (1, 1))
         clock.advance(30)
         _ = try await client.sections(videoID: "abcDEF12_-3", duration: 100)
         #expect(probe.counts == (2, 2))
+    }
+    @Test func canceledProductionTransferKeepsCrossClientAdmissionUntilDelegateCompletion() async throws {
+        let clock = SponsorBlockTestClock(), gate = SponsorBlockAdmission()
+        let held = SponsorBlockHeldCompletion(), next = SponsorBlockFactoryProbe()
+        let first = SponsorBlockClient(transport: held, monotonic: clock.now, admission: gate)
+        let second = SponsorBlockClient(makeTransport: next.make, monotonic: clock.now, admission: gate)
+        let task = Task { try await first.sections(videoID: "abcDEF12_-3", duration: 100) }
+        await held.waitForStart(); task.cancel(); await held.waitForCancel()
+        for _ in 0..<100 { await Task.yield() }
+        #expect(!held.didFinish)
+        clock.advance(31)
+        await #expect(throws: SponsorBlockError.busy) { try await second.sections(videoID: "abcDEF12_-3", duration: 100) }
+        #expect(next.counts == (0, 0))
+        held.complete()
+        await #expect(throws: CancellationError.self) { try await task.value }
+        #expect(held.didFinish)
+        #expect(try await second.sections(videoID: "abcDEF12_-3", duration: 100).isEmpty)
+        #expect(next.counts == (1, 1))
+        let third = SponsorBlockClient(makeTransport: next.make, monotonic: clock.now, admission: gate)
+        await #expect(throws: SponsorBlockError.cooldown(30)) { try await third.sections(videoID: "abcDEF12_-3", duration: 100) }
+        #expect(next.counts == (1, 1))
+    }
+    @Test func providerCooldownIsSharedAcrossReplacementClientsWithoutStoringOwnerOrSongData() async throws {
+        let clock = SponsorBlockTestClock(), gate = SponsorBlockAdmission()
+        let limited = SponsorBlockTestHTTP(.init(data: Data(), statusCode: 429, retryAfter: "120"))
+        let first = SponsorBlockClient(transport: limited, monotonic: clock.now, admission: gate)
+        await #expect(throws: SponsorBlockError.cooldown(120)) { try await first.sections(videoID: "abcDEF12_-3", duration: 100) }
+        let next = SponsorBlockFactoryProbe()
+        let replacement = SponsorBlockClient(makeTransport: next.make, monotonic: clock.now, admission: gate)
+        clock.advance(119)
+        await #expect(throws: SponsorBlockError.cooldown(1)) { try await replacement.sections(videoID: "other123456", duration: 100) }
+        #expect(next.counts == (0, 0))
+        clock.advance(1)
+        #expect(try await replacement.sections(videoID: "other123456", duration: 100).isEmpty)
+        #expect(next.counts == (1, 1))
     }
     @Test func requestUsesOnlyFourHashCharactersAndFixedReadOnlyCategoryParameters() throws {
         let request = try SponsorBlockRequest.make(videoID: "abcDEF12_-3")
@@ -122,7 +195,7 @@ struct SponsorBlockClientTests {
     }
     @Test func lookupIsSingleFlightAndCancellationKeepsItsSlotUntilUnderlyingReadSettles() async throws {
         let clock = SponsorBlockTestClock(), transport = SponsorBlockTestHTTP(.init(data: try sponsorBlockPayload([sponsorBlockSegment()]), statusCode: 200))
-        let client = SponsorBlockClient(transport: transport, monotonic: clock.now)
+        let client = SponsorBlockClient(transport: transport, monotonic: clock.now, admission: .init())
         await transport.hold()
         let request = Task { try await client.sections(videoID: "abcDEF12_-3", duration: 100) }
         await transport.waitForRequest(); request.cancel(); clock.advance(31)
@@ -135,7 +208,7 @@ struct SponsorBlockClientTests {
     }
     @Test func negativeResultsCooldownAndProviderRetryAfterNeverAutomaticallyRetry() async throws {
         let clock = SponsorBlockTestClock(), transport = SponsorBlockTestHTTP(.init(data: Data(), statusCode: 404))
-        let client = SponsorBlockClient(transport: transport, monotonic: clock.now)
+        let client = SponsorBlockClient(transport: transport, monotonic: clock.now, admission: .init())
         #expect(try await client.sections(videoID: "abcDEF12_-3", duration: 100).isEmpty)
         await #expect(throws: SponsorBlockError.cooldown(30)) { try await client.sections(videoID: "abcDEF12_-3", duration: 100) }
         clock.advance(30); await transport.set(.init(data: Data(), statusCode: 429, retryAfter: "120"))
@@ -146,12 +219,12 @@ struct SponsorBlockClientTests {
     }
     @Test func invalidDurationAndOversizedOrFailedResponsesDoNotLeakProviderErrors() async throws {
         let transport = SponsorBlockTestHTTP(.init(data: Data("private provider error".utf8), statusCode: 503))
-        let client = SponsorBlockClient(transport: transport)
+        let client = SponsorBlockClient(transport: transport, admission: .init())
         await #expect(throws: SponsorBlockError.invalidRequest) { try await client.sections(videoID: "abcDEF12_-3", duration: .nan) }
         #expect(await transport.requests.isEmpty)
         await #expect(throws: SponsorBlockError.unavailable) { try await client.sections(videoID: "abcDEF12_-3", duration: 100) }
         #expect(!SponsorBlockError.unavailable.localizedDescription.contains("private provider error"))
-        let large = SponsorBlockClient(transport: SponsorBlockTestHTTP(.init(data: Data(repeating: 32, count: SponsorBlockRequest.byteLimit + 1), statusCode: 200)))
+        let large = SponsorBlockClient(transport: SponsorBlockTestHTTP(.init(data: Data(repeating: 32, count: SponsorBlockRequest.byteLimit + 1), statusCode: 200)), admission: .init())
         await #expect(throws: SponsorBlockError.invalidResponse) { try await large.sections(videoID: "abcDEF12_-3", duration: 100) }
     }
 }

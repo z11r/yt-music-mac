@@ -42,13 +42,13 @@ final class SponsorBlockHTTPTransport: NSObject, SponsorBlockTransport, @uncheck
         request.setValue("YTMusicMac-Sections/1", forHTTPHeaderField: "User-Agent")
         request.httpShouldHandleCookies = false
         request.cachePolicy = .reloadIgnoringLocalCacheData
-        let transfer = Transfer(maximumResponseBytes: transferDelegate.maximumResponseBytes)
+        let transfer = SponsorBlockTransfer(maximumResponseBytes: transferDelegate.maximumResponseBytes)
         return try await withTaskCancellationHandler {
             try Task.checkCancellation()
             let response: SponsorBlockResponse = try await withCheckedThrowingContinuation { continuation in
                 let task = session.dataTask(with: request)
                 transferDelegate.register(transfer, for: task)
-                if transfer.install(task: task, continuation: continuation) {
+                if transfer.install(cancel: { task.cancel() }, continuation: continuation) {
                     task.resume()
                 } else {
                     transferDelegate.remove(task)
@@ -67,10 +67,11 @@ final class SponsorBlockHTTPTransport: NSObject, SponsorBlockTransport, @uncheck
 
 /// URLSession delivers data in chunks. Locks protect registration/cancellation from delegate callbacks;
 /// neither continuations nor URLSession methods are invoked while a lock is held.
-private final class Transfer: @unchecked Sendable {
+final class SponsorBlockTransfer: @unchecked Sendable {
     private let lock = NSLock()
     private let maximumResponseBytes: Int
-    private var task: URLSessionDataTask?
+    private var cancelTask: (@Sendable () -> Void)?
+    private var pendingFailure: (any Error)?
     private var continuation: CheckedContinuation<SponsorBlockResponse, any Error>?
     private var result: Result<SponsorBlockResponse, any Error>?
     private var response: HTTPURLResponse?
@@ -78,14 +79,16 @@ private final class Transfer: @unchecked Sendable {
 
     init(maximumResponseBytes: Int) { self.maximumResponseBytes = maximumResponseBytes }
 
-    func install(task: URLSessionDataTask, continuation: CheckedContinuation<SponsorBlockResponse, any Error>) -> Bool {
+    func install(cancel: @escaping @Sendable () -> Void, continuation: CheckedContinuation<SponsorBlockResponse, any Error>) -> Bool {
         lock.lock()
-        if let result {
+        // A cancellation before installation admits no underlying transfer.
+        if let pendingFailure {
+            result = .failure(pendingFailure)
             lock.unlock()
-            continuation.resume(with: result)
+            continuation.resume(throwing: pendingFailure)
             return false
         }
-        self.task = task
+        self.cancelTask = cancel
         self.continuation = continuation
         lock.unlock()
         return true
@@ -98,7 +101,7 @@ private final class Transfer: @unchecked Sendable {
             return false
         }
         lock.lock()
-        guard result == nil else { lock.unlock(); return false }
+        guard result == nil, pendingFailure == nil else { lock.unlock(); return false }
         self.response = response
         if response.expectedContentLength > 0 {
             data.reserveCapacity(min(Int(response.expectedContentLength), 256 * 1024))
@@ -109,7 +112,7 @@ private final class Transfer: @unchecked Sendable {
 
     func append(_ chunk: Data) {
         lock.lock()
-        guard result == nil else { lock.unlock(); return }
+        guard result == nil, pendingFailure == nil else { lock.unlock(); return }
         guard chunk.count <= maximumResponseBytes - data.count else {
             lock.unlock()
             fail(SponsorBlockError.invalidResponse)
@@ -119,52 +122,50 @@ private final class Transfer: @unchecked Sendable {
         lock.unlock()
     }
 
+    /// Called only after the delegate has removed this completed task from its registry.
     func complete(error: (any Error)?) {
-        if let error { fail(error); return }
         lock.lock()
         guard result == nil else { lock.unlock(); return }
-        guard let response else {
-            lock.unlock()
-            fail(SponsorBlockError.invalidResponse)
-            return
+        let completed: Result<SponsorBlockResponse, any Error>
+        if let failure = pendingFailure ?? error {
+            completed = .failure(failure)
+        } else if let response {
+            let retry = response.value(forHTTPHeaderField: "Retry-After")
+            completed = .success(SponsorBlockResponse(data: data, statusCode: response.statusCode,
+                retryAfter: retry.flatMap { $0.utf8.count <= 128 ? $0 : nil }))
+        } else {
+            completed = .failure(SponsorBlockError.invalidResponse)
         }
-        let retry = response.value(forHTTPHeaderField: "Retry-After")
-        let completed = SponsorBlockResponse(data: data, statusCode: response.statusCode,
-            retryAfter: retry.flatMap { $0.utf8.count <= 128 ? $0 : nil })
         let continuation = self.continuation
-        result = .success(completed)
+        result = completed
         self.continuation = nil
-        task = nil
-        self.response = nil
-        data = Data()
+        cancelTask = nil; pendingFailure = nil; response = nil; data = Data()
         lock.unlock()
-        continuation?.resume(returning: completed)
+        continuation?.resume(with: completed)
     }
 
     func fail(_ error: any Error) {
         lock.lock()
-        guard result == nil else { lock.unlock(); return }
-        result = .failure(error)
-        let task = self.task
-        let continuation = self.continuation
-        self.task = nil
-        self.continuation = nil
-        response = nil
-        data = Data()
+        guard result == nil, pendingFailure == nil else { lock.unlock(); return }
+        pendingFailure = error
+        let cancel = cancelTask
+        response = nil; data = Data()
         lock.unlock()
-        task?.cancel()
-        continuation?.resume(throwing: error)
+        // Cancellation is only a request. Keep the continuation, transport and admission
+        // alive until URLSession's completion callback settles the admitted task.
+        cancel?()
     }
+
 }
 
 private final class TransferDelegate: NSObject, URLSessionDataDelegate, @unchecked Sendable {
     let maximumResponseBytes: Int
     private let lock = NSLock()
-    private var transfers: [Int: Transfer] = [:]
+    private var transfers: [Int: SponsorBlockTransfer] = [:]
 
     init(maximumResponseBytes: Int) { self.maximumResponseBytes = maximumResponseBytes }
 
-    func register(_ transfer: Transfer, for task: URLSessionTask) {
+    func register(_ transfer: SponsorBlockTransfer, for task: URLSessionTask) {
         lock.lock()
         transfers[task.taskIdentifier] = transfer
         lock.unlock()
@@ -176,7 +177,7 @@ private final class TransferDelegate: NSObject, URLSessionDataDelegate, @uncheck
         lock.unlock()
     }
 
-    private func transfer(for task: URLSessionTask) -> Transfer? {
+    private func transfer(for task: URLSessionTask) -> SponsorBlockTransfer? {
         lock.lock()
         defer { lock.unlock() }
         return transfers[task.taskIdentifier]
