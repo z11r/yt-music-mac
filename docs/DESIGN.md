@@ -72,8 +72,21 @@ remove every copy of that song. Keep queue mutations tied to the selected entry.
 
 The mini-player and menu bar controls share the main player's state and commands.
 Opening or closing either must not create a new playback session. The mini-player
-shows artwork, track identity, transport, and a way back to the main window. Keep
-it a normal window by default; an optional Keep on Top setting can come later.
+shows artwork, track identity, transport, and a way back to the main window. It is
+a normal window by default; Keep Mini Player on Top, in Settings and the View
+menu, raises it to the floating window level and is remembered across launches.
+
+The player bar and mini-player include the system audio output picker. Playback
+runs in WebKit rather than an `AVPlayer`, so the picker is not attached to a
+player and lists the Mac's outputs. Whether choosing an AirPlay device there moves
+the app's audio has not yet been checked with an AirPlay receiver.
+
+Song change notifications are off by default. Turning on "Show song changes in
+Notification Center" asks for notification permission at that moment; if it is
+denied, the setting stays off and links to System Settings. A notification is
+posted when a different queue entry starts playing while another app is in front.
+Resuming a restored song, retrying, seeking, and repeating the same entry do not
+post one. Each notification replaces the previous one.
 
 ## Keyboard and accessibility
 
@@ -83,6 +96,34 @@ shortcuts. Command-F focuses search. Space toggles playback only when the focus
 context permits it; typing a space in a text field or activating a focused control
 must still work. Do not install a global keyboard hook for ordinary app shortcuts.
 [Keyboards](https://developer.apple.com/design/human-interface-guidelines/keyboards)
+
+### Keyboard shortcuts
+
+The shortcuts follow Music and Kaset. Each one is a menu item, so the menus show
+it and it runs the same action as the player bar, menu bar, and Control Center.
+
+| Shortcut | Action | Menu |
+| --- | --- | --- |
+| Space | Play or pause | Playback |
+| ⌘→ | Next song | Playback |
+| ⌘← | Previous song, or restart after 3 seconds | Playback |
+| ⌘↑ / ⌘↓ | Volume up or down by 10% | Playback |
+| ⌘1 – ⌘4 | Home, Explore, Library, Liked Songs | View |
+| ⌘F | Search | Edit |
+| ⇧⌘U | Show or hide the queue | View |
+| ⇧⌘M | Show the mini-player | View |
+
+⌘M, ⌘W, ⌘Q, ⌘H, and ⌘, keep their standard meanings. The app follows the key
+window's first responder. While a text field, text view, or web page has focus,
+Space and the ⌘-arrow shortcuts leave the menu and go to that view: Space types a
+space and ⌘-arrows move the insertion point. While a button or segmented control
+has focus, Space activates it and the ⌘-arrow shortcuts still control playback.
+Choosing a Playback menu item with the pointer always runs it.
+
+Keyboard navigation can also focus controls that SwiftUI draws itself, such as
+the album and song cards. AppKit does not report those as the first responder, so
+Space may still toggle playback there; this needs a check with Keyboard navigation
+turned on.
 
 Use native buttons, sliders, lists, and menus. Give icon buttons explicit labels
 and state, keep focus indicators visible, and expose track title and artist as one
