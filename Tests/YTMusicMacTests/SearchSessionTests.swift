@@ -212,6 +212,8 @@ struct SearchSessionTests {
         let transport = RoutedTransport()
         await transport.respond(to: "browse:FEmusic_liked_albums", with: searchPage(["album-song"]))
         await transport.respond(to: "browse:FEmusic_library_corpus_artists", with: searchPage(["artist-song"]))
+        await transport.respond(to: "browse:FEmusic_library_corpus_track_artists", with: searchPage(["saved-artist-song"]))
+        await transport.respond(to: "browse:FEmusic_liked_videos", with: searchPage(["saved-library-song"]))
         let harness = SessionHarness(transport, authenticated: true)
         defer { harness.remove() }
         let session = harness.session
@@ -222,11 +224,20 @@ struct SearchSessionTests {
         #expect(trackIDs(session) == ["album-song"])
         session.navigate(to: .libraryCategory(.artists))
         await session.pageTask?.value
-        #expect(session.destination.title == "Artists")
+        #expect(session.destination.title == "Followed Artists")
         session.goBack()
         await session.pageTask?.value
         #expect(session.destination == .libraryCategory(.albums))
-        #expect(await transport.keys == ["browse:FEmusic_liked_albums", "browse:FEmusic_library_corpus_artists", "browse:FEmusic_liked_albums"])
+        session.navigate(to: .libraryCategory(.songArtists))
+        await session.pageTask?.value
+        #expect(session.destination.title == "Artists")
+        #expect(trackIDs(session) == ["saved-artist-song"])
+        session.navigate(to: .libraryCategory(.songs))
+        await session.pageTask?.value
+        #expect(session.destination.title == "Songs")
+        #expect(trackIDs(session) == ["saved-library-song"])
+        #expect(await transport.keys == ["browse:FEmusic_liked_albums", "browse:FEmusic_library_corpus_artists", "browse:FEmusic_liked_albums",
+            "browse:FEmusic_library_corpus_track_artists", "browse:FEmusic_liked_videos"])
     }
 
     @Test func anOlderLibraryResponseCannotReplaceListeningHistory() async throws {
