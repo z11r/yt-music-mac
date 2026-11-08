@@ -143,6 +143,40 @@ struct EpisodeDetailsSessionTests {
         admission.release(old); #expect(admission.isBusy)
         admission.release(current); #expect(!admission.isBusy)
     }
+    @Test func sourceActionsRequireTheOriginalRequestIndexSecondsAndOwner() async throws {
+        let gate = EpisodeDetailsFixtureGate(), owner = EpisodeDetailsOwner(), session = detailsSession(gate)
+        let captured = owner.target
+        session.open(track: detailsTrack(), isCurrent: { owner.target == captured }); await gate.waitForRead()
+        let timestamps = [MusicEpisodeTimestamp(sourceIndex: 3, text: "Opaque label", seconds: 45)]
+        await gate.reply(.available(detailsValue(timestamps: timestamps))); await session.waitForIdle()
+        let source = try #require(session.timestampSource(at: 3))
+        #expect(session.acceptsTimestamp(source) && session.timestampSource(at: 0) == nil)
+        for changed in [EpisodeTimestampSource(requestID: UUID(), reference: source.reference, sourceIndex: 3, seconds: 45),
+                        .init(requestID: source.requestID, reference: source.reference, sourceIndex: 4, seconds: 45),
+                        .init(requestID: source.requestID, reference: source.reference, sourceIndex: 3, seconds: 46)] {
+            #expect(!session.acceptsTimestamp(changed))
+        }
+        owner.target = changedDetailsTarget(captured, field: 1)
+        #expect(!session.acceptsTimestamp(source) && session.timestampSource(at: 3) == nil)
+    }
+    @Test func closingAndReopeningIdenticalDetailsCannotReuseAnOldSourceAction() async throws {
+        let gate = EpisodeDetailsFixtureGate(), session = detailsSession(gate)
+        let value = detailsValue(timestamps: [.init(sourceIndex: 0, text: "Beginning", seconds: 0)])
+        session.open(track: detailsTrack(), isCurrent: { true }); await gate.waitForRead()
+        await gate.reply(.available(value)); await session.waitForIdle()
+        let old = try #require(session.timestampSource(at: 0))
+        let selected = EpisodeTimestampActionTarget(details: EpisodeDetailsOwner().target, source: old)
+        session.clear(); #expect(!session.acceptsTimestamp(old))
+        session.open(track: detailsTrack(), isCurrent: { true }); await gate.waitForRead(count: 2)
+        await gate.reply(.available(value)); await session.waitForIdle()
+        let new = try #require(session.timestampSource(at: 0))
+        #expect(new.requestID != old.requestID && !session.acceptsTimestamp(old) && session.acceptsTimestamp(new))
+        var freshProofReads = 0
+        let stale = selected.playbackTarget(isCurrent: { session.acceptsTimestamp(selected.source) }, freshProof: {
+            freshProofReads += 1; return nil
+        })
+        #expect(stale == nil && freshProofReads == 0)
+    }
     @Test func nativeCopyHasMatchingEnglishAndFrenchResources() throws {
         var allKeys: [Set<String>] = []
         for language in ["en", "fr"] {
@@ -150,7 +184,7 @@ struct EpisodeDetailsSessionTests {
             let bundle = try #require(Bundle(url: url))
             let table = try #require(bundle.url(forResource: "EpisodeDetails", withExtension: "strings"))
             let values = try #require(PropertyListSerialization.propertyList(from: Data(contentsOf: table), format: nil) as? [String: String])
-            #expect(values.count == 14 && values.values.allSatisfy { !$0.isEmpty })
+            #expect(values.count == 19 && values.values.allSatisfy { !$0.isEmpty })
             #expect(values["Source Timestamp References"] != nil)
             allKeys.append(Set(values.keys))
         }
@@ -166,8 +200,8 @@ private func detailsTrack() -> Track {
     .init(id: "abcDEF12_-3", title: "Synthetic episode", artist: "Show", contentKind: .podcastEpisode,
         episode: .init(identity: detailsReferenceValue().identity))
 }
-private func detailsValue(reference: MusicEpisodeDetailsReference = detailsReferenceValue()) -> MusicEpisodeDetails {
-    .init(reference: reference, title: "Episode", show: "Show", publishedText: nil, durationText: nil, description: "Opaque description", timestamps: [])
+private func detailsValue(reference: MusicEpisodeDetailsReference = detailsReferenceValue(), timestamps: [MusicEpisodeTimestamp] = []) -> MusicEpisodeDetails {
+    .init(reference: reference, title: "Episode", show: "Show", publishedText: nil, durationText: nil, description: "Opaque description", timestamps: timestamps)
 }
 @MainActor private final class EpisodeDetailsOwner {
     var target = EpisodeDetailsTarget(profile: UUID(), account: UUID(), queueRevision: PlaybackQueue().revision,

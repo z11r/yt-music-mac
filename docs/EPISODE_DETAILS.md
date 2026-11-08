@@ -15,10 +15,50 @@ Source Timestamp References lists only explicit numeric `startTimeSeconds` value
 from description watch endpoints targeting this same episode video. Source order
 and labels are retained. Clock-like text alone, missing targets, other videos,
 booleans, fractional values and out-of-range values cannot create references.
-These are read-only positions, not inferred chapter titles or playback controls.
-No seek action is provided by this feature. Position labels preserve the full
+These are source positions, not inferred chapter titles. Position labels preserve the full
 admitted range: 604,800 seconds displays as `168:00:00`. They do not inherit the
 ordinary playback clock's display cap.
+
+## Go to a source reference
+
+Go to Reference is an explicit action for the current playing service episode.
+It is unavailable during pause, loading, buffering, advertisements or unknown
+content. The target must be a member of the currently displayed details request;
+changing the source request, selection, account, profile or playback occurrence
+invalidates an older action. Only this source authority is captured by the native
+row; an explicit click acquires the latest playback proof synchronously, so
+ordinary progress does not stale the displayed source. A description label cannot
+supply a position.
+
+The action captures the exact acknowledged player, load, document, media and
+command context. It requires an actual finite media duration and a position
+strictly below that duration. The bridge checks those identities again at
+execution, including the connected current media element, playing content and
+absence of an advertisement. It assigns the position immediately; it never leaves
+an ordinary pending seek to run after an ad or starts paused media.
+
+Optional document-local monotonic and wall-clock samples must both have advanced
+by more than zero and at most one second since the original playback snapshot.
+Missing, frozen, backward or expired samples refuse only this action. This bounds
+normal dispatch delays and clock anomalies; it does not establish guarantees
+about malicious clocks or every operating system's sleep behavior.
+
+A matching `seeked` event, unchanged media/intent and observed position are needed
+for confirmation. A Promise receipt includes a bridge snapshot processed through
+the normal playback event gate. The native receipt waits at most two seconds;
+the bridge's confirmation listeners last at most 1.5 seconds. A timeout means the
+change could not be confirmed, not that it did not occur. There is no automatic
+retry, rollback, player recovery or optimistic clock/listening update. Closing the
+sheet dismisses its receipt; it does not undo an already dispatched seek.
+
+One process-wide action slot remains occupied until the actual JavaScript call
+settles, including after a UI timeout, closed sheet or retired player. An exact
+context refusal acknowledges the new command revision without seeking, so normal
+playback messages can continue. If WebKit returns no acknowledgment, the action
+reports an unconfirmed result and cannot restore older event authority or invent
+success. A later ordinary command can establish fresh authority. Existing
+SponsorBlock range actions retain their
+separate validation and behavior.
 
 ## Request and ownership limits
 
@@ -64,8 +104,10 @@ endpoint does not establish a separate chapter-title feed. This implementation
 therefore exposes only the supplied timestamp references and does not infer
 chapters from localized description text.
 
-Synthetic parser, client and controller checks exercise bounds, exact source
+Synthetic parser, client, controller and production-bridge checks exercise bounds, exact source
 paths, opaque text, timestamp ownership, credential changes, canceled reads and
-stale profile/selection results. They do not establish live episode availability,
+stale profile/selection results. Timestamp checks also cover exact source membership,
+frozen/stale clocks, ads, command retargeting, held receipts, replay and late seek
+confirmation. They do not establish live episode availability,
 service schema coverage, native layout, keyboard or VoiceOver acceptance. No live
 provider request or playback operation was performed for this implementation.

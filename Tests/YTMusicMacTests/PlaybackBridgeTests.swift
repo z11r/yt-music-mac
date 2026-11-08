@@ -639,3 +639,110 @@ struct SponsorBlockSeekBridgeTests {
         #expect(changed.run("!accepted && media.currentTime === 15 && messages.every(value => value.errorCode === null && value.kind !== 'ended')").toBool())
     }
 }
+
+@MainActor @Suite("Immediate source timestamp bridge")
+struct EpisodeTimestampBridgeTests {
+    private func fixture() throws -> BridgeFixture {
+        let f = try BridgeFixture()
+        f.run("""
+        let monotonicClock = 100, wallClock = 1000;
+        globalThis.performance = {now: () => monotonicClock}; Date.now = () => wallClock;
+        media.readyState = 4; media.currentTime = 15;
+        YTMusicNativePlayer.bind(binding); media.emit('loadedmetadata'); media.emit('playing');
+        function timestampRequest() {
+            const state = messages[messages.length - 1];
+            return {requestID: '00000000-0000-4000-8000-000000000099', loadID: state.loadID,
+                documentID: state.documentID.toUpperCase(), mediaGeneration: state.mediaGeneration,
+                identity: {...binding.identity}, expectedRevision: state.commandRevision, revision: state.commandRevision + 2,
+                duration: state.duration, position: 30, sourceClock: {...state.timestampSeekClock}};
+        }
+        const request = timestampRequest(); monotonicClock += 10; wallClock += 10;
+        let seekWrites = 0, observedPosition = 15;
+        Object.defineProperty(media, 'currentTime', {get() {return observedPosition;}, set(value) {seekWrites++; observedPosition = value; this.seeking = true;}});
+        function dispatchTimestamp() {YTMusicNativePlayer.seekTimestamp(request).then(value => globalThis.timestampReply = value);}
+        function confirmTimestamp() {monotonicClock += 10; wallClock += 10; media.seeking = false; media.emit('seeked');}
+        """)
+        return f
+    }
+    @Test func nonconsecutiveIntentRequiresAnObservedSeekedAndReturnsTheExactSnapshot() throws {
+        let f = try fixture()
+        f.run("dispatchTimestamp()")
+        #expect(f.run("seekWrites === 1 && media.currentTime === 30 && typeof timestampReply === 'undefined'").toBool())
+        #expect(f.run("messages[messages.length-1].commandRevision === 2").toBool())
+        f.run("confirmTimestamp()")
+        #expect(f.run("timestampReply.status === 'confirmed' && timestampReply.position === 30 && timestampReply.revision === 2 && timestampReply.snapshot.commandRevision === 2 && timestampReply.snapshot.mediaGeneration === request.mediaGeneration").toBool())
+        #expect(f.run("!media.paused && seekWrites === 1 && (media.extraListeners.seeked || []).length === 0").toBool())
+    }
+    @Test func explicitZeroReferenceCanConfirmWithoutFabricatingAdvancingProgress() throws {
+        let f = try fixture(); f.run("request.position = 0; dispatchTimestamp(); confirmTimestamp()")
+        #expect(f.run("timestampReply.status === 'confirmed' && timestampReply.position === 0 && seekWrites === 1").toBool())
+        #expect(f.run("timestampReply.snapshot.position === 0 && timestampReply.snapshot.kind === 'state'").toBool())
+    }
+    @Test func frozenMissingBackwardAndExpiredClocksNeverStartASeek() throws {
+        for change in ["monotonicClock = request.sourceClock.monotonic", "wallClock = request.sourceClock.wall",
+                       "monotonicClock = request.sourceClock.monotonic; wallClock = request.sourceClock.wall",
+                       "monotonicClock += 1001", "wallClock += 1001", "monotonicClock -= 20", "wallClock -= 20",
+                       "monotonicClock += 10000; wallClock += 10000", "delete request.sourceClock", "request.sourceClock.monotonic = true"] {
+            let f = try fixture(); f.run(change + "; dispatchTimestamp()")
+            #expect(f.run("timestampReply.status === 'rejected' && seekWrites === 0 && media.currentTime === 15 && messages[messages.length-1].commandRevision === 2").toBool())
+            f.run("media.seeking = false; media.emit('canplay')")
+            #expect(f.run("seekWrites === 0 && media.currentTime === 15 && !media.paused").toBool())
+        }
+    }
+    @Test func exactIdentityAndSafeRevisionAreMandatoryBeforeAcknowledgment() throws {
+        for change in ["request.loadID = 'other'", "request.documentID = 'other'", "request.mediaGeneration++",
+                       "request.identity.sessionID = 'other'", "request.identity.entryID = 'other'", "request.identity.trackID = 'other'",
+                       "request.identity.generation = '2'", "request.expectedRevision++", "request.revision = 9007199254740992",
+                       "request.revision = 0", "request.revision = 1", "request.revision = 3", "location.href = 'https://music.youtube.com/watch?v=other'", "media.isConnected = false",
+                       "document.querySelector = selector => selector === '#movie_player' ? {classList: {contains: () => false}} : {}"] {
+            let f = try fixture(); f.run(change + "; dispatchTimestamp()")
+            #expect(f.run("timestampReply.status === 'rejected' && seekWrites === 0 && messages[messages.length-1].commandRevision === 0").toBool())
+        }
+    }
+    @Test func adsLoadingPauseBufferingDurationAndInvalidReferencesRefuseOnlyTheOptionalAction() throws {
+        for change in ["ad = true", "ad = true; media.emit('loadedmetadata'); ad = false", "media.readyState = 1",
+                       "media.paused = true", "media.ended = true", "media.seeking = true", "media.readyState = 2; media.emit('waiting')",
+                       "media.duration = 181", "request.duration = 0", "request.position = -1", "request.position = 180", "request.position = NaN"] {
+            let f = try fixture(); f.run(change + "; dispatchTimestamp()")
+            #expect(f.run("timestampReply.status === 'rejected' && seekWrites === 0 && messages[messages.length-1].commandRevision === 2").toBool())
+            #expect(f.run("messages.every(value => value.kind !== 'ended' && value.errorCode === null)").toBool())
+            f.run("ad = false; media.readyState = 4; media.seeking = false; media.emit('loadedmetadata'); media.emit('canplay')")
+            #expect(f.run("seekWrites === 0 && media.currentTime === 15").toBool())
+        }
+    }
+    @Test func rejectionAcknowledgesTheNewEpochAndOrdinaryPlaybackCanContinue() throws {
+        let f = try fixture(); f.run("request.position = 180; dispatchTimestamp(); media.emit('timeupdate')")
+        #expect(f.run("timestampReply.status === 'rejected' && timestampReply.snapshot.commandRevision === 2 && !media.paused").toBool())
+        f.run("YTMusicNativePlayer.command({loadID: binding.loadID, revision: 3, name: 'pause'})")
+        #expect(f.run("media.paused && media.currentTime === 15 && seekWrites === 0").toBool())
+    }
+    @Test func missingSeekedReadbackMismatchAndLateClockCannotReportSuccess() throws {
+        for change in ["timers.filter(Boolean).forEach(action => action())",
+                       "observedPosition = 32; confirmTimestamp()", "monotonicClock += 1600; confirmTimestamp()",
+                       "wallClock += 1600; confirmTimestamp()", "confirmTimestamp(); confirmTimestamp()"] {
+            let f = try fixture(); f.run("dispatchTimestamp(); " + change)
+            let expected = change.hasPrefix("confirmTimestamp();") ? "confirmed" : "unconfirmed"
+            #expect(f.run("timestampReply.status === '\(expected)' && seekWrites === 1 && (media.extraListeners.seeked || []).length === 0").toBool())
+            #expect(f.run("messages.every(value => value.kind !== 'ended' && value.errorCode === null)").toBool())
+        }
+    }
+    @Test func frozenConfirmationClocksCannotCertifyAnObservedPosition() throws {
+        for change in ["monotonicClock += 10", "wallClock += 10", ""] {
+            let f = try fixture()
+            f.run("dispatchTimestamp(); " + change + "; media.seeking = false; media.emit('seeked')")
+            #expect(f.run("timestampReply.status === 'unconfirmed' && seekWrites === 1 && (media.extraListeners.seeked || []).length === 0").toBool())
+        }
+    }
+    @Test func newerIntentMediaAdAndDetachedElementRejectLateSeekedWithoutRecoveryOrRollback() throws {
+        for change in ["YTMusicNativePlayer.command({loadID: binding.loadID, revision: 3, name: 'pause'})",
+                       "media.emit('loadstart')", "ad = true", "media.isConnected = false", "media.duration = 181"] {
+            let f = try fixture(); f.run("dispatchTimestamp(); " + change + "; confirmTimestamp()")
+            #expect(f.run("timestampReply.status === 'unconfirmed' && seekWrites === 1").toBool())
+            #expect(f.run("messages.every(value => value.kind !== 'ended' && value.errorCode === null)").toBool())
+        }
+    }
+    @Test func replayCannotStartAnotherSeekOrLeaveAQueuedOrdinarySeek() throws {
+        let f = try fixture(); f.run("dispatchTimestamp(); confirmTimestamp(); YTMusicNativePlayer.seekTimestamp(request).then(value => globalThis.replay = value); media.emit('canplay')")
+        #expect(f.run("timestampReply.status === 'confirmed' && replay.status === 'rejected' && seekWrites === 1").toBool())
+    }
+}

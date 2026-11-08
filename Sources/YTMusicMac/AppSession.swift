@@ -1117,7 +1117,7 @@ final class AppSession {
         player.seekSection(sectionGuard, completion: completion)
         saveQueue()
     }
-    private func prepareSeek(to value: TimeInterval, preservingSectionAction: Bool) -> Bool {
+    func prepareSeek(to value: TimeInterval, preservingSectionAction: Bool, confirmsPositionChange: Bool = true) -> Bool {
         guard acceptsProfileActions else { return false }
         collectionPlayback.cancel()
         guard value.isFinite, value >= 0 else { return false }
@@ -1128,9 +1128,12 @@ final class AppSession {
         if !preservingSectionAction { sponsorBlock?.interrupt() }
         listenBrainz.interrupt()
         lastFM.interrupt()
+        if confirmsPositionChange { confirmExplicitSeek() }
+        return true
+    }
+    func confirmExplicitSeek() {
         episodePlayback.allowExplicitSeek()
         resumeState.clear()
-        return true
     }
     func skipEpisode(forward: Bool) {
         guard acceptsProfileActions else { return }

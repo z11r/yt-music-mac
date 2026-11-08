@@ -25,6 +25,7 @@
     let lastMediaPosition = 0;
     let blockedWhileHidden = false;
     let removers = [];
+    let timestampConfirmation = null;
 
     function videoID() {
         return new URL(location.href).searchParams.get("v") || "";
@@ -131,6 +132,20 @@
         return Number.isFinite(video.playbackRate) ? {rate: video.playbackRate, changes: episodeRateChanges} : null;
     }
 
+    function timestampClock() {
+        try {
+            const monotonic = typeof performance !== "undefined" && typeof performance.now === "function" ? performance.now() : NaN;
+            const wall = Date.now();
+            return Number.isFinite(monotonic) && monotonic >= 0 && Number.isFinite(wall) && wall >= 0 ? {monotonic, wall} : null;
+        } catch (_) { return null; }
+    }
+
+    function advancedClocks(source, maximum) {
+        const now = timestampClock();
+        return !!now && !!source && ["monotonic", "wall"].every(key => Number.isFinite(source[key]) && source[key] >= 0
+            && now[key] - source[key] > 0 && now[key] - source[key] <= maximum);
+    }
+
     function snapshot(kind, errorCode) {
         return {
             kind,
@@ -152,7 +167,8 @@
             mediaReady: !!video && video.readyState >= 1 && contentReady,
             errorCode: errorCode || null,
             videoPresentation: presentationSnapshot(),
-            episodeRateMedia: episodeRateMedia()
+            episodeRateMedia: episodeRateMedia(),
+            timestampSeekClock: timestampClock()
         };
     }
 
@@ -184,6 +200,66 @@
             && Number.isFinite(video.duration) && video.duration === scope.duration && scope.end < video.duration
             && value.value === scope.end && Number.isFinite(video.currentTime)
             && video.currentTime >= scope.start && video.currentTime < scope.end;
+    }
+
+    function sameTimestampTarget(value, target) {
+        const expected = context && context.identity, identity = value && value.identity;
+        return !!expected && !!identity && target === video && !!video && video.isConnected
+            && target === (document.querySelector("#movie_player video") || document.querySelector("video"))
+            && matchesTarget() && value.loadID === context.loadID
+            && typeof value.documentID === "string" && value.documentID.toLowerCase() === documentID
+            && value.mediaGeneration === mediaGeneration
+            && typeof identity.sessionID === "string" && identity.sessionID.toLowerCase() === expected.sessionID.toLowerCase()
+            && typeof identity.entryID === "string" && identity.entryID.toLowerCase() === expected.entryID.toLowerCase()
+            && identity.trackID === expected.trackID && identity.generation === expected.generation;
+    }
+
+    function timestampContentReady(value, target) {
+        return sameTimestampTarget(value, target) && wantsPlaying && !target.paused && !target.ended
+            && contentReady && hasPlayedCurrentMedia && target.readyState >= 2 && !buffering && !target.seeking
+            && !adShowing() && !adInThisMedia && pendingSeek === null
+            && Number.isFinite(target.duration) && target.duration > 0 && value.duration === target.duration
+            && Number.isFinite(target.currentTime) && target.currentTime >= 0 && target.currentTime < target.duration;
+    }
+
+    function seekTimestamp(value) {
+        const target = video;
+        const response = (status, state) => ({requestID: value && value.requestID, revision: value && value.revision,
+            status, position: target ? finite(target.currentTime) : 0, snapshot: state || null});
+        if (!value || typeof value.requestID !== "string" || !/^[0-9a-f-]{36}$/.test(value.requestID)
+            || !sameTimestampTarget(value, target) || !Number.isSafeInteger(value.expectedRevision)
+            || value.expectedRevision !== commandRevision || !Number.isSafeInteger(value.revision)
+            || value.revision !== commandRevision + 2) return Promise.resolve(response("rejected"));
+        const eligible = !timestampConfirmation && timestampContentReady(value, target) && target.currentTime > 0
+            && Number.isFinite(value.position) && value.position >= 0 && value.position < target.duration
+            && advancedClocks(value.sourceClock, 1000);
+        // A refused optional action still acknowledges its exact new native intent.
+        // It never installs pendingSeek, applies intent, starts media or reports failure.
+        commandRevision = value.revision;
+        const ack = report("state");
+        if (!eligible) return Promise.resolve(response("rejected", ack));
+        const started = timestampClock();
+        return new Promise(resolve => {
+            let done = false, timer;
+            const finish = status => {
+                if (done) return;
+                done = true;
+                if (timer !== undefined) clearTimeout(timer);
+                target.removeEventListener("seeked", changed);
+                if (timestampConfirmation === cancel) timestampConfirmation = null;
+                resolve(response(status, sameTimestampTarget(value, target) ? report("state") : null));
+            };
+            const cancel = () => finish("unconfirmed");
+            const changed = () => {
+                if (!timestampContentReady(value, target) || commandRevision !== value.revision
+                    || !advancedClocks(started, 1500)) { finish("unconfirmed"); return; }
+                finish(Math.abs(target.currentTime - value.position) <= 0.25 ? "confirmed" : "unconfirmed");
+            };
+            timestampConfirmation = cancel;
+            target.addEventListener("seeked", changed);
+            timer = setTimeout(cancel, 1500);
+            try { target.currentTime = value.position; } catch (_) { finish("unconfirmed"); }
+        });
     }
 
     function applyIntent() {
@@ -364,6 +440,7 @@
             return true;
         },
         bind(value) {
+            if (timestampConfirmation) timestampConfirmation();
             if (!value || typeof value.loadID !== "string" || !value.identity
                 || typeof value.identity.trackID !== "string") return null;
             context = value;
@@ -381,6 +458,7 @@
             return report("ready");
         },
         presentation(value) { return requestPresentation(value); },
+        seekTimestamp(value) { return seekTimestamp(value); },
         retireEpisodeRateScope(value) {
             const expected = context && context.identity;
             const identity = value && value.identity;
@@ -401,6 +479,7 @@
                 report("state");
                 return false;
             }
+            if (timestampConfirmation) timestampConfirmation();
             commandRevision = value.revision;
             if (value.name === "play" || value.name === "pause") {
                 wantsPlaying = value.name === "play";

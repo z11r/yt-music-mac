@@ -14,6 +14,9 @@ import MusicCore
     var failureReason: PlaybackFailureReason? { get }
     var volume: Double { get }
     var confirmedSegmentIdentity: SponsorBlockPlaybackIdentity? { get }
+    var confirmedTimestampIdentity: WebTimestampSeekIdentity? { get }
+    var timestampSeekIsReady: Bool { get }
+    var timestampSeekIsBusy: Bool { get }
     var outputMediaID: UUID? { get }
     var requestedOutputContext: WebPlaybackOutputContext? { get }
     var currentOutputContext: WebPlaybackOutputContext? { get }
@@ -26,6 +29,7 @@ import MusicCore
     func pause()
     func seek(to position: TimeInterval)
     func seekSection(_ value: SponsorBlockSeek, completion: @escaping @MainActor (Bool) -> Void)
+    func seekTimestamp(_ request: WebTimestampSeekRequest, retarget: () -> Bool, completion: @escaping @MainActor (WebTimestampSeekOutcome) -> Void)
     func setVolume(_ value: Double)
     func invalidateEpisodeRateControl()
 }
@@ -48,6 +52,9 @@ import MusicCore
     var failureReason: PlaybackFailureReason? { player.failureReason }
     var volume: Double { player.volume }
     var confirmedSegmentIdentity: SponsorBlockPlaybackIdentity? { player.confirmedSegmentIdentity }
+    var confirmedTimestampIdentity: WebTimestampSeekIdentity? { player.confirmedTimestampIdentity }
+    var timestampSeekIsReady: Bool { player.timestampSeekIsReady }
+    var timestampSeekIsBusy: Bool { player.timestampSeekIsBusy }
     var outputMediaID: UUID? { player.outputMediaID }
     var requestedOutputContext: WebPlaybackOutputContext? { player.requestedOutputContext }
     var currentOutputContext: WebPlaybackOutputContext? { player.currentOutputContext }
@@ -66,6 +73,9 @@ import MusicCore
     func pause() { player.pause() }
     func seek(to position: TimeInterval) { player.seek(to: position) }
     func seekSection(_ value: SponsorBlockSeek, completion: @escaping @MainActor (Bool) -> Void) { player.seekSection(value, completion: completion) }
+    func seekTimestamp(_ request: WebTimestampSeekRequest, retarget: () -> Bool, completion: @escaping @MainActor (WebTimestampSeekOutcome) -> Void) {
+        player.seekTimestamp(request, retarget: retarget, completion: completion)
+    }
     func setVolume(_ value: Double) { player.setVolume(value) }
     func invalidateEpisodeRateControl() { player.invalidateEpisodeRateControl() }
     func setEpisodeRate(_ rate: Double, occurrence: PlaybackOccurrence) async -> Bool { await player.setEpisodeRate(rate, occurrence: occurrence) }

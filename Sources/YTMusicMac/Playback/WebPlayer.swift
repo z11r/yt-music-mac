@@ -64,6 +64,9 @@ final class WebPlayer: NSObject {
     @ObservationIgnored private var acceptedPresentationContent = false
     @ObservationIgnored private var segmentIdentity: SponsorBlockPlaybackIdentity?
     @ObservationIgnored private var segmentConfirmedAt = -Double.infinity
+    @ObservationIgnored private var timestampIdentity: WebTimestampSeekIdentity?
+    @ObservationIgnored private var timestampConfirmedAt = -Double.infinity
+    @ObservationIgnored private let timestampTransaction = WebTimestampSeekTransaction()
     private(set) var isPlaying = false
     private(set) var isBuffering = false
     private(set) var errorMessage: String?
@@ -85,6 +88,19 @@ final class WebPlayer: NSObject {
               commandRevision == identity.commandRevision, clock.duration == identity.duration else { return nil }
         let age = PlaybackOutputTime.monotonic() - segmentConfirmedAt
         return age.isFinite && (0...3).contains(age) ? identity : nil
+    }
+
+    private(set) var timestampSeekIsReady = false
+    var timestampSeekIsBusy: Bool { timestampTransaction.isBusy }
+    var confirmedTimestampIdentity: WebTimestampSeekIdentity? {
+        guard let identity = timestampIdentity,
+              !outputHold.isHeld, !sessionMediaSuspended, !failureReported, wantsPlaying,
+              isPlaying, !isBuffering, hasConfirmedPosition, acceptedPresentationContent,
+              currentOutputContext == identity.context, gate.documentID == identity.documentID,
+              gate.mediaGeneration == identity.mediaGeneration, commandRevision == identity.commandRevision,
+              clock.duration == identity.duration else { return nil }
+        let age = PlaybackOutputTime.monotonic() - timestampConfirmedAt
+        return age.isFinite && (0...1).contains(age) ? identity : nil
     }
 
     @ObservationIgnored var onEnded: ((PlaybackOccurrence) -> Void)?
@@ -243,6 +259,7 @@ final class WebPlayer: NSObject {
             return
         }
         self.outputObservation.revoke()
+        self.invalidateTimestampIdentity()
         self.episodeRates.prepareLoad(content: Self.rateContent(track))
         self.verifiedRateOccurrence = nil
         self.videoPresentation.invalidate()
@@ -322,6 +339,7 @@ final class WebPlayer: NSObject {
         let operation = outputHold.revoke(historyIsComplete: completeHistory, willRevoke: {
             let interrupted = self.occurrence
             self.outputObservation.revoke()
+            self.invalidateTimestampIdentity()
             self.gate = PlaybackEventGate(); self.commandRevision += 1; self.navigationRevision += 1
             self.presentationRevision += 1; self.lastBoundDocumentID = nil
             self.navigation = nil; self.replacementPending = false; self.pendingSeek = nil
@@ -364,6 +382,7 @@ final class WebPlayer: NSObject {
         self.prepareOutputObservation()
         self.presentationRevision += 1
         self.segmentIdentity = nil
+        self.invalidateTimestampIdentity()
         self.episodeRates.invalidate(clearOwnership: false)
         self.verifiedRateOccurrence = nil
         if effect == .nextItemPreparation {
@@ -389,6 +408,7 @@ final class WebPlayer: NSObject {
     func pause() {
         let context = self.currentOutputContext
         self.wantsPlaying = false
+        self.invalidateTimestampIdentity()
         self.sendCommand("pause")
         self.isPlaying = false
         self.isBuffering = false
@@ -415,6 +435,53 @@ final class WebPlayer: NSObject {
         sendCommand("seek", value: value.end, sectionGuard: value, completion: completion)
     }
 
+    private func invalidateTimestampIdentity() {
+        timestampIdentity = nil
+        if timestampSeekIsReady { timestampSeekIsReady = false }
+    }
+
+    func seekTimestamp(_ request: WebTimestampSeekRequest, retarget: () -> Bool,
+                       completion: @escaping @MainActor (WebTimestampSeekOutcome) -> Void) {
+        timestampTransaction.perform(request, current: { self.confirmedTimestampIdentity }, retarget: {
+            guard retarget() else { return nil }
+            return self.requestedOutputContext
+        }, dispatch: { request, context, finish in
+            self.sendTimestampSeek(request, context: context, completion: finish)
+        }, completion: completion)
+    }
+
+    private func sendTimestampSeek(_ request: WebTimestampSeekRequest, context: WebPlaybackOutputContext,
+                                   completion: @escaping @MainActor (WebTimestampSeekOutcome) -> Void) {
+        let proof = request.identity
+        guard !outputHold.isHeld, !failureReported, requestedOutputContext == context,
+              gate.loadID == proof.context.loadID, gate.documentID == proof.documentID,
+              gate.mediaGeneration == proof.mediaGeneration, occurrence == proof.context.occurrence,
+              commandRevision == proof.commandRevision + 1 else { completion(.rejected); return }
+        commandRevision += 1
+        let issued = commandRevision, view = webView
+        outputObservation.commandIssued(issued)
+        view.callAsyncJavaScript("return await globalThis.YTMusicNativePlayer?.seekTimestamp(request) ?? null;",
+            arguments: ["request": request.payload(revision: issued)], in: nil, in: .defaultClient) { [weak self, weak view] result in
+            guard let self, let view, self.webView === view, !self.outputHold.isHeld,
+                  self.requestedOutputContext == context, self.commandRevision == issued,
+                  self.gate.documentID == proof.documentID, self.gate.mediaGeneration == proof.mediaGeneration else {
+                completion(.unconfirmed); return
+            }
+            guard case let .success(body) = result, let value = body as? [String: Any],
+                  value["requestID"] as? String == request.id.uuidString.lowercased(),
+                  let revision = value["revision"] as? NSNumber, CFGetTypeID(revision) != CFBooleanGetTypeID(),
+                  revision == NSNumber(value: issued) else { completion(.unconfirmed); return }
+            // A Promise receipt can arrive before its posted message. The exact
+            // snapshot uses the normal gate; a duplicate sequence is harmless.
+            if let snapshot = value["snapshot"], let message = PlaybackBridgeMessage.decode(snapshot),
+               message.loadID == context.loadID, message.documentID == proof.documentID,
+               message.mediaGeneration == proof.mediaGeneration, message.commandRevision == issued,
+               message.identity == PlaybackBridgeIdentity(context.occurrence) { self.receive(message) }
+            guard self.currentOutputContext == context, self.commandRevision == issued else { completion(.unconfirmed); return }
+            completion(WebTimestampSeekOutcome.receipt(body, request: request, revision: issued))
+        }
+    }
+
     func setVolume(_ volume: Double) {
         guard volume.isFinite else { return }
         self.volume = min(1, max(0, volume))
@@ -424,6 +491,7 @@ final class WebPlayer: NSObject {
 
     func stop() {
         self.outputObservation.revoke()
+        self.invalidateTimestampIdentity()
         self.invalidateEpisodeRateControl()
         self.videoPresentation.close()
         self.cancelSessionRestore()
@@ -474,6 +542,7 @@ final class WebPlayer: NSObject {
 
     private func navigate() {
         guard !outputHold.isHeld else { return }
+        self.invalidateTimestampIdentity()
         self.hasConfirmedPosition = false
         guard self.scriptAvailable else {
             self.fail(AppLocalization.text("The player could not load its playback controls. Reinstall the app and try again."), reason: .controlsUnavailable)
@@ -581,6 +650,7 @@ final class WebPlayer: NSObject {
     private func sendCommand(_ name: String, value: Double? = nil, sectionGuard: SponsorBlockSeek? = nil,
                              completion: (@MainActor (Bool) -> Void)? = nil) {
         guard !outputHold.isHeld, let loadID = self.gate.loadID, self.gate.documentID != nil else { completion?(false); return }
+        self.invalidateTimestampIdentity()
         self.commandRevision += 1
         let revision = self.commandRevision
         let outputEpoch = self.outputCommandEpoch
@@ -623,7 +693,7 @@ final class WebPlayer: NSObject {
         let context = receipt.context
         if receipt.needsBinding { self.onOutputBindingReady?(context) }
         guard self.currentOutputContext == context else { return }
-        if message.interruptsPlaybackOutput { self.segmentIdentity = nil }
+        if message.interruptsPlaybackOutput { self.segmentIdentity = nil; self.invalidateTimestampIdentity() }
         if let occurrence, message.interruptsPlaybackOutput {
             self.emitOutput(.outputInterrupted, context: context)
             guard self.currentOutputContext == context else { return }
@@ -678,6 +748,11 @@ final class WebPlayer: NSObject {
             self.clock.update(position: message.position, duration: message.duration)
             if !self.hasConfirmedPosition { self.hasConfirmedPosition = true }
         }
+        if isPlaying, !isBuffering,
+           let identity = WebTimestampSeekIdentity.verified(message, context: context, revision: commandRevision) {
+            timestampIdentity = identity; timestampConfirmedAt = PlaybackOutputTime.monotonic()
+            if !timestampSeekIsReady { timestampSeekIsReady = true }
+        } else { invalidateTimestampIdentity() }
         if let occurrence = self.occurrence, message.confirmsEpisodeProgress {
             if self.isPlaying, !self.isBuffering,
                let identity = SponsorBlockPlaybackIdentity.verified(message, occurrence: occurrence, commandRevision: self.commandRevision) {
@@ -739,6 +814,7 @@ final class WebPlayer: NSObject {
     }
 
     private func fail(_ message: String, reason: PlaybackFailureReason = .bridgeUnavailable) {
+        self.invalidateTimestampIdentity()
         guard !outputHold.isHeld, !self.failureReported else { return }
         let context = self.requestedOutputContext
         self.invalidateEpisodeRateControl()
@@ -788,6 +864,7 @@ final class WebPlayer: NSObject {
     private func replaceWebView() {
         guard !outputHold.isHeld else { return }
         self.outputObservation.revoke()
+        self.invalidateTimestampIdentity()
         self.idleUnload?.cancel()
         self.idleUnload = nil
         self.deadline?.cancel()

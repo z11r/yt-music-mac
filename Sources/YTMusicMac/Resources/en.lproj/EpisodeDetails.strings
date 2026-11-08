@@ -9,6 +9,11 @@
 "Description" = "Description";
 "No description was provided." = "No description was provided.";
 "Source Timestamp References" = "Source Timestamp References";
-"These positions come from YouTube Music description links. They are not inferred chapters and do not seek playback." = "These positions come from YouTube Music description links. They are not inferred chapters and do not seek playback.";
 "Provided by YouTube Music" = "Provided by YouTube Music";
 "Load details for the current episode without changing playback." = "Load details for the current episode without changing playback.";
+"These positions come from YouTube Music description links. They are not inferred chapters." = "These positions come from YouTube Music description links. They are not inferred chapters.";
+"Go to a reference while this episode is playing and its current content is confirmed. Ads, loading and paused playback are unavailable." = "Go to a reference while this episode is playing and its current content is confirmed. Ads, loading and paused playback are unavailable.";
+"Go to Reference" = "Go to Reference";
+"Reference position confirmed." = "Reference position confirmed.";
+"This reference is unavailable for the current playback state." = "This reference is unavailable for the current playback state.";
+"The position change could not be confirmed. Check playback before trying again." = "The position change could not be confirmed. Check playback before trying again.";

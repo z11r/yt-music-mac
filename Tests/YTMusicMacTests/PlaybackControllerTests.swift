@@ -1,11 +1,75 @@
 import Foundation
 import MusicCore
 import Testing
+import YouTubeMusic
 import WebKit
 @testable import YTMusicMac
 
 @MainActor @Suite("Session transport and source handoff")
 struct PlaybackControllerTests {
+    @Test func frozenSourceSelectionUsesFreshPlaybackProofAfterOrdinaryProgress() async throws {
+        let f = TransportFixture(controlledWeb: true)
+        f.current = f.remoteOccurrence(); f.player.load(track: f.remoteTrack, occurrence: f.current!)
+        await f.player.waitForPreparation()
+        let web = try #require(f.webDrivers.first); web.acknowledge(position: 15, playing: true)
+        let old = try #require(web.confirmedTimestampIdentity)
+        let reference = try #require(MusicEpisodeDetailsReference(identity: .init(browseID: "MPEDfixture"), videoID: f.remoteTrack.id))
+        let selected = EpisodeTimestampActionTarget(details: .init(profile: f.ownerProfile, account: f.account,
+            queueRevision: PlaybackQueue().revision, entry: f.entry, occurrence: f.current, reference: reference),
+            source: .init(requestID: UUID(), reference: reference, sourceIndex: 3, seconds: 30))
+        web.acknowledge(position: 16, playing: true, kind: "progress")
+        let latest = try #require(web.confirmedTimestampIdentity); #expect(latest != old)
+        let admitted = try #require(selected.playbackTarget(isCurrent: { true }, freshProof: { f.player.timestampSeekTarget(position: 30) }))
+        #expect(admitted.request.identity == latest)
+        var outcome: WebTimestampSeekOutcome?
+        f.player.seekTimestamp(admitted) { outcome = $0 }
+        #expect(web.actions.contains(.timestamp(30)) && outcome == nil)
+        web.finishTimestamp(.rejected); #expect(outcome == .rejected && f.player.isPlaying)
+        var freshCalls = 0
+        let refused = selected.playbackTarget(isCurrent: { false }, freshProof: { freshCalls += 1; return admitted })
+        #expect(refused == nil && freshCalls == 0)
+        f.player.quiesce(); #expect(await f.player.settleOutput() == .quiet)
+    }
+
+    @Test func timestampRetargetPreservesPlayingAndOnlyExactNewAcknowledgmentCanConfirm() async throws {
+        let f = TransportFixture(controlledWeb: true)
+        f.current = f.remoteOccurrence(); f.player.load(track: f.remoteTrack, occurrence: f.current!)
+        await f.player.waitForPreparation()
+        let web = try #require(f.webDrivers.first); web.acknowledge(position: 15, playing: true)
+        let old = try #require(web.currentOutputContext), target = try #require(f.player.timestampSeekTarget(position: 30))
+        let oldPosition = f.player.clock.position
+        var result: WebTimestampSeekOutcome?
+        f.player.seekTimestamp(target) { result = $0 }
+        #expect(web.actions.filter { $0 == .timestamp(30) }.count == 1 && web.timestampSeekIsBusy)
+        #expect(f.player.errorMessage == nil && f.player.isPlaying && f.player.clock.position == oldPosition && result == nil)
+        web.onOutputEvent?(.init(context: old, kind: .ended)); #expect(f.ended.isEmpty)
+        #expect(f.player.timestampSeekTarget(position: 45) == nil)
+        web.finishTimestamp(.confirmed(30))
+        #expect(result == .confirmed(30) && !web.timestampSeekIsBusy && f.player.clock.position == oldPosition)
+        f.player.quiesce(); #expect(await f.player.settleOutput() == .quiet)
+    }
+    @Test func staleTimestampAndUnconfirmedReceiptNeverFailOrRetirePlayback() async throws {
+        for change in 0..<4 {
+            let f = TransportFixture(controlledWeb: true)
+            f.current = f.remoteOccurrence(); f.player.load(track: f.remoteTrack, occurrence: f.current!)
+            await f.player.waitForPreparation()
+            let web = try #require(f.webDrivers.first); web.acknowledge(position: 15, playing: true)
+            let target = try #require(f.player.timestampSeekTarget(position: 30)); var result: WebTimestampSeekOutcome?
+            if change == 0 { f.player.pause() }
+            if change == 1 { f.current = f.remoteOccurrence(generation: 2) }
+            f.player.seekTimestamp(target) { result = $0 }
+            if change < 2 {
+                #expect(result == .rejected && !web.actions.contains(.timestamp(30)))
+            } else {
+                if change == 3 { f.player.pause() }
+                web.finishTimestamp(.rejected)
+                #expect(result == (change == 3 ? .unconfirmed : .rejected))
+            }
+            #expect(f.player.errorMessage == nil && !web.isOutputRetired && f.ended.isEmpty)
+            f.player.quiesce(); #expect(await f.player.settleOutput() == .quiet)
+        }
+    }
+
     @Test func playDuringAnUnacknowledgedPausedWebLoadAppliesTheLatestIntent() async throws {
         let f = TransportFixture(controlledWeb: true)
         f.current = f.remoteOccurrence()

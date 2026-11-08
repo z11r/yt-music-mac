@@ -19,6 +19,13 @@ import YouTubeMusic
     }
 }
 
+struct EpisodeTimestampSource: Equatable {
+    let requestID: UUID
+    let reference: MusicEpisodeDetailsReference
+    let sourceIndex: Int
+    let seconds: Int
+}
+
 @MainActor @Observable final class EpisodeDetailsSession {
     enum State: Equatable { case idle, loading, unavailable, failed, canceled, available(MusicEpisodeDetails) }
     private var selectedTrack: Track?
@@ -78,6 +85,12 @@ import YouTubeMusic
         }
         return true
     }
+    func timestampSource(at index: Int) -> EpisodeTimestampSource? {
+        guard isPresented, case let .available(details) = storedState,
+              let value = details.timestamps.first(where: { $0.sourceIndex == index }) else { return nil }
+        return .init(requestID: requestID, reference: details.reference, sourceIndex: value.sourceIndex, seconds: value.seconds)
+    }
+    func acceptsTimestamp(_ source: EpisodeTimestampSource) -> Bool { timestampSource(at: source.sourceIndex) == source }
     func retry() {
         guard let track, let ownerIsCurrent, ownerIsCurrent() else { clear(); return }
         _ = open(track: track, isCurrent: ownerIsCurrent)

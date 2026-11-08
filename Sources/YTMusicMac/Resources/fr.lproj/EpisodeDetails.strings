@@ -9,6 +9,11 @@
 "Description" = "Description";
 "No description was provided." = "Aucune description n’a été fournie.";
 "Source Timestamp References" = "Références temporelles fournies";
-"These positions come from YouTube Music description links. They are not inferred chapters and do not seek playback." = "Ces positions proviennent de liens dans la description YouTube Music. Elles ne sont pas des chapitres déduits et ne déplacent pas la lecture.";
 "Provided by YouTube Music" = "Fourni par YouTube Music";
 "Load details for the current episode without changing playback." = "Charger les détails de l’épisode actuel sans modifier la lecture.";
+"These positions come from YouTube Music description links. They are not inferred chapters." = "Ces positions proviennent des liens de description de YouTube Music. Ce ne sont pas des chapitres déduits.";
+"Go to a reference while this episode is playing and its current content is confirmed. Ads, loading and paused playback are unavailable." = "Accédez à une référence lorsque cet épisode est en lecture et que son contenu actuel est confirmé. Cette action est indisponible pendant les annonces, le chargement et la pause.";
+"Go to Reference" = "Accéder à la référence";
+"Reference position confirmed." = "Position de référence confirmée.";
+"This reference is unavailable for the current playback state." = "Cette référence est indisponible dans l’état actuel de la lecture.";
+"The position change could not be confirmed. Check playback before trying again." = "Le changement de position n’a pas pu être confirmé. Vérifiez la lecture avant de réessayer.";

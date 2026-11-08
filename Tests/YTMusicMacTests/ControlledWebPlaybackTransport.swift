@@ -7,7 +7,7 @@ import MusicCore
 @MainActor final class ControlledWebPlaybackTransport: WebPlaybackTransport {
     enum Action: Equatable {
         case load(PlaybackOccurrence, autoplay: Bool), play, pause, seek(Double), volume(Double)
-        case retarget(PlaybackOutputRetargetEffect), retire, recovery(Double)
+        case retarget(PlaybackOutputRetargetEffect), retire, recovery(Double), timestamp(Double)
     }
     let outputInstanceID: UUID
     let outputKind = PlaybackOutputEngineKind.web
@@ -22,6 +22,12 @@ import MusicCore
     private(set) var failureReason: PlaybackFailureReason?
     private(set) var volume: Double = 1
     var confirmedSegmentIdentity: SponsorBlockPlaybackIdentity? { nil }
+    private(set) var confirmedTimestampIdentity: WebTimestampSeekIdentity?
+    private let timestampTransaction = WebTimestampSeekTransaction(admission: WebTimestampSeekAdmission())
+    var timestampSeekIsReady: Bool { confirmedTimestampIdentity != nil }
+    var timestampSeekIsBusy: Bool { timestampTransaction.isBusy }
+    private var timestampCompletion: (@MainActor (WebTimestampSeekOutcome) -> Void)?
+    func finishTimestamp(_ outcome: WebTimestampSeekOutcome) { let callback = timestampCompletion; timestampCompletion = nil; callback?(outcome) }
     var outputMediaID: UUID? { gate.loadID }
     var requestedOutputContext: WebPlaybackOutputContext? { observation.requested }
     var currentOutputContext: WebPlaybackOutputContext? { observation.current }
@@ -73,6 +79,21 @@ import MusicCore
         actions.append(.seek(position)); issueCommand()
     }
     func seekSection(_ value: SponsorBlockSeek, completion: @escaping @MainActor (Bool) -> Void) { completion(false) }
+    func seekTimestamp(_ request: WebTimestampSeekRequest, retarget: () -> Bool, completion: @escaping @MainActor (WebTimestampSeekOutcome) -> Void) {
+        timestampTransaction.perform(request, current: { confirmedTimestampIdentity }, retarget: {
+            guard retarget() else { return nil }; return requestedOutputContext
+        }, dispatch: { request, context, finish in
+            actions.append(.timestamp(request.position)); revision += 1; observation.commandIssued(revision)
+            let issued = revision
+            acknowledge(position: clock.position, playing: true)
+            timestampCompletion = { [weak self] outcome in
+                guard let self, self.currentOutputContext == context, self.revision == issued, !self.isOutputRetired else {
+                    finish(.unconfirmed); return
+                }
+                finish(outcome)
+            }
+        }, completion: completion)
+    }
     func setVolume(_ value: Double) {
         guard !isOutputRetired, value.isFinite else { return }
         volume = min(1, max(0, value)); actions.append(.volume(volume))
@@ -84,6 +105,7 @@ import MusicCore
     }
     func invalidateOutputScopes(_ effect: PlaybackOutputRetargetEffect) {
         guard !isOutputRetired else { return }
+        confirmedTimestampIdentity = nil
         actions.append(.retarget(effect)); epoch = UUID(); revision += 1; minimum = revision
         prepareContext()
         if effect == .nextItemPreparation { isPlaying = false; playbackIntent = false; isBuffering = false }
@@ -101,12 +123,14 @@ import MusicCore
             "playbackIntent": playbackIntent, "intentSource": "native", "videoID": context.occurrence.trackID,
             "position": position, "duration": duration, "volume": volume,
             "isPlaying": playing, "isBuffering": false, "isAd": false, "mediaReady": true,
+            "timestampSeekClock": ["monotonic": sequence * 10, "wall": 1000 + sequence * 10],
         ]
         guard let message = PlaybackBridgeMessage.decode(body), let receipt = observation.accept(message, gate: &gate) else { return }
         if receipt.needsBinding { onOutputBindingReady?(receipt.context) }
         guard observation.accepts(receipt.context) else { return }
         isPlaying = playing; isBuffering = false; isStartingPlayback = false
         hasConfirmedPosition = true; clock.update(position: position, duration: duration)
+        confirmedTimestampIdentity = WebTimestampSeekIdentity.verified(message, context: receipt.context, revision: revision)
         if message.interruptsPlaybackOutput { onOutputEvent?(.init(context: receipt.context, kind: .outputInterrupted)) }
         guard observation.accepts(receipt.context) else { return }
         if !message.confirmsEpisodeProgress || (message.kind != .progress && message.kind != .ended) {
@@ -136,7 +160,7 @@ import MusicCore
     }
     func revokeOutput() -> PlaybackOutputRetirement {
         if let retirement { return retirement }
-        isOutputRetired = true; observation.revoke(); gate = PlaybackEventGate()
+        isOutputRetired = true; confirmedTimestampIdentity = nil; observation.revoke(); gate = PlaybackEventGate()
         playbackIntent = false; isPlaying = false; isBuffering = false; isStartingPlayback = false
         hasConfirmedPosition = false; clock.reset(); actions.append(.retire)
         let value = PlaybackOutputRetirement(engine: .web, instanceID: outputInstanceID, sleep: { throw CancellationError() })

@@ -41,6 +41,7 @@ struct PlaybackBridgeMessage: Decodable {
     let errorCode: String?
     let videoPresentation: VideoPresentationSnapshot?
     let episodeRateMedia: EpisodeRateMedia?
+    let timestampSeekClock: WebTimestampSeekClock?
 
     static func decode(_ body: Any) -> Self? {
         guard JSONSerialization.isValidJSONObject(body),

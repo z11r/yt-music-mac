@@ -250,17 +250,21 @@ final class PlaybackController: EpisodeRateControlling {
         }
     }
 
-    private func commandPermit() -> PlaybackOutputPermit? {
+    private func commandPermit(optionalAction: Bool = false) -> PlaybackOutputPermit? {
         guard let previous = permit, let current = scope, previous.scope == current,
               isCurrent(current), revision < UInt64.max else { return nil }
         revision += 1
         let next = PlaybackOutputScope(sessionID: current.sessionID, profileGeneration: current.profileGeneration,
             accountGeneration: current.accountGeneration, occurrence: current.occurrence, engine: current.engine,
             itemID: current.itemID, intentRevision: revision)
+        let previousBinding = webBinding, previousContext = webContext
         scope = next; webBinding = nil; webContext = nil
         switch coordinator.retargetOutput(previous, to: next) {
         case let .permitted(value): permit = value; return value
-        case .blocked: failHandoff(next); return nil
+        case .blocked:
+            if !optionalAction { failHandoff(next) }
+            else if previous.isCurrent { scope = current; webBinding = previousBinding; webContext = previousContext }
+            return nil
         }
     }
 
@@ -309,6 +313,36 @@ final class PlaybackController: EpisodeRateControlling {
     func seekSection(_ value: SponsorBlockSeek, completion: @escaping @MainActor (Bool) -> Void) {
         guard activeKind == .web, !isPreparing, let permit, permit.isCurrent else { completion(false); return }
         webTransport.seekSection(value) { success in completion(success && permit.isCurrent) }
+    }
+    var timestampSeekIsReady: Bool {
+        activeKind == .web && !isPreparing && !isQuiesced && webTransport.timestampSeekIsReady && !webTransport.timestampSeekIsBusy
+    }
+    func timestampSeekTarget(position: TimeInterval) -> PlaybackTimestampSeekTarget? {
+        guard !webTransport.timestampSeekIsBusy, let identity = webTransport.confirmedTimestampIdentity, acceptsWeb(identity.context),
+              let permit, permit.isCurrent, permit.authorizes(webTransport), let binding = webBinding else { return nil }
+        let request = WebTimestampSeekRequest(identity: identity, position: position)
+        guard request.isValid else { return nil }
+        return .init(scope: permit.scope, bindingID: binding.id, request: request)
+    }
+    func canSeekTimestamp(_ target: PlaybackTimestampSeekTarget) -> Bool {
+        guard !isQuiesced, target.request.isValid, let permit, permit.isCurrent, permit.scope == target.scope,
+              permit.authorizes(webTransport), webBinding?.id == target.bindingID,
+              acceptsWeb(target.request.identity.context), webTransport.confirmedTimestampIdentity == target.request.identity else { return false }
+        return true
+    }
+    func seekTimestamp(_ target: PlaybackTimestampSeekTarget, completion: @escaping @MainActor (WebTimestampSeekOutcome) -> Void) {
+        guard !webTransport.timestampSeekIsBusy, canSeekTimestamp(target) else { completion(.rejected); return }
+        var admitted: PlaybackOutputPermit?
+        webTransport.seekTimestamp(target.request, retarget: {
+            guard self.canSeekTimestamp(target) else { return false }
+            admitted = self.commandPermit(optionalAction: true)
+            return admitted != nil
+        }) { [weak self] outcome in
+            guard let self, let admitted, self.permit === admitted, admitted.isCurrent, self.isCurrent(admitted.scope) else {
+                completion(.unconfirmed); return
+            }
+            completion(outcome)
+        }
     }
     func setVolume(_ value: Double) {
         guard value.isFinite else { return }; volume = min(1, max(0, value))
