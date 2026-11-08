@@ -3,7 +3,8 @@
 Remote edits are disabled by default while signed-in verification is pending.
 Likes, dislikes, and playlist operations have independent capabilities in
 `MusicLibraryEditCapabilities`; enabling one does not enable the others.
-Description, privacy, and playlist order each have a separate capability. Enabling basic playlist edits leaves these
+Description, privacy, playlist order, album saves, and artist subscriptions
+each have a separate capability. Enabling basic playlist edits leaves these
 additional operations disabled until their own signed-in checks pass.
 
 When enabled, song rating actions are available in the player, track menus,
@@ -49,9 +50,17 @@ loaded-page boundary stays unavailable until its successor is loaded.
 The client checks current edit permission and occurrence membership across
 up to 100 pages and 10,000 occurrences before submission.
 
+Album and artist pages offer Save Album or Follow Artist controls only when
+their header establishes the current state and mutation target. Album saves
+use the album's `OLAK` playlist target while navigation keeps its browse
+identity. Artist follows use the subscription button's channel identifier,
+which can differ from the artist page's browse identifier. Missing controls
+and unrelated shelf items do not establish membership.
+
 These additional operations require both an explicit success response and a
 matching fresh service read before reporting success. Order readback checks
-the exact occurrence and successor. A failed or mismatched readback is uncertain
+the exact occurrence and successor; album and artist readback checks the
+same target and requested state. A failed or mismatched readback is uncertain
 and never repeats the write.
 
 ## Disposable playlist verification

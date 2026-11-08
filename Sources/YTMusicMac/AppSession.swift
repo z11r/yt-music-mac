@@ -572,6 +572,9 @@ final class AppSession {
             case let .playlistItemMoved(playlistID, _, _):
                 libraryEditMessage = "Playlist order updated. Reloading service order."
                 if isCurrentPlaylist(playlistID) { reload() }
+            case .albumSaved, .artistSubscribed:
+                libraryEditMessage = "Library change confirmed. Reloading service state."
+                if destination == startingDestination { reload() }
             }
             return true
         } catch {
@@ -579,7 +582,7 @@ final class AppSession {
             if error is CancellationError || error as? MusicLibraryEditError == .unconfirmedOutcome {
                 switch action {
                 case let .setLiked(videoID, _), let .setRating(videoID, _): songRatings.invalidate(videoID)
-                case .setPlaylistDescription, .setPlaylistPrivacy, .movePlaylistItem:
+                case .setPlaylistDescription, .setPlaylistPrivacy, .movePlaylistItem, .setAlbumSaved, .setArtistSubscribed:
                     if destination == startingDestination { reload() }
                 default: break
                 }

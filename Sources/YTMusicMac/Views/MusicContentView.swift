@@ -98,6 +98,7 @@ struct MusicContentView: View {
                         }
                     }
                     Spacer()
+                    CollectionLibraryActions(session: session, page: page)
                     if session.remoteLibraryEditingEnabled,
                        session.destination.libraryCategory == .all || session.destination.libraryCategory == .playlists {
                         Button("New Playlist", systemImage: "plus") { presentEditor(.createPlaylist(tracks: [])) }
@@ -444,6 +445,7 @@ private struct CollectionTracksView: View {
                     MusicLinkActions(link: .collection(collection))
                 }
                 playlistActions
+                CollectionLibraryActions(session: session, page: page)
             } label: {
                 Label("Collection Actions", systemImage: "ellipsis.circle")
             }

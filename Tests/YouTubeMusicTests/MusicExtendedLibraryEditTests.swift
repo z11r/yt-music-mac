@@ -7,7 +7,29 @@ final class MusicExtendedLibraryEditTests: XCTestCase {
     private let first = PlaylistItemReference(videoID: "same-song", setVideoID: "first=")
     private let second = PlaylistItemReference(videoID: "same-song", setVideoID: "second=")
     private let third = PlaylistItemReference(videoID: "other-song", setVideoID: "third=")
-    private let all = MusicLibraryEditCapabilities(playlistDescription: true, playlistPrivacy: true, playlistReorder: true)
+    private let all = MusicLibraryEditCapabilities(playlistDescription: true, playlistPrivacy: true, playlistReorder: true,
+                                                  albumLibrary: true, artistSubscriptions: true)
+
+    func testNewCapabilitiesStayIndependentFromVerifiedBasicEdits() async throws {
+        let actions: [MusicLibraryEditAction] = [
+            .setPlaylistDescription(id: "PLtest", description: "Text"), .setPlaylistPrivacy(id: "PLtest", privacy: .unlisted),
+            .movePlaylistItem(playlistID: "PLtest", item: first, before: second),
+            .setAlbumSaved(browseID: "MPREbrowse", playlistID: "OLAKtarget", saved: true),
+            .setArtistSubscribed(browseID: "UCbrowse", channelID: "UCtarget", subscribed: true),
+        ]
+        let flags: [MusicLibraryEditCapabilities] = [.init(playlistDescription: true), .init(playlistPrivacy: true),
+            .init(playlistReorder: true), .init(albumLibrary: true), .init(artistSubscriptions: true)]
+        let transport = ExtendedEditTransport([])
+        let client = await client(transport, capabilities: .init(likes: true, dislikes: true, playlists: true))
+        for (index, action) in actions.enumerated() {
+            XCTAssertFalse(MusicLibraryEditCapabilities().allows(action))
+            for (flagIndex, flag) in flags.enumerated() { XCTAssertEqual(flag.allows(action), index == flagIndex) }
+            do { _ = try await client.performLibraryEdit(action); XCTFail("Expected separate capability") }
+            catch { XCTAssertEqual(error as? MusicLibraryEditError, .featureUnavailable) }
+        }
+        let requests = await transport.requests
+        XCTAssertTrue(requests.isEmpty)
+    }
 
     func testDescriptionCanBeClearedOnlyAfterKnownStateAndMatchingReadback() async throws {
         let transport = ExtendedEditTransport([.response(playlist(description: "Original")), .response(confirmed()),
@@ -60,6 +82,58 @@ final class MusicExtendedLibraryEditTests: XCTestCase {
         XCTAssertEqual(try body(requests[4])["continuation"] as? String, "post-next")
     }
 
+    func testMissingPermissionStateOrOccurrencePreventsTheWrite() async throws {
+        let cases: [(MusicLibraryEditAction, MusicHTTPResponse)] = [
+            (.setPlaylistDescription(id: "PLtest", description: "New"), playlist(description: nil)),
+            (.setPlaylistPrivacy(id: "PLtest", privacy: .public), playlist(privacy: nil)),
+            (.setPlaylistPrivacy(id: "PLtest", privacy: .public), playlist(editable: false)),
+            (.movePlaylistItem(playlistID: "PLtest", item: second, before: first), playlist(items: [first])),
+            (.movePlaylistItem(playlistID: "PLtest", item: second, before: first), playlist(items: [first, second], editable: false)),
+            (.setAlbumSaved(browseID: "MPREbrowse", playlistID: "OLAKtarget", saved: true), page(header: [:])),
+            (.setArtistSubscribed(browseID: "UCbrowse", channelID: "UCtarget", subscribed: true), page(header: [:])),
+        ]
+        for (action, response) in cases {
+            let transport = ExtendedEditTransport([.response(response)])
+            do { _ = try await client(transport).performLibraryEdit(action); XCTFail("Expected permission/state refusal") }
+            catch { XCTAssertEqual(error as? MusicLibraryEditError, .collectionStateUnavailable) }
+            let requests = await transport.requests
+            XCTAssertEqual(requests.count, 1)
+            XCTAssertTrue(requests.allSatisfy { $0.url?.path == "/youtubei/v1/browse" })
+        }
+    }
+
+    func testMismatchedReadbackIsUnconfirmedAndNeverRepeatsTheWrite() async throws {
+        let cases: [(MusicLibraryEditAction, MusicHTTPResponse)] = [
+            (.setPlaylistDescription(id: "PLtest", description: "New"), playlist(description: "Old")),
+            (.setPlaylistPrivacy(id: "PLtest", privacy: .public), playlist(privacy: "PRIVATE")),
+            (.movePlaylistItem(playlistID: "PLtest", item: second, before: first), playlist(items: [first, second])),
+            (.setAlbumSaved(browseID: "MPREbrowse", playlistID: "OLAKtarget", saved: true), album(saved: false)),
+            (.setArtistSubscribed(browseID: "UCbrowse", channelID: "UCtarget", subscribed: true), artist(subscribed: false)),
+        ]
+        for (action, original) in cases {
+            let transport = ExtendedEditTransport([.response(original), .response(confirmed()), .response(original)])
+            do { _ = try await client(transport).performLibraryEdit(action); XCTFail("Expected readback uncertainty") }
+            catch { XCTAssertEqual(error as? MusicLibraryEditError, .unconfirmedOutcome) }
+            let requests = await transport.requests
+            XCTAssertEqual(requests.count, 3)
+            XCTAssertEqual(requests.filter { $0.url?.path != "/youtubei/v1/browse" }.count, 1)
+        }
+    }
+
+    func testDifferentMutationTargetsNeverBorrowTheCurrentHeadersPermission() async throws {
+        let cases: [(MusicLibraryEditAction, MusicHTTPResponse)] = [
+            (.setAlbumSaved(browseID: "MPREbrowse", playlistID: "OLAKother", saved: true), album(saved: false)),
+            (.setArtistSubscribed(browseID: "UCbrowse", channelID: "UCother", subscribed: true), artist(subscribed: false)),
+        ]
+        for (action, original) in cases {
+            let transport = ExtendedEditTransport([.response(original)])
+            do { _ = try await client(transport).performLibraryEdit(action); XCTFail("Expected exact target guard") }
+            catch { XCTAssertEqual(error as? MusicLibraryEditError, .collectionStateUnavailable) }
+            let requests = await transport.requests
+            XCTAssertEqual(requests.count, 1)
+        }
+    }
+
     func testOversizedAndAmbiguousReorderSnapshotsNeverWrite() async throws {
         let large = (0...10_000).map { PlaylistItemReference(videoID: "same-song", setVideoID: "occurrence-\($0)=") }
         for (items, expected) in [([first, second, first], MusicServiceError?.none), (large, .pageLimitReached)] {
@@ -72,6 +146,35 @@ final class MusicExtendedLibraryEditTests: XCTestCase {
             let requests = await transport.requests
             XCTAssertEqual(requests.count, 1)
         }
+    }
+
+    func testAlbumSaveAndUnsaveKeepBrowseAndMutationTargetsSeparate() async throws {
+        let transport = ExtendedEditTransport([.response(album(saved: false)), .response(confirmed()), .response(album(saved: true)),
+                                               .response(album(saved: true)), .response(confirmed()), .response(album(saved: false))])
+        let client = await client(transport)
+        let saved = try await client.performLibraryEdit(.setAlbumSaved(browseID: "MPREbrowse", playlistID: "OLAKtarget", saved: true))
+        XCTAssertEqual(saved, .albumSaved(browseID: "MPREbrowse", saved: true))
+        let removed = try await client.performLibraryEdit(.setAlbumSaved(browseID: "MPREbrowse", playlistID: "OLAKtarget", saved: false))
+        XCTAssertEqual(removed, .albumSaved(browseID: "MPREbrowse", saved: false))
+        let requests = await transport.requests
+        XCTAssertEqual(requests[1].url?.path, "/youtubei/v1/like/like")
+        XCTAssertEqual(requests[4].url?.path, "/youtubei/v1/like/removelike")
+        XCTAssertEqual(try body(requests[1])["target"] as? [String: String], ["playlistId": "OLAKtarget"])
+        XCTAssertEqual(try body(requests[0])["browseId"] as? String, "MPREbrowse")
+    }
+
+    func testArtistUsesHeaderChannelRatherThanBrowseIdentity() async throws {
+        let transport = ExtendedEditTransport([.response(artist(subscribed: false)), .response(confirmed()), .response(artist(subscribed: true)),
+                                               .response(artist(subscribed: true)), .response(confirmed()), .response(artist(subscribed: false))])
+        let client = await client(transport)
+        let followed = try await client.performLibraryEdit(.setArtistSubscribed(browseID: "UCbrowse", channelID: "UCtarget", subscribed: true))
+        XCTAssertEqual(followed, .artistSubscribed(browseID: "UCbrowse", subscribed: true))
+        let unfollowed = try await client.performLibraryEdit(.setArtistSubscribed(browseID: "UCbrowse", channelID: "UCtarget", subscribed: false))
+        XCTAssertEqual(unfollowed, .artistSubscribed(browseID: "UCbrowse", subscribed: false))
+        let requests = await transport.requests
+        XCTAssertEqual(requests[1].url?.path, "/youtubei/v1/subscription/subscribe")
+        XCTAssertEqual(requests[4].url?.path, "/youtubei/v1/subscription/unsubscribe")
+        XCTAssertEqual(try body(requests[1])["channelIds"] as? [String], ["UCtarget"])
     }
 
     func testRefusedAndUncertainAcknowledgementsNeverTriggerReadbackOrRetry() async throws {
@@ -149,6 +252,17 @@ final class MusicExtendedLibraryEditTests: XCTestCase {
             "musicVisualHeaderRenderer": ["subscriptionButton": ["subscribeButtonRenderer": ["channelId": "UCtwo", "subscribed": true]]],
         ]).data, preservesOccurrences: true)
         XCTAssertNil(conflicting.artistSubscription)
+    }
+
+    func testAlbumRemovalReadbackCannotConflateDislikeWithNeutral() async throws {
+        let disliked = page(header: ["musicDetailHeaderRenderer": ["likeButtonRenderer": [
+            "target": ["playlistId": "OLAKtarget"], "likeStatus": "DISLIKE",
+        ]]])
+        let transport = ExtendedEditTransport([.response(album(saved: true)), .response(confirmed()), .response(disliked)])
+        do { _ = try await client(transport).performLibraryEdit(.setAlbumSaved(browseID: "MPREbrowse", playlistID: "OLAKtarget", saved: false)); XCTFail("Expected exact neutral readback") }
+        catch { XCTAssertEqual(error as? MusicLibraryEditError, .unconfirmedOutcome) }
+        let requests = await transport.requests
+        XCTAssertEqual(requests.count, 3)
     }
 
     func testShelvesCannotGrantAnotherCollectionsControls() throws {

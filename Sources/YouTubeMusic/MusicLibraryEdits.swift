@@ -21,6 +21,8 @@ public enum MusicLibraryEditAction: Equatable, Sendable {
     case setPlaylistDescription(id: String, description: String)
     case setPlaylistPrivacy(id: String, privacy: PlaylistPrivacy)
     case movePlaylistItem(playlistID: String, item: PlaylistItemReference, before: PlaylistItemReference?)
+    case setAlbumSaved(browseID: String, playlistID: String, saved: Bool)
+    case setArtistSubscribed(browseID: String, channelID: String, subscribed: Bool)
 }
 
 /// Enabled separately only after the corresponding signed-in operations have been verified.
@@ -31,19 +33,24 @@ public struct MusicLibraryEditCapabilities: Hashable, Sendable {
     public let playlistDescription: Bool
     public let playlistPrivacy: Bool
     public let playlistReorder: Bool
+    public let albumLibrary: Bool
+    public let artistSubscriptions: Bool
 
     public init(likes: Bool = false, dislikes: Bool = false, playlists: Bool = false,
-                playlistDescription: Bool = false, playlistPrivacy: Bool = false, playlistReorder: Bool = false) {
+                playlistDescription: Bool = false, playlistPrivacy: Bool = false, playlistReorder: Bool = false,
+                albumLibrary: Bool = false, artistSubscriptions: Bool = false) {
         self.likes = likes
         self.dislikes = dislikes
         self.playlists = playlists
         self.playlistDescription = playlistDescription
         self.playlistPrivacy = playlistPrivacy
         self.playlistReorder = playlistReorder
+        self.albumLibrary = albumLibrary
+        self.artistSubscriptions = artistSubscriptions
     }
 
     public var hasAny: Bool {
-        likes || dislikes || playlists || playlistDescription || playlistPrivacy || playlistReorder
+        likes || dislikes || playlists || playlistDescription || playlistPrivacy || playlistReorder || albumLibrary || artistSubscriptions
     }
 
     public func allows(_ action: MusicLibraryEditAction) -> Bool {
@@ -58,6 +65,8 @@ public struct MusicLibraryEditCapabilities: Hashable, Sendable {
         case .setPlaylistDescription: playlistDescription
         case .setPlaylistPrivacy: playlistPrivacy
         case .movePlaylistItem: playlistReorder
+        case .setAlbumSaved: albumLibrary
+        case .setArtistSubscribed: artistSubscriptions
         default: playlists
         }
     }
@@ -86,6 +95,8 @@ public enum MusicLibraryEditResult: Equatable, Sendable {
     case playlistDescriptionChanged(id: String)
     case playlistPrivacyChanged(id: String, privacy: PlaylistPrivacy)
     case playlistItemMoved(playlistID: String, item: PlaylistItemReference, before: PlaylistItemReference?)
+    case albumSaved(browseID: String, saved: Bool)
+    case artistSubscribed(browseID: String, subscribed: Bool)
 }
 
 public enum MusicLibraryEditError: Error, Equatable, LocalizedError, Sendable {
@@ -154,6 +165,10 @@ extension YouTubeMusicClient {
             return try await setPlaylistPrivacy(id: id, privacy: privacy, expectedScope: scope)
         case let .movePlaylistItem(id, item, before):
             return try await movePlaylistItem(playlistID: id, item: item, before: before, expectedScope: scope)
+        case let .setAlbumSaved(browseID, playlistID, saved):
+            return try await setAlbumSaved(browseID: browseID, playlistID: playlistID, saved: saved, expectedScope: scope)
+        case let .setArtistSubscribed(browseID, channelID, subscribed):
+            return try await setArtistSubscribed(browseID: browseID, channelID: channelID, subscribed: subscribed, expectedScope: scope)
         }
     }
 
@@ -291,6 +306,31 @@ extension YouTubeMusicClient {
         return .playlistItemMoved(playlistID: id, item: item, before: before)
     }
 
+    func setAlbumSaved(browseID: String, playlistID: String, saved: Bool,
+                       expectedScope: UUID) async throws -> MusicLibraryEditResult {
+        try validateIdentifier(browseID)
+        let target = try editablePlaylistID(playlistID)
+        guard (browseID.hasPrefix("MPRE") || browseID.hasPrefix("OLAK") || browseID.hasPrefix("VLOLAK")),
+              target.hasPrefix("OLAK") else { throw MusicServiceError.invalidInput }
+        let response = try await libraryMutation(endpoint: saved ? "like/like" : "like/removelike",
+                                                 body: ["target": ["playlistId": target]], expectedScope: expectedScope)
+        try Self.requireMutationConfirmation(response)
+        try await verifyExtendedEdit(.setAlbumSaved(browseID: browseID, playlistID: target, saved: saved), scope: expectedScope)
+        return .albumSaved(browseID: browseID, saved: saved)
+    }
+
+    func setArtistSubscribed(browseID: String, channelID: String, subscribed: Bool,
+                             expectedScope: UUID) async throws -> MusicLibraryEditResult {
+        try validateIdentifier(browseID)
+        try validateIdentifier(channelID)
+        guard channelID.hasPrefix("UC") else { throw MusicServiceError.invalidInput }
+        let response = try await libraryMutation(endpoint: subscribed ? "subscription/subscribe" : "subscription/unsubscribe",
+                                                 body: ["channelIds": [channelID]], expectedScope: expectedScope)
+        try Self.requireMutationConfirmation(response)
+        try await verifyExtendedEdit(.setArtistSubscribed(browseID: browseID, channelID: channelID, subscribed: subscribed), scope: expectedScope)
+        return .artistSubscribed(browseID: browseID, subscribed: subscribed)
+    }
+
     /// Acknowledgement plus a fresh authoritative read is required for these
     /// separately enabled operations. Readback failure never repeats the write.
     private func verifyExtendedEdit(_ action: MusicLibraryEditAction, scope: UUID) async throws {
@@ -308,6 +348,12 @@ extension YouTubeMusicClient {
                 if let index = references.firstIndex(of: item) {
                     matches = before.map { index + 1 < references.count && references[index + 1] == $0 } ?? (index == references.count - 1)
                 } else { matches = false }
+            case let .setAlbumSaved(browseID, target, saved):
+                let state = try await album(id: browseID).albumLibraryState
+                matches = state?.playlistID == target && state?.rating == (saved ? .liked : .neutral)
+            case let .setArtistSubscribed(browseID, channelID, subscribed):
+                let state = try await artist(id: browseID).artistSubscription
+                matches = state?.channelID == channelID && state?.isSubscribed == subscribed
             default: matches = false
             }
             try await validateScope(scope)
@@ -334,6 +380,13 @@ extension YouTubeMusicClient {
             let references = try await reorderReferences(startingWith: first)
             permitted = references.contains(item) &&
                 (before.map { references.contains($0) } ?? true)
+        case let .setAlbumSaved(browseID, target, saved):
+            let state = try await album(id: browseID).albumLibraryState
+            permitted = state?.playlistID == (target.hasPrefix("VL") ? String(target.dropFirst(2)) : target) &&
+                state?.isSaved != nil && state?.isSaved != saved
+        case let .setArtistSubscribed(browseID, channelID, subscribed):
+            let state = try await artist(id: browseID).artistSubscription
+            permitted = state?.channelID == channelID && state?.isSubscribed != nil && state?.isSubscribed != subscribed
         default: return
         }
         try Task.checkCancellation()
