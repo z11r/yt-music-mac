@@ -10,7 +10,12 @@ public struct ListenMetadata: Codable, Equatable, Sendable {
     public var isValid: Bool {
         func valid(_ value: String) -> Bool { !value.isEmpty && value.utf8.count <= 256 && !value.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains) }
         return !trackID.isEmpty && trackID.utf8.count <= 256 && valid(title) && valid(artist) &&
-            artist.lowercased() != "unknown artist" && (album.map(valid) ?? true)
+            !Self.isUnknownArtist(artist) && (album.map(valid) ?? true)
+    }
+
+    // Native fallback labels are metadata absence, in every shipped locale.
+    private static func isUnknownArtist(_ value: String) -> Bool {
+        ["unknown artist", "artiste inconnu"].contains(value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
     }
 
     public init?(track: Track) {
@@ -20,7 +25,7 @@ public struct ListenMetadata: Codable, Equatable, Sendable {
         }
         guard track.origin != .upload, track.contentKind == .song, track.episode == nil,
               !track.id.isEmpty, track.id.utf8.count <= 256,
-              let title = field(track.title), let artist = field(track.artist), artist.lowercased() != "unknown artist" else { return nil }
+              let title = field(track.title), let artist = field(track.artist), !Self.isUnknownArtist(artist) else { return nil }
         self.trackID = track.id; self.title = title; self.artist = artist; self.album = track.album.flatMap(field)
     }
 }

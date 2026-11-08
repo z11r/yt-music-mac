@@ -33,6 +33,20 @@ final class MusicRadioTests: XCTestCase {
         XCTAssertNotNil(page.continuation)
     }
 
+    func testRadioContentKindRequiresAnExplicitServiceType() throws {
+        func typed(_ id: String, _ type: String) -> [String: Any] {
+            panelItem(id, extra: ["navigationEndpoint": ["watchEndpoint": ["videoId": id,
+                "watchEndpointMusicSupportedConfigs": ["watchEndpointMusicConfig": ["musicVideoType": type]]]]])
+        }
+        let parsed = try MusicRadioParser.parse(json(firstPage([
+            typed("abcDEF12_-3", "MUSIC_VIDEO_TYPE_ATV"),
+            typed("xyzABC34_-5", "MUSIC_VIDEO_TYPE_PODCAST_EPISODE"),
+            typed("qrsABC34_-5", "MUSIC_VIDEO_TYPE_UGC"),
+        ], token: nil)))
+        XCTAssertEqual(parsed.tracks.map(\.contentKind), [.song, .podcastEpisode, nil])
+        XCTAssertEqual(parsed.tracks[1].episode?.identity.browseID, "MPEDxyzABC34_-5")
+    }
+
     func testContinuationLoadsTheNextPageWithItsToken() async throws {
         let transport = RadioTransport([try fixtureResponse("radio_song_first_page"), try fixtureResponse("radio_continuation")])
         let client = client(transport)

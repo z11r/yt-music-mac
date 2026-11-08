@@ -118,7 +118,8 @@ struct ListeningLedgerTests {
         let excluded = [Track(id: song.id, title: song.title, artist: song.artist, origin: .upload, contentKind: .song),
             Track(id: song.id, title: song.title, artist: song.artist, contentKind: .podcastEpisode),
             Track(id: song.id, title: song.title, artist: song.artist),
-            Track(id: song.id, title: song.title, artist: "Unknown artist", contentKind: .song)]
+            Track(id: song.id, title: song.title, artist: "Unknown artist", contentKind: .song),
+            Track(id: song.id, title: song.title, artist: "Artiste inconnu", contentKind: .song)]
         let occurrence = occurrence()
         for track in excluded {
             var ledger = ListeningLedger()

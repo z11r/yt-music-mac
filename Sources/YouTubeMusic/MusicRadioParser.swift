@@ -85,8 +85,13 @@ enum MusicRadioParser {
         let artist = artistText.isEmpty ? (renderer["shortBylineText"].text ?? ServiceLocalization.text("Unknown artist")) : artistText
         let album = runs.first { MusicResponseParser.collectionKind($0["navigationEndpoint"]["browseEndpoint"]) == .album }?["text"].string
         let duration = renderer["lengthText"].text.flatMap(MusicResponseParser.parseDuration)
+        let endpoint = renderer["navigationEndpoint"]
+        let episode = MusicPodcastParser.metadata(renderer, videoID: id, endpoints: [endpoint])
+        let type = endpoint["watchEndpoint"]["watchEndpointMusicSupportedConfigs"]["watchEndpointMusicConfig"]["musicVideoType"].string
+        let song = type.map { ["MUSIC_VIDEO_TYPE_ATV", "MUSIC_VIDEO_TYPE_OMV"].contains($0) } ?? false
         return Track(id: id, title: title, artist: artist, album: album,
-                     artworkURL: MusicResponseParser.thumbnail(renderer), duration: duration)
+                     artworkURL: MusicResponseParser.thumbnail(renderer), duration: duration,
+                     contentKind: episode != nil ? .podcastEpisode : song ? .song : nil, episode: episode)
     }
 
     private static func isSeparator(_ text: String?) -> Bool {
