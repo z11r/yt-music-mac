@@ -50,7 +50,7 @@ struct SettingsView: View {
                         }
                     }.disabled(isSigningOut)
                 }
-                Text("Sign-out clears this app's session and saved queue.")
+                Text("Sign-out clears this app's session and current queue. Named saved queues stay on this Mac for their account until deleted.")
                     .font(.caption).foregroundStyle(.secondary)
             }
         }

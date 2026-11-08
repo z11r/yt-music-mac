@@ -5,13 +5,14 @@ struct QueueView: View {
     let session: AppSession
     @State private var selection: Set<UUID> = []
     @State private var filter = ""
+    @State private var showsSavedQueues = false
 
     private var isFiltering: Bool { !filter.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
     private var rows: [QueueDisplayRow] { QueuePresentation.rows(in: session.queue.entries, matching: filter) }
     private var visibleIDs: Set<UUID> { Set(rows.map(\.id)) }
 
     private var remainingDescription: String {
-        let duration = QueuePresentation.remaining(in: session.queue, position: Double(session.player.clock.elapsedSeconds),
+        let duration = QueuePresentation.remaining(in: session.queue, position: session.remainingQueuePosition,
             confirmedCurrentDuration: session.player.hasConfirmedPosition ? session.player.clock.duration : nil)
         guard duration.songCount > 0 else { return "" }
         if duration.knownSeconds == 0, duration.unknownCount > 0 { return "Remaining duration unknown" }
@@ -39,6 +40,8 @@ struct QueueView: View {
                     .disabled(!session.queue.canUndo)
                     .labelStyle(.iconOnly).buttonStyle(.borderless)
                 Menu {
+                    Button("Saved Queues…") { showsSavedQueues = true }
+                    Divider()
                     Button("Play Selected") { playSelection(selection) }.disabled(selection.isEmpty)
                     Button("Move Up") { moveSelection(up: true) }.disabled(!canMove(up: true))
                     Button("Move Down") { moveSelection(up: false) }.disabled(!canMove(up: false))
@@ -105,6 +108,8 @@ struct QueueView: View {
         .onChange(of: filter) {
             selection.formIntersection(visibleIDs)
         }
+        .sheet(isPresented: $showsSavedQueues) { SavedQueuesView(session: session) }
+        .onChange(of: session.savedQueues.scope) { showsSavedQueues = false }
     }
 
     private func queueRow(_ entry: QueueEntry, index: Int) -> some View {
@@ -130,10 +135,10 @@ struct QueueView: View {
         .accessibilityActions {
             Button("Play") { session.selectQueueEntry(entry.id) }
             Button("Start Radio") { session.startRadio(from: entry.track) }
-            if index > 0 {
+            if !isFiltering && index > 0 {
                 Button("Move Up") { moveEntry(entry.id, up: true) }
             }
-            if index + 1 < session.queue.entries.count {
+            if !isFiltering && index + 1 < session.queue.entries.count {
                 Button("Move Down") { moveEntry(entry.id, up: false) }
             }
             Button("Remove from Queue") { session.removeQueueEntries([entry.id]) }
@@ -141,7 +146,7 @@ struct QueueView: View {
     }
 
     private func moveEntry(_ id: UUID, up: Bool) {
-        guard let index = session.queue.entries.firstIndex(where: { $0.id == id }),
+        guard !isFiltering, let index = session.queue.entries.firstIndex(where: { $0.id == id }),
               up ? index > 0 : index + 1 < session.queue.entries.count else { return }
         session.moveQueueEntries(from: IndexSet(integer: index), to: up ? index - 1 : index + 2)
     }

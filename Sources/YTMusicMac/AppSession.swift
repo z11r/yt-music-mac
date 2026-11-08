@@ -97,6 +97,7 @@ final class AppSession {
     /// Radio requests and how the queue continues past its end. See AppSession+Radio.swift.
     let radio: RadioSession
     let sleepTimer = SleepTimer()
+    let savedQueues: NamedQueueLibrary
     var queue = PlaybackQueue()
     let collectionPlayback: CollectionPlayback
     private(set) var destination: MusicDestination = .home
@@ -148,6 +149,7 @@ final class AppSession {
     init(configuration: AppSessionConfiguration = .live()) {
         preferences = configuration.preferences
         radio = RadioSession(preferences: configuration.preferences)
+        savedQueues = NamedQueueLibrary(store: configuration.namedQueueStore, sessions: configuration.credentials)
         isSceneCheck = configuration.isSceneCheck
         account = WebSession(dataStore: configuration.dataStore, credentials: configuration.credentials,
                              preferences: configuration.preferences)
@@ -218,6 +220,9 @@ final class AppSession {
     }
 
     var currentTrack: Track? { queue.currentTrack }
+    var remainingQueuePosition: TimeInterval {
+        resumeState.position(for: queue, playerPosition: Double(player.clock.elapsedSeconds))
+    }
     var remoteLibraryEditingEnabled: Bool { account.isSignedIn && client.supportsRemoteLibraryEdits }
     var visibleTracks: [Track] {
         guard let page else { return [] }
@@ -647,6 +652,44 @@ final class AppSession {
         queue.undo()
         reconcileQueue(previous: previous)
     }
+
+    /// Metadata snapshot for an explicitly named local queue; no listening starts on restore.
+    func savedQueueSnapshot() -> QueueSnapshot {
+        resumeState.snapshot(queue: queue, playerPosition: player.clock.position,
+            playerDuration: player.clock.duration,
+            positionConfirmed: player.hasConfirmedPosition && !player.isBuffering && player.errorMessage == nil)
+    }
+
+    func openSavedQueue(id: UUID, expectedScope: UUID) async -> Bool {
+        guard account.isSignedIn, savedQueues.scope == expectedScope else { return false }
+        collectionPlayback.cancel()
+        cancelPendingCollectionRadio()
+        let generation = accountGeneration
+        let revision = queue.revision
+        let request = UUID()
+        scriptingPlayGeneration = request
+        guard let snapshot = await savedQueues.snapshot(id: id, expectedScope: expectedScope),
+              accountGeneration == generation, account.isSignedIn, savedQueues.scope == expectedScope,
+              scriptingPlayGeneration == request, queue.revision == revision else { return false }
+        do { try restoreSavedQueueSnapshot(snapshot); return true }
+        catch { queueError = "This saved queue could not be opened. The current queue has been kept."; return false }
+    }
+
+    /// Validation precedes mutation, so a corrupt named snapshot cannot erase the current queue.
+    func restoreSavedQueueSnapshot(_ snapshot: QueueSnapshot) throws {
+        collectionPlayback.cancel()
+        cancelMusicLink()
+        let restored = try PlaybackQueue(snapshot: snapshot)
+        scriptingPlayGeneration = UUID()
+        cancelRadio()
+        sleepTimer.cancel()
+        wantsPlayback = false
+        player.stop()
+        queue = restored
+        resumeState.restore(snapshot)
+        saveQueue()
+        systemMedia?.refresh()
+    }
     func toggleShuffle() { collectionPlayback.cancel(); queue.setShuffle(!queue.isShuffled); saveQueue() }
     func cycleRepeat() {
         collectionPlayback.cancel()
@@ -716,6 +759,7 @@ final class AppSession {
         accountGeneration = UUID()
         searchSuggestions.close()
         searchHistory.clear()
+        savedQueues.invalidate()
         sleepTimer.cancel()
         cancelRadio()
         resetLibraryEditing()
@@ -741,6 +785,7 @@ final class AppSession {
 
     private func accountChanged(replacedAccount: Bool) {
         cancelMusicLink(keepingPending: !links.isReady && !replacedAccount)
+        savedQueues.invalidate()
         sleepTimer.cancel()
         collectionPlayback.cancel()
         accountGeneration = UUID()
