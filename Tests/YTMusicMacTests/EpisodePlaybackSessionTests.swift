@@ -11,6 +11,55 @@ import Testing
               episode: .init(identity: .init(browseID: "MPEDcanonical"), serviceProgressFraction: 0.9))
     }
 
+    @Test func sameAccountRebindWaitsForFinalSaveAndContinuesWithoutABookmarkSeek() async throws {
+        let store = RebindProgressLedger(snapshot(firstHash, position: 120))
+        let session = EpisodePlaybackSession(load: { await store.load($0) }, save: { await store.save($0) }, saveDelay: .seconds(60))
+        session.bindAccount(firstHash); await session.waitUntilLoaded()
+        let current = occurrence()
+        session.begin(track: track, occurrence: current)
+        session.record(occurrence: current, position: 130, duration: 3_600, confirmedContent: true)
+        let continuation = try #require(session.continuationForRebind())
+        let saving = session.detachAccount()
+        await store.waitForSave()
+        session.bindAccount(firstHash)
+        for _ in 0..<5 { await Task.yield() }
+        #expect(await store.loads == 1)
+        #expect(session.isLoading)
+        await store.finishSave()
+        #expect(await saving?.value == true)
+        await session.waitUntilLoaded()
+        #expect(session.resumePosition(for: track) == 130)
+        #expect(session.restoreContinuation(continuation))
+        session.record(occurrence: current, position: 30, duration: 3_600, confirmedContent: true)
+        #expect(session.resumePosition(for: track) == 30)
+        #expect(!session.bindAccount(firstHash))
+        session.record(occurrence: current, position: 31, duration: 3_600, confirmedContent: true)
+        #expect(session.resumePosition(for: track) == 31)
+        let finalSave = session.detachAccount()
+        await store.waitForSave()
+        await store.finishSave()
+        #expect(await finalSave?.value == true)
+    }
+
+    @Test func continuationCannotReplaceANewerRequestOrAnotherAccount() async throws {
+        let session = model(ProgressLedger(initial: [firstHash: snapshot(firstHash, position: 120)]))
+        session.bindAccount(firstHash); await session.waitUntilLoaded()
+        let original = occurrence()
+        session.begin(track: track, occurrence: original)
+        session.record(occurrence: original, position: 125, duration: 3_600, confirmedContent: true)
+        let continuation = try #require(session.continuationForRebind())
+        _ = session.detachAccount()
+        session.bindAccount(firstHash); await session.waitUntilLoaded()
+        let replacement = occurrence()
+        session.begin(track: track, occurrence: replacement)
+        #expect(!session.restoreContinuation(continuation))
+        session.record(occurrence: original, position: 200, duration: 3_600, confirmedContent: true)
+        session.record(occurrence: replacement, position: 1, duration: 3_600, confirmedContent: true)
+        #expect(session.resumePosition(for: track) == 120)
+        session.bindAccount(secondHash); await session.waitUntilLoaded()
+        #expect(!session.restoreContinuation(continuation))
+    }
+
     @Test func confirmedLocalProgressRejectsPlaceholdersAndStaleOccurrences() async throws {
         let ledger = ProgressLedger(initial: [firstHash: snapshot(firstHash, position: 120)])
         let session = model(ledger)
@@ -208,4 +257,21 @@ private actor DeferredProgressLoader {
         return result
     }
     func finish(_ value: Bool) { pending?.resume(returning: value); pending = nil }
+}
+
+private actor RebindProgressLedger {
+    private var snapshot: EpisodeProgressSnapshot
+    private var pending: CheckedContinuation<Void, Never>?
+    private(set) var loads = 0
+    init(_ snapshot: EpisodeProgressSnapshot) { self.snapshot = snapshot }
+    func load(_ hash: String) -> EpisodeProgressSnapshot? {
+        loads += 1
+        return snapshot.accountHash == hash ? snapshot : nil
+    }
+    func save(_ value: EpisodeProgressSnapshot) async {
+        await withCheckedContinuation { pending = $0 }
+        snapshot = value
+    }
+    func waitForSave() async { while pending == nil { await Task.yield() } }
+    func finishSave() { pending?.resume(); pending = nil }
 }

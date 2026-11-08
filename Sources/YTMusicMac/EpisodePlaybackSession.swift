@@ -9,10 +9,16 @@ import Observation
 
 @MainActor @Observable
 final class EpisodePlaybackSession {
-    private struct Active {
+    fileprivate struct Active {
         let episode: EpisodeIdentity
         let occurrence: PlaybackOccurrence
         var protectsBookmark = true
+    }
+    struct Continuation {
+        fileprivate let accountHash: String
+        fileprivate let active: Active
+        var occurrence: PlaybackOccurrence { active.occurrence }
+        var episodeKey: String { active.episode.key }
     }
     private(set) var isLoading = false
     private(set) var errorMessage: String?
@@ -33,6 +39,7 @@ final class EpisodePlaybackSession {
     @ObservationIgnored private var revision = 0
     @ObservationIgnored private var loadTask: Task<Void, Never>?
     @ObservationIgnored private var saveTask: Task<Void, Never>?
+    @ObservationIgnored private var detachingSave: Task<Bool, Never>?
 
     convenience init(store: EpisodeProgressStore?, now: @escaping @Sendable () -> Date = { Date() }) {
         self.init(load: { hash in
@@ -50,16 +57,19 @@ final class EpisodePlaybackSession {
         self.load = load; self.save = save; self.now = now; self.saveDelay = saveDelay
     }
 
-    func bindAccount(_ hash: String?) {
+    @discardableResult func bindAccount(_ hash: String?) -> Bool {
         let hash = hash.flatMap { EpisodeProgressSnapshot.validAccountHash($0) ? $0 : nil }
-        guard hash != accountHash else { return }
+        guard hash != accountHash else { return false }
         scope = UUID(); loadTask?.cancel(); saveTask?.cancel(); saveTask = nil
         accountHash = hash; records = [:]; settings = .init(); active = nil; verifiedOccurrence = nil
         availableRates = []; currentRate = nil; errorMessage = nil; writable = false; isLoading = hash != nil
-        guard let hash else { return }
+        guard let hash else { return true }
         let expected = scope
+        let pendingSave = detachingSave
         loadTask = Task { [weak self, load] in
             do {
+                _ = await pendingSave?.value
+                try Task.checkCancellation()
                 let snapshot = try await load(hash)
                 try Task.checkCancellation()
                 try snapshot?.validate()
@@ -77,6 +87,7 @@ final class EpisodePlaybackSession {
                 self.errorMessage = "Local episode progress could not be loaded. Existing data has been retained."
             }
         }
+        return true
     }
 
     func waitUntilLoaded() async { await loadTask?.value }
@@ -88,6 +99,18 @@ final class EpisodePlaybackSession {
         active = Active(episode: episode, occurrence: occurrence)
     }
     func clearPlayback() { active = nil; verifiedOccurrence = nil; availableRates = []; currentRate = nil }
+
+    func continuationForRebind() -> Continuation? {
+        guard let accountHash, let active else { return nil }
+        return Continuation(accountHash: accountHash, active: active)
+    }
+
+    @discardableResult func restoreContinuation(_ continuation: Continuation) -> Bool {
+        guard !isLoading, accountHash == continuation.accountHash, active == nil else { return false }
+        active = continuation.active
+        return true
+    }
+
 
     func progress(for track: Track) -> EpisodeProgressRecord? {
         track.episode.flatMap { records[$0.identity.key] }
@@ -172,12 +195,16 @@ final class EpisodePlaybackSession {
         let snapshot = writable ? snapshot() : nil
         let prior = saveTask
         bindAccount(nil)
-        guard let snapshot else { return nil }
-        return Task { [save] in
+        guard let snapshot else { return detachingSave }
+        let earlier = detachingSave
+        let task = Task { [save] in
+            _ = await earlier?.value
             await prior?.value
             do { try await save(snapshot); return true }
             catch { return false }
         }
+        detachingSave = task
+        return task
     }
 
     private func snapshot() -> EpisodeProgressSnapshot? {

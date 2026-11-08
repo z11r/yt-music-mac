@@ -183,6 +183,7 @@ final class AppSession {
 
     @ObservationIgnored private var episodeStartTask: Task<Void, Never>?
     @ObservationIgnored private var pendingEpisodeOccurrence: PlaybackOccurrence?
+    @ObservationIgnored private var episodeContinuation: EpisodePlaybackSession.Continuation?
 
     init(configuration: AppSessionConfiguration = .live()) {
         preferences = configuration.preferences
@@ -221,6 +222,9 @@ final class AppSession {
         }
         player.onRecoveryRequested = { [weak self] occurrence, position in
             guard let self else { return nil }
+            if let track = self.currentTrack, self.queue.accepts(occurrence) {
+                self.episodePlayback.begin(track: track, occurrence: occurrence)
+            }
             return self.resumeState.recover(occurrence, queue: self.queue, playerPosition: position)
         }
         player.onStateChanged = { [weak self] in
@@ -242,7 +246,7 @@ final class AppSession {
         }
         player.onSessionRestoreFailed = { [weak account] in account?.sessionRestoreFailed() }
         account.onAccountChanged = { [weak self] changed in self?.accountChanged(replacedAccount: changed) }
-        account.onAccountConfirmed = { [weak self] hash in self?.episodePlayback.bindAccount(hash) }
+        account.onAccountConfirmed = { [weak self] hash in self?.bindEpisodeAccount(hash) }
         account.onSignInCompleted = { [weak self] in
             guard let self, self.showsAccount else { return }
             self.closeAccount()
@@ -981,6 +985,7 @@ final class AppSession {
     }
 
     func signOut() async {
+        episodeContinuation = nil
         cancelMusicLink()
         episodeStartTask?.cancel(); episodeStartTask = nil; pendingEpisodeOccurrence = nil
         let progressFlush = episodePlayback.detachAccount()
@@ -1021,7 +1026,23 @@ final class AppSession {
         systemMedia?.refresh()
     }
 
+    private func bindEpisodeAccount(_ hash: String) {
+        guard episodePlayback.bindAccount(hash), let continuation = episodeContinuation else { return }
+        let generation = accountGeneration
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.episodePlayback.waitUntilLoaded()
+            guard !self.isShuttingDown, self.accountGeneration == generation, self.account.isSignedIn,
+                  self.queue.accepts(continuation.occurrence),
+                  self.currentTrack?.episode?.identity.key == continuation.episodeKey else { return }
+            self.episodeContinuation = nil
+            // Continue tracking the accepted player; never issue a load or seek here.
+            self.episodePlayback.restoreContinuation(continuation)
+        }
+    }
+
     private func accountChanged(replacedAccount: Bool) {
+        episodeContinuation = replacedAccount ? nil : episodePlayback.continuationForRebind()
         cancelMusicLink(keepingPending: !links.isReady && !replacedAccount)
         spotlightPageSource = nil
         spotlight.accountChanged(isSignedIn: account.isSignedIn)
@@ -1086,6 +1107,7 @@ final class AppSession {
     }
 
     func shutdown() async {
+        episodeContinuation = nil
         isShuttingDown = true
         cancelMusicLink()
         episodeStartTask?.cancel(); episodeStartTask = nil; pendingEpisodeOccurrence = nil
