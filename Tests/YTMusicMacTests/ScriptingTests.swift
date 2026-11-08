@@ -120,7 +120,7 @@ struct ScriptingValueTests {
 struct ScriptingCommandTests {
     @Test func commandsFailCleanlyWithoutAnAppSession() {
         AppScripting.session = nil
-        let commands: [NSScriptCommand] = [PlayScriptCommand(), PauseScriptCommand(), GetPlayerInfoScriptCommand(), CheckLibraryScriptCommand(), CheckLibraryNavigationScriptCommand()]
+        let commands: [NSScriptCommand] = [PlayScriptCommand(), PauseScriptCommand(), GetPlayerInfoScriptCommand(), CheckLibraryScriptCommand(), CheckLibraryNavigationScriptCommand(), RetryPlaylistCleanupScriptCommand()]
         for command in commands {
             #expect(command.performDefaultImplementation() == nil)
             #expect(command.scriptErrorNumber == -1728)
@@ -129,6 +129,10 @@ struct ScriptingCommandTests {
         playVideo.directParameter = "abcDEF12_-3"
         #expect(playVideo.performDefaultImplementation() == nil)
         #expect(playVideo.scriptErrorNumber == -1728)
+        let playlist = CheckPlaylistEditsScriptCommand()
+        playlist.directParameter = "abcDEF12_-3"
+        #expect(playlist.performDefaultImplementation() == nil)
+        #expect(playlist.scriptErrorNumber == -1728)
         let volume = SetVolumeScriptCommand()
         volume.directParameter = 0.5
         #expect(volume.performDefaultImplementation() == nil)
@@ -140,6 +144,10 @@ struct ScriptingCommandTests {
         playVideo.directParameter = "https://example.com"
         #expect(playVideo.performDefaultImplementation() == nil)
         #expect(playVideo.scriptErrorNumber == -1700)
+        let playlist = CheckPlaylistEditsScriptCommand()
+        playlist.directParameter = "https://example.com"
+        #expect(playlist.performDefaultImplementation() == nil)
+        #expect(playlist.scriptErrorNumber == -1700)
         let volume = SetVolumeScriptCommand()
         volume.directParameter = 50
         #expect(volume.performDefaultImplementation() == nil)
@@ -152,7 +160,7 @@ struct ScriptingCommandTests {
         let commands = try document.nodes(forXPath: "/dictionary/suite/command")
         let queueResult = try document.nodes(forXPath: "/dictionary/suite/command[@code='YTMcpvds']/result/@type")
         #expect(queueResult.first?.stringValue == "integer")
-        #expect(commands.count == 14)
+        #expect(commands.count == 16)
         var codes = Set<String>()
         var names = Set<String>()
         for node in commands {
@@ -166,7 +174,7 @@ struct ScriptingCommandTests {
             #expect(NSClassFromString(className) != nil)
         }
         #expect(names == ["quit", "play", "play video", "pause", "set volume", "get player info", "check library",
-                          "play videos", "check library navigation", "seek to", "next track", "previous track", "set repeat", "get playback snapshot"])
+                          "play videos", "check library navigation", "check playlist edits", "retry playlist check cleanup", "seek to", "next track", "previous track", "set repeat", "get playback snapshot"])
         #expect(codes.contains("YTMcpvid"))
         #expect(codes.contains("YTMcinfo"))
         #expect(codes.contains("YTMcclib"))

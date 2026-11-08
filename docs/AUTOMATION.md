@@ -27,6 +27,9 @@ with `.debug` appended.
 | `get player info` | Return the current player state as JSON. |
 | `get playback snapshot` | Add the current entry UUID, occurrence generation, queue index, repeat, and shuffle state. |
 | `check library` | Read a bounded library report containing counts and fixed status codes. |
+| `check library navigation` | Read saved albums, artists, and listening history; at most three pages per surface within 15 seconds. |
+| `check playlist edits` | Create, edit, and delete one new private test playlist using an exact video ID; this changes account data. |
+| `retry playlist check cleanup` | Explicitly retry cleanup of the known new test playlist in this app session. |
 
 `play videos` accepts 1–100 entries with at most 10 different video IDs. Repeated
 IDs remain separate queue entries. Each distinct song is resolved once, and the
@@ -71,3 +74,17 @@ helps diagnose pagination without exporting library content.
 When an HTTP request is rejected, the report can include `httpStatusCode`.
 The `requestRejected` status distinguishes these failures from a service outage.
 Response bodies, headers, and request parameters are excluded.
+
+The disposable playlist check is an explicit account mutation diagnostic. It
+creates a private playlist, renames it, adds two copies of the supplied song,
+reads their occurrence IDs, removes one exact occurrence, reads the result, and
+deletes the playlist. Its report contains fixed statuses and counts. It never
+edits a preexisting playlist or a song rating. Ordinary library editing remains
+separately gated by operation.
+
+The workload has a 15-second deadline and a separate five-second cleanup budget.
+Read `passed`, `cleanupNeeded`, and `uncertainOutcome` before continuing. Keep
+the app open if cleanup is pending: its verification client retains the known
+new playlist and blocks another check. Cleanup never searches by title or
+blindly replays an uncertain delete. A lost create response can leave an unknown
+playlist that requires manual review in the service.

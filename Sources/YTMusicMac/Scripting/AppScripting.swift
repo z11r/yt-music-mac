@@ -28,7 +28,7 @@ enum ScriptingInput {
 
 enum AppScriptingError: Error, Equatable, LocalizedError {
     case unavailable, invalidVideoID, signInRequired, noSelection, trackNotFound, superseded, lookupTimedOut, lookupFailed
-    case libraryCheckTimedOut, libraryCheckFailed
+    case libraryCheckTimedOut, libraryCheckFailed, playlistCheckFailed
 
     var errorDescription: String? {
         switch self {
@@ -42,6 +42,7 @@ enum AppScriptingError: Error, Equatable, LocalizedError {
         case .lookupFailed: "YouTube Music could not look up the requested song."
         case .libraryCheckTimedOut: "The library check timed out."
         case .libraryCheckFailed: "YouTube Music could not complete the library check."
+        case .playlistCheckFailed: "The disposable playlist check could not complete. Check its cleanup status before trying again."
         }
     }
 

@@ -165,3 +165,55 @@ class LibraryReadScriptCommand: NSScriptCommand {
         return nil
     }
 }
+
+/// Explicitly creates and deletes a new private playlist. Never runs on launch.
+@objc(YTMusicCheckPlaylistEditsCommand)
+final class CheckPlaylistEditsScriptCommand: NSScriptCommand {
+    override func performDefaultImplementation() -> Any? {
+        guard let videoID = ScriptingInput.videoID(directParameter) else {
+            setScriptError(self, .invalidVideoID)
+            return nil
+        }
+        return beginPlaylistVerificationReply(self, videoID: videoID)
+    }
+}
+
+@objc(YTMusicRetryPlaylistCleanupCommand)
+final class RetryPlaylistCleanupScriptCommand: NSScriptCommand {
+    override func performDefaultImplementation() -> Any? {
+        beginPlaylistVerificationReply(self, videoID: nil)
+    }
+}
+
+private func beginPlaylistVerificationReply(_ command: NSScriptCommand, videoID: String?) -> Any? {
+    let session = MainActor.assumeIsolated { AppScripting.session }
+    guard let session else { setScriptError(command, .unavailable); return nil }
+    guard MainActor.assumeIsolated({ session.account.isSignedIn }) else {
+        setScriptError(command, .signInRequired)
+        return nil
+    }
+    command.suspendExecution()
+    let reply = SuspendedScriptReply(command)
+    Task { @MainActor in
+        do {
+            let client = session.playlistVerificationClient
+            let scope = try await client.libraryEditScope()
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.sortedKeys]
+            let data: Data
+            if let videoID {
+                data = try encoder.encode(await client.checkPlaylistEdits(videoID: videoID, expectedScope: scope))
+            } else {
+                data = try encoder.encode(await client.retryPlaylistEditCleanup(expectedScope: scope))
+            }
+            reply.resume(result: String(decoding: data, as: UTF8.self), error: nil)
+        } catch MusicServiceError.sessionChanged {
+            reply.resume(result: nil, error: .superseded)
+        } catch MusicServiceError.signInRequired {
+            reply.resume(result: nil, error: .signInRequired)
+        } catch {
+            reply.resume(result: nil, error: .playlistCheckFailed)
+        }
+    }
+    return nil
+}

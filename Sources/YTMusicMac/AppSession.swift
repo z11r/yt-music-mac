@@ -138,6 +138,8 @@ final class AppSession {
     private(set) var canGoForward = false
 
     @ObservationIgnored let client: YouTubeMusicClient
+    /// Separate, retained client for explicitly requested disposable checks only.
+    @ObservationIgnored let playlistVerificationClient: YouTubeMusicClient
     @ObservationIgnored private let queueStore: QueueStore?
     @ObservationIgnored private let preferences: UserDefaults
     @ObservationIgnored let isSceneCheck: Bool
@@ -164,6 +166,8 @@ final class AppSession {
         account = WebSession(dataStore: configuration.dataStore, credentials: configuration.credentials,
                              preferences: configuration.preferences)
         client = configuration.client
+        playlistVerificationClient = configuration.playlistVerificationClient ?? YouTubeMusicClient(
+            sessions: configuration.credentials, libraryEditCapabilities: .init(playlists: true))
         searchSuggestions = SearchSuggestions { [client = configuration.client] text in
             try await client.searchSuggestions(for: text)
         }

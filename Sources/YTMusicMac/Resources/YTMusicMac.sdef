@@ -48,6 +48,15 @@
             <cocoa class="YTMusicCheckLibraryNavigationCommand"/>
             <result type="text" description="JSON with counts, per-page counts, status and whether more pages remain. No music or account identifiers."/>
         </command>
+        <command name="check playlist edits" code="YTMcvped" description="Explicitly create a new private playlist, rename it, add two copies of a song, remove one exact occurrence, and delete the new playlist. Changes account data. Never operates on existing playlists. Returns counts and cleanup status within a bounded check.">
+            <cocoa class="YTMusicCheckPlaylistEditsCommand"/>
+            <direct-parameter type="text" description="An 11-character YouTube video ID for the disposable playlist."/>
+            <result type="text" description="JSON with step statuses, occurrence counts, and cleanup status. No account, song or playlist identifiers."/>
+        </command>
+        <command name="retry playlist check cleanup" code="YTMcrpcl" description="Explicitly retry cleanup of the known playlist created by the last disposable check in this app session. Never searches for playlists by title or touches preexisting playlists.">
+            <cocoa class="YTMusicRetryPlaylistCleanupCommand"/>
+            <result type="text" description="JSON cleanup status. An uncertain delete is not replayed automatically."/>
+        </command>
         <command name="seek to" code="YTMcseek" description="Seek within the selected song.">
             <cocoa class="YTMusicSeekCommand"/>
             <direct-parameter type="real" description="A nonnegative position in seconds."/>

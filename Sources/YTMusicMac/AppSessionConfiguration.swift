@@ -14,6 +14,7 @@ struct AppSessionConfiguration {
     let installsSystemMedia: Bool
     let isSceneCheck: Bool
     var namedQueueStore: NamedQueueStore? = nil
+    var playlistVerificationClient: YouTubeMusicClient? = nil
     var localCollectionStore: LocalCollectionStore? = nil
 
     static func live() -> Self {
