@@ -70,6 +70,7 @@ struct SettingsView: View {
             ListenBrainzSettings(session: session)
             LastFMSettings(session: session)
             StreamingExportSettingsView(session: session)
+            DiscordPresenceSettingsView(session: session)
         }
         .formStyle(.grouped)
         .padding(10)

@@ -27,6 +27,7 @@ struct AppSessionConfiguration {
     var lastFMCoordinator: LastFMCoordinator? = nil
     var profileNamespace: String = AppIdentity.identifier
     var streamingMetadataWriter: (any StreamingMetadataWriting)? = nil
+    var discordPresenceClient: (any DiscordPresenceProviding)? = nil
 
     static func live() -> Self {
         let credentials = MusicSessionStore()
@@ -56,7 +57,7 @@ struct AppSessionConfiguration {
                         store: LastFMStore(directory: $0.appendingPathComponent("lastfm", isDirectory: true)),
                         secrets: KeychainLastFMCredentials(service: AppIdentity.identifier + ".lastfm"),
                         api: LastFMAPI(transport: LastFMHTTPTransport())) },
-                    streamingMetadataWriter: StreamingExportFile())
+                    streamingMetadataWriter: StreamingExportFile(), discordPresenceClient: DiscordPresenceClient())
     }
 
     static func sceneCheck(preferences: UserDefaults, transport: SceneCheckTransport) -> Self {

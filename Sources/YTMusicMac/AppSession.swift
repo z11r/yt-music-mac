@@ -139,6 +139,7 @@ final class AppSession {
     let streamingExport: StreamingMetadataExport?
     let quickCommands = QuickCommandPalette()
     @ObservationIgnored var quickCommandProfile: String?
+    let discordPresence: DiscordPresenceSession?
     private(set) var destination: MusicDestination = .home
     private(set) var page: MusicPage?
     private(set) var chartCountries: [MusicChartCountry] = []
@@ -225,6 +226,10 @@ final class AppSession {
             StreamingMetadataExport(preferences: configuration.preferences, profileNamespace: configuration.profileNamespace,
                 sessions: configuration.credentials, writer: $0)
         }
+        discordPresence = configuration.discordPresenceClient.map {
+            DiscordPresenceSession(preferences: configuration.preferences, profileNamespace: configuration.profileNamespace,
+                sessions: configuration.credentials, service: $0)
+        }
         isSceneCheck = configuration.isSceneCheck
         account = WebSession(dataStore: configuration.dataStore, credentials: configuration.credentials,
                              preferences: configuration.preferences)
@@ -262,7 +267,8 @@ final class AppSession {
             if !ended, self.wantsPlayback, self.player.isPlaying, !self.player.isBuffering,
                self.player.hasConfirmedPosition, self.player.errorMessage == nil, let track = self.currentTrack {
                 self.streamingExport?.sample(track: track, occurrence: occurrence, ended: false)
-            } else { self.streamingExport?.interrupt() }
+                self.discordPresence?.sample(track: track, occurrence: occurrence, ended: false)
+            } else { self.streamingExport?.interrupt(); self.discordPresence?.interrupt() }
         }
         player.onListeningInterrupted = { [weak self] occurrence in
             guard let self, self.queue.accepts(occurrence) else { return }
@@ -272,6 +278,7 @@ final class AppSession {
         player.onPlaybackOutputInterrupted = { [weak self] occurrence in
             guard let self, self.queue.accepts(occurrence) else { return }
             self.streamingExport?.interrupt()
+            self.discordPresence?.interrupt()
         }
         player.onRecoveryRequested = { [weak self] occurrence, position in
             guard let self else { return nil }
@@ -289,7 +296,7 @@ final class AppSession {
                 self.wantsPlayback = self.player.playbackIntent
             }
             if let self, !self.player.isPlaying || self.player.isBuffering {
-                self.listenBrainz.interrupt(); self.lastFM.interrupt(); self.streamingExport?.interrupt()
+                self.listenBrainz.interrupt(); self.lastFM.interrupt(); self.streamingExport?.interrupt(); self.discordPresence?.interrupt()
             }
             self?.systemMedia?.refresh()
             self?.saveQueue()
@@ -308,6 +315,7 @@ final class AppSession {
             self.quickCommandProfile = hash
             self.bindEpisodeAccount(hash)
             self.streamingExport?.bindAccount(hash)
+            self.discordPresence?.bindAccount(hash)
             let generation = self.accountGeneration
             self.listenBrainz.bindAccount(hash, currentPlayback: { [weak self] in
                 guard let self, self.accountGeneration == generation, self.account.isSignedIn,
@@ -807,6 +815,7 @@ final class AppSession {
 
     func pause() {
         streamingExport?.interrupt()
+        discordPresence?.interrupt()
         listenBrainz.interrupt()
         lastFM.interrupt()
         episodeStartTask?.cancel(); episodeStartTask = nil
@@ -840,6 +849,7 @@ final class AppSession {
         recommendations.cancel()
         streamingExport?.interrupt()
         cancelPendingCollectionRadio()
+        discordPresence?.interrupt()
         listenBrainz.interrupt()
         lastFM.interrupt()
         episodePlayback.allowExplicitSeek()
@@ -987,6 +997,7 @@ final class AppSession {
         guard !isSceneCheck else { return }
         streamingExport?.interrupt()
         episodeStartTask?.cancel(); episodeStartTask = nil; pendingEpisodeOccurrence = nil
+        discordPresence?.interrupt()
         guard let occurrence, let track = queue.currentTrack else { episodePlayback.clearPlayback(); return }
         sleepTimer.bind(to: occurrence)
         if position > 0 { resumeState.begin(occurrence, recovering: position) }
@@ -1124,6 +1135,7 @@ final class AppSession {
         chartCountries = []; chartCountryLabel = nil
         player.invalidateEpisodeRateControl()
         streamingExport?.bindAccount(nil)
+        discordPresence?.bindAccount(nil)
         episodeContinuation = nil
         cancelMusicLink()
         listenBrainz.bindAccount(nil)
@@ -1162,6 +1174,7 @@ final class AppSession {
         _ = await progressFlush?.value
         await queuePlaylistSave.waitForIdle()
         await streamingExport?.waitForIdle()
+        await discordPresence?.waitForIdle()
         await account.signOut()
         do { try await queueStore?.clear() }
         catch { queueError = AppLocalization.text("The saved queue could not be removed. Try signing out again.") }
@@ -1194,6 +1207,7 @@ final class AppSession {
         if case .chartCountry = destination { destination = .discovery(.charts) }
         player.invalidateEpisodeRateControl()
         streamingExport?.bindAccount(nil)
+        discordPresence?.bindAccount(nil)
         episodeContinuation = replacedAccount ? nil : episodePlayback.continuationForRebind()
         cancelMusicLink(keepingPending: !links.isReady && !replacedAccount)
         spotlightPageSource = nil
@@ -1270,6 +1284,7 @@ final class AppSession {
     func shutdown() async {
         streamingExport?.disable()
         quickCommands.invalidate()
+        discordPresence?.disable()
         episodeContinuation = nil
         isShuttingDown = true
         queuePlaylistSave.cancel()
@@ -1291,6 +1306,7 @@ final class AppSession {
         await spotlight.waitForIdle()
         await queuePlaylistSave.waitForIdle()
         await streamingExport?.stop()
+        await discordPresence?.stop()
         player.onStateChanged = nil
         player.onVerifiedContentProgress = nil
         player.onEpisodeRates = nil
