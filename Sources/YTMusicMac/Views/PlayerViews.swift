@@ -34,6 +34,8 @@ struct PlayerBar: View {
                 .frame(maxWidth: .infinity)
                 VStack(alignment: .trailing, spacing: 9) {
                     HStack(spacing: 14) {
+                        Button("Lyrics", systemImage: "text.quote") { session.showsLyrics = true }
+                            .help("Show lyrics").disabled(session.currentTrack == nil)
                         Button(session.showsWebPlayer ? "Hide Web Player" : "Show Web Player", systemImage: "play.rectangle") { session.showsWebPlayer.toggle() }
                             .accessibilityValue(session.showsWebPlayer ? "Shown" : "Hidden")
                             .help(session.showsWebPlayer ? "Hide Web Player" : "Show Web Player")

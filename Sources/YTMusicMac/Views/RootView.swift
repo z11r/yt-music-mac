@@ -80,6 +80,7 @@ struct RootView: View {
         .sheet(item: $libraryEditor) { request in
             LibraryEditorView(session: session, request: request)
         }
+        .sheet(isPresented: $session.showsLyrics) { LyricsPanel(session: session) }
         .onChange(of: session.remoteLibraryEditingEnabled) {
             if !session.remoteLibraryEditingEnabled { libraryEditor = nil }
         }

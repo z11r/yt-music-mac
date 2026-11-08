@@ -118,6 +118,8 @@ final class AppSession {
     }
     let searchSuggestions: SearchSuggestions
     let searchHistory = SearchHistory()
+    let lyrics: LyricsSession
+    var showsLyrics = false
     var libraryDisplayOrder: LibraryDisplayOrder = .serviceOrder
     var collectionFilter = ""
     var showsQueue = false
@@ -158,6 +160,9 @@ final class AppSession {
             try await client.searchSuggestions(for: text)
         }
         collectionPlayback = CollectionPlayback { [client = configuration.client] in try await client.nextPage($0) }
+        lyrics = LyricsSession { [client = configuration.client] videoID in
+            try await client.lyrics(videoID: videoID)
+        }
         player = WebPlayer(dataStore: configuration.dataStore)
         queueStore = configuration.queueStore
         queueError = configuration.queueStorageError
@@ -743,6 +748,8 @@ final class AppSession {
 
     func openAccount() {
         guard !isSceneCheck else { return }
+        showsLyrics = false
+        lyrics.clear()
         player.cancelSessionRestore()
         account.openLogin()
         showsAccount = true
@@ -757,6 +764,8 @@ final class AppSession {
         cancelMusicLink()
         collectionPlayback.cancel()
         accountGeneration = UUID()
+        showsLyrics = false
+        lyrics.clear()
         searchSuggestions.close()
         searchHistory.clear()
         savedQueues.invalidate()
@@ -789,6 +798,7 @@ final class AppSession {
         sleepTimer.cancel()
         collectionPlayback.cancel()
         accountGeneration = UUID()
+        lyrics.clear()
         searchSuggestions.close()
         searchHistory.clear()
         cancelRadio()
@@ -835,6 +845,7 @@ final class AppSession {
     func shutdown() async {
         cancelMusicLink()
         collectionPlayback.cancel()
+        lyrics.clear()
         scriptingPlayGeneration = UUID()
         sleepTimer.cancel()
         cancelRadio()

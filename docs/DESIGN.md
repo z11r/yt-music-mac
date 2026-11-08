@@ -83,6 +83,20 @@ move secondary actions into a menu before controls overlap.
 
 ## Playback and secondary windows
 
+The player's Lyrics button opens a readable native panel for the selected
+recording. It requests lyrics only from YouTube Music while the panel is open.
+Plain lyrics retain line breaks and the service's source footer. When the
+service supplies validated line timestamps, the panel can highlight the current
+line, follow playback, and seek by selecting a line. Plain text never receives
+invented timestamps. Missing lyrics may mean an instrumental recording or that
+the service does not supply lyrics; the interface does not infer which.
+
+Timed highlighting follows the existing playback display clock, approximately
+once per second, rather than adding a polling timer or a playback process.
+Follow Playback can be turned off for manual reading. Closing the panel or
+changing the track/account cancels its request. No lyrics are saved to disk,
+and no third-party lyrics provider is contacted.
+
 The seek slider shows elapsed and total time. Disable seeking when the duration is
 unknown or the service cannot seek. While dragging, show the proposed time and send
 the seek when the drag ends. Use a real slider with an accessible value. Playback

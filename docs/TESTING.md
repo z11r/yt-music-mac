@@ -150,6 +150,14 @@ Loaded-library display-sort checks cover service order, natural numeric title
 sorting, stable order for identical titles, and preservation of repeated items.
 The source page remains unchanged when a display sort is chosen.
 
+Lyrics tests use synthetic text and the response shapes documented in Kaset's
+pinned parser. They cover exact video requests, source attribution, plain versus
+timed results, invalid timing fallback, missing/disabled lyrics, parsing bounds,
+account changes, cancellation, deadlines, retry, and stale-track replies. No
+external lyrics provider is requested. The timed path is conditional on actual
+service timestamps; live plain/timed availability, source matching, panel
+layout, and VoiceOver still need verification.
+
 ## Manual playback
 
 Use the packaged app and record the commit, macOS build, processor, account
