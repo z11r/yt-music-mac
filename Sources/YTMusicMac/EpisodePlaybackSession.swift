@@ -38,7 +38,7 @@ final class EpisodePlaybackSession {
     @ObservationIgnored private let persistenceGate: LocalPersistenceGate
     @ObservationIgnored private var writeBarrier: Task<Void, Never>?
     @ObservationIgnored private let load: @Sendable (String) async throws -> EpisodeProgressSnapshot?
-    @ObservationIgnored private let save: @Sendable (EpisodeProgressSnapshot) async throws -> Void
+    @ObservationIgnored private let save: @Sendable (EpisodeProgressSnapshot, UUID) async throws -> Void
     @ObservationIgnored private let now: @Sendable () -> Date
     @ObservationIgnored private let saveDelay: Duration
     @ObservationIgnored private var accountHash: String?
@@ -49,6 +49,7 @@ final class EpisodePlaybackSession {
     @ObservationIgnored private var active: Active?
     @ObservationIgnored private var verifiedOccurrence: PlaybackOccurrence?
     @ObservationIgnored private var writable = false
+    @ObservationIgnored private var keepsInMemoryProgress = false
     @ObservationIgnored private var revision = 0
     @ObservationIgnored private var loadTask: Task<Void, Never>?
     @ObservationIgnored private var saveTask: Task<Void, Never>?
@@ -59,18 +60,29 @@ final class EpisodePlaybackSession {
         self.init(load: { hash in
             guard let store else { throw EpisodeProgressError.invalidStorageURL }
             return try await store.load(accountHash: hash)
-        }, save: { snapshot in
+        }, saveWithPermission: { snapshot, permission in
             guard let store else { throw EpisodeProgressError.invalidStorageURL }
-            let token = gate.token
-            try await store.save(snapshot, if: { gate.accepts(token) })
+            try await store.save(snapshot, if: { gate.accepts(permission) })
         }, now: now, persistenceGate: gate)
     }
 
-    init(load: @escaping @Sendable (String) async throws -> EpisodeProgressSnapshot?,
+    convenience init(load: @escaping @Sendable (String) async throws -> EpisodeProgressSnapshot?,
          save: @escaping @Sendable (EpisodeProgressSnapshot) async throws -> Void,
          now: @escaping @Sendable () -> Date = { Date() }, saveDelay: Duration = .seconds(5),
          persistenceGate: LocalPersistenceGate = LocalPersistenceGate()) {
-        self.load = load; self.save = save; self.now = now; self.saveDelay = saveDelay
+        self.init(load: load, saveWithPermission: { snapshot, permission in
+            guard persistenceGate.accepts(permission) else { throw CancellationError() }
+            try await save(snapshot)
+        }, now: now, saveDelay: saveDelay, persistenceGate: persistenceGate)
+    }
+
+    /// Storage adapters receive the operation's original permission. They must
+    /// check it again at their write boundary, after any asynchronous wait.
+    init(load: @escaping @Sendable (String) async throws -> EpisodeProgressSnapshot?,
+         saveWithPermission: @escaping @Sendable (EpisodeProgressSnapshot, UUID) async throws -> Void,
+         now: @escaping @Sendable () -> Date = { Date() }, saveDelay: Duration = .seconds(5),
+         persistenceGate: LocalPersistenceGate = LocalPersistenceGate()) {
+        self.load = load; self.save = saveWithPermission; self.now = now; self.saveDelay = saveDelay
         self.persistenceGate = persistenceGate
     }
 
@@ -78,14 +90,14 @@ final class EpisodePlaybackSession {
         guard enabled != persistenceEnabled else { return }
         persistenceEnabled = enabled; persistenceGate.setEnabled(enabled)
         let prior = saveTask; prior?.cancel(); saveTask = nil
-        let earlier = writeBarrier
-        writeBarrier = Task { await earlier?.value; await prior?.value }
+        let earlier = writeBarrier, pendingDetach = detachingSave
+        writeBarrier = Task { await earlier?.value; await prior?.value; _ = await pendingDetach?.value }
         if enabled {
             let previous = accountHash, memoryRecords = records
             let playback = active, verified = verifiedOccurrence
             let rates = availableRates, rate = currentRate
             accountHash = nil
-            _ = bindAccount(previous, merging: memoryRecords)
+            _ = bindAccount(previous, merging: memoryRecords, keepingInMemoryProgress: true)
             active = playback; verifiedOccurrence = verified
             availableRates = rates; currentRate = rate
         } else {
@@ -94,11 +106,13 @@ final class EpisodePlaybackSession {
         }
     }
 
-    @discardableResult func bindAccount(_ hash: String?, merging memoryRecords: [String: EpisodeProgressRecord] = [:]) -> Bool {
+    @discardableResult func bindAccount(_ hash: String?, merging memoryRecords: [String: EpisodeProgressRecord] = [:],
+                                        keepingInMemoryProgress: Bool = false) -> Bool {
         let hash = hash.flatMap { EpisodeProgressSnapshot.validAccountHash($0) ? $0 : nil }
         guard hash != accountHash else { return false }
         scope = UUID(); loadTask?.cancel(); saveTask?.cancel(); saveTask = nil
-        accountHash = hash; records = [:]; settings = .init(); active = nil; verifiedOccurrence = nil
+        accountHash = hash; records = memoryRecords; settings = .init(); active = nil; verifiedOccurrence = nil
+        keepsInMemoryProgress = keepingInMemoryProgress
         availableRates = []; currentRate = nil; rateRequest = UUID(); isRatePending = false; rateMessage = nil; errorMessage = nil; writable = false; isLoading = hash != nil
         guard let hash else { return true }
         guard persistenceEnabled else { isLoading = false; writable = true; return true }
@@ -114,21 +128,29 @@ final class EpisodePlaybackSession {
                 try Task.checkCancellation()
                 try snapshot?.validate()
                 guard let self, self.scope == expected else { return }
+                let arrivals = self.records
+                var restored: [String: EpisodeProgressRecord] = [:]
                 if let snapshot {
                     guard snapshot.accountHash == hash else { throw EpisodeProgressError.invalidSnapshot }
-                    self.records = Dictionary(uniqueKeysWithValues: snapshot.records.map { ($0.episode.key, $0) })
+                    restored = Dictionary(uniqueKeysWithValues: snapshot.records.map { ($0.episode.key, $0) })
                     self.settings = snapshot.settings
                 }
-                for (key, record) in memoryRecords where self.records[key].map({ $0.updatedAt <= record.updatedAt }) ?? true {
-                    self.records[key] = record
+                for (key, record) in memoryRecords where restored[key].map({ $0.updatedAt <= record.updatedAt }) ?? true {
+                    restored[key] = record
                 }
+                // Confirmed samples accepted after this read began supersede
+                // historical data even when the wall clock did not advance.
+                for (key, record) in arrivals where record != memoryRecords[key] ||
+                    (restored[key].map({ $0.updatedAt <= record.updatedAt }) ?? true) {
+                    restored[key] = record
+                }
+                self.records = restored
                 self.writable = true; self.isLoading = false
-                if !memoryRecords.isEmpty { self.revision += 1; self.scheduleSave() }
+                if !arrivals.isEmpty { self.revision += 1; self.scheduleSave() }
             } catch is CancellationError { }
             catch {
                 guard let self, self.scope == expected else { return }
                 self.isLoading = false
-                self.records = memoryRecords
                 self.errorMessage = AppLocalization.text("Local episode progress could not be loaded. Existing data has been retained.")
             }
         }
@@ -179,7 +201,7 @@ final class EpisodePlaybackSession {
               active.occurrence == occurrence, position.isFinite, position > 0, duration.isFinite, duration > 0,
               position <= duration + 2 else { return }
         verifiedOccurrence = occurrence
-        guard !isLoading, writable, accountHash != nil else { return }
+        guard (writable || keepsInMemoryProgress), accountHash != nil else { return }
         if active.protectsBookmark, let prior = records[active.episode.key], !prior.completed,
            position < prior.position - 0.5 { return }
         active.protectsBookmark = false; self.active = active
@@ -241,13 +263,15 @@ final class EpisodePlaybackSession {
     }
 
     @discardableResult func flush() async -> Bool {
-        let expected = scope
+        let expected = scope, permission = persistenceGate.token
+        let pendingDetach = detachingSave
         let prior = saveTask; prior?.cancel(); saveTask = nil
         await prior?.value
+        _ = await pendingDetach?.value
         await writeBarrier?.value
-        guard persistenceEnabled, expected == scope, writable, let snapshot = snapshot() else { return false }
+        guard persistenceEnabled, persistenceGate.accepts(permission), expected == scope, writable, let snapshot = snapshot() else { return false }
         do {
-            try await save(snapshot)
+            try await save(snapshot, permission)
             guard expected == scope else { return false }
             errorMessage = nil
             return true
@@ -263,14 +287,19 @@ final class EpisodePlaybackSession {
     /// confirmed data. A later account cannot change this task's destination.
     func detachAccount() -> Task<Bool, Never>? {
         let snapshot = persistenceEnabled && writable ? snapshot() : nil
+        let permission = persistenceGate.token
         let prior = saveTask
         bindAccount(nil)
         guard let snapshot else { return detachingSave }
         let earlier = detachingSave
-        let task = Task { [save] in
+        let task = Task { [save, persistenceGate] in
             _ = await earlier?.value
             await prior?.value
-            do { try await save(snapshot); return true }
+            do {
+                guard persistenceGate.accepts(permission) else { throw CancellationError() }
+                try await save(snapshot, permission)
+                return true
+            }
             catch { return false }
         }
         detachingSave = task
@@ -281,16 +310,16 @@ final class EpisodePlaybackSession {
         accountHash.map { EpisodeProgressSnapshot(accountHash: $0, records: records.values.sorted { $0.episode.key < $1.episode.key }, settings: settings) }
     }
     private func scheduleSave() {
-        guard persistenceEnabled, saveTask == nil else { return }
-        let expected = scope
+        guard persistenceEnabled, writable, !isLoading, saveTask == nil else { return }
+        let expected = scope, permission = persistenceGate.token
         saveTask = Task { [weak self] in
             do {
                 guard let self else { return }
                 try await Task.sleep(for: self.saveDelay)
                 try Task.checkCancellation()
-                guard self.scope == expected, let snapshot = self.snapshot() else { return }
+                guard self.scope == expected, self.persistenceGate.accepts(permission), let snapshot = self.snapshot() else { return }
                 let revision = self.revision
-                try await self.save(snapshot)
+                try await self.save(snapshot, permission)
                 guard self.scope == expected else { return }
                 self.saveTask = nil; self.errorMessage = nil
                 if self.revision != revision { self.scheduleSave() }

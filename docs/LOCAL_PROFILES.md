@@ -33,8 +33,9 @@ Settings → Local Privacy can stop automatic queue saves and restoration, stop
 episode-progress persistence, and clear this app session's recent searches.
 Turning a persistence setting off preserves existing files. Queued writes check
 a revocable permission before writing; a write already in progress can finish.
-Episode progress remains useful in memory while saving is off. Enabling saving
-loads retained progress and merges newer in-memory records before future saves.
+Episode progress remains useful in memory while saving is off. Re-enabling
+saving does not revive previously queued writes. It loads retained progress
+and preserves confirmed samples received during that load before future saves.
 Explicitly saving or exporting a named queue remains a separate user action.
 
 These controls do not pause, delete or hide YouTube history. Playback can still
