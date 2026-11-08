@@ -18,6 +18,10 @@ struct MusicContentView: View {
         if case .search = session.destination { session.searchFilter != .all } else { false }
     }
 
+    private var showsSortedLibrary: Bool {
+        session.destination.libraryCategory != nil && session.libraryDisplayOrder != .serviceOrder
+    }
+
     var body: some View {
         Group {
             if session.isLoading && session.page == nil {
@@ -92,7 +96,7 @@ struct MusicContentView: View {
                     }
                 }
                 // A filtered search is one list that grows page by page, so show it as one grid.
-                ForEach(Array((showsSearchGrid ? [] : page.sections).enumerated()), id: \.offset) { _, section in
+                ForEach(Array((showsSearchGrid || showsSortedLibrary ? [] : page.sections).enumerated()), id: \.offset) { _, section in
                     VStack(alignment: .leading, spacing: 14) {
                         if !section.title.isEmpty {
                             Text(section.title).font(.title2.bold()).accessibilityAddTraits(.isHeader)
@@ -108,10 +112,10 @@ struct MusicContentView: View {
                         .scrollIndicators(.automatic)
                     }
                 }
-                if (showsSearchGrid || page.sections.isEmpty) && !page.items.isEmpty {
+                if (showsSearchGrid || showsSortedLibrary || page.sections.isEmpty) && !page.items.isEmpty {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 176, maximum: 220), spacing: 20)],
                               alignment: .leading, spacing: 26) {
-                        ForEach(Array(page.items.enumerated()), id: \.offset) { _, item in
+                        ForEach(Array((showsSortedLibrary ? session.libraryDisplayOrder.sorted(page.items) : page.items).enumerated()), id: \.offset) { _, item in
                             MusicCard(item: item, session: session, presentEditor: presentEditor)
                         }
                     }

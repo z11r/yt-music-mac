@@ -45,6 +45,9 @@ still needs a verified service path; it must not alias liked songs or an uploads
 library. Listening History shows the selected YouTube Music account's history,
 retaining the service's day groups and repeated plays. It offers read-only
 browsing with Load More and retry, without history deletion controls.
+Sort Loaded Items offers service order or natural title order in either
+direction. Sorting applies only to the loaded library cards. It does not
+reorder service playlists, change the queue, or change history chronology.
 
 While someone types, suggestions appear in a list under the search field. Down
 and Up Arrow move through them, Return searches for the highlighted suggestion

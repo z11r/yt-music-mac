@@ -115,6 +115,7 @@ final class AppSession {
     }
     let searchSuggestions: SearchSuggestions
     let searchHistory = SearchHistory()
+    var libraryDisplayOrder: LibraryDisplayOrder = .serviceOrder
     var collectionFilter = ""
     var showsQueue = false
     var showsAccount = false

@@ -146,6 +146,9 @@ They check dedicated browse routes, required authentication, history day groups,
 repeated plays across pages, account fences, stale navigation, and retry while
 keeping visible results. These routes match the pinned Kaset client; live
 category/history response shapes and totals still need verification.
+Loaded-library display-sort checks cover service order, natural numeric title
+sorting, stable order for identical titles, and preservation of repeated items.
+The source page remains unchanged when a display sort is chosen.
 
 ## Manual playback
 
