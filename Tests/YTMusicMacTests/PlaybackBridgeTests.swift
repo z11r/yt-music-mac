@@ -184,7 +184,7 @@ private final class BridgeFixture {
     globalThis.window = globalThis;
     const navigations = [];
     globalThis.location = {href: 'https://music.youtube.com/watch?v=song', replace(value) {navigations.push(value);}};
-    globalThis.crypto = {randomUUID: () => '00000000-0000-4000-8000-000000000001'};
+    globalThis.crypto = {randomUUID: () => 'abcdefab-cdef-4000-8000-abcdefabcdef'};
     globalThis.URL = function(value) {this.searchParams = {get: () => value.split('v=')[1] || ''};};
     globalThis.webkit = {messageHandlers: {playerBridge: {postMessage: value => messages.push(value)}}};
     globalThis.addEventListener = () => {};
@@ -462,6 +462,18 @@ struct VideoPresentationBridgeTests {
         YTMusicNativePlayer.bind(binding);
         """)
         return fixture
+    }
+
+    @Test func nativeUUIDCapitalizationDoesNotRejectTheCurrentPresentationDocument() throws {
+        let fixture = try fixture()
+        fixture.run("""
+        const request = presentationRequest(true);
+        request.documentID = request.documentID.toUpperCase();
+        YTMusicNativePlayer.presentation(request).then(value => globalThis.reply = value);
+        """)
+        #expect(fixture.run("reply.accepted && reply.active").toBool())
+        #expect(fixture.run("media.currentTime === 42 && !media.paused").toBool())
+        #expect(fixture.run("messages[messages.length - 1].commandRevision === 0").toBool())
     }
 
     @Test func entryAndExitKeepTheExactRecordingClockAndTransportRevision() throws {

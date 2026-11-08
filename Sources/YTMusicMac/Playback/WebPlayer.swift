@@ -642,7 +642,7 @@ final class WebPlayer: NSObject {
         let view = self.webView
         self.presentationRevision += 1
         let revision = self.presentationRevision
-        let request: [String: Any] = ["loadID": loadID.uuidString, "documentID": documentID.uuidString,
+        let request: [String: Any] = ["loadID": loadID.uuidString, "documentID": documentID.uuidString.lowercased(),
             "identity": ["sessionID": identity.sessionID.uuidString, "entryID": identity.entryID.uuidString,
                          "trackID": identity.trackID, "generation": identity.generation],
             "mediaGeneration": media, "revision": revision, "active": active]

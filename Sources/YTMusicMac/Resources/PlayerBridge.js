@@ -62,7 +62,7 @@
         const expected = context && context.identity;
         const identity = value && value.identity;
         return !!expected && !!identity && target === video && video.isConnected && matchesTarget()
-            && value.loadID === context.loadID && value.documentID === documentID
+            && value.loadID === context.loadID && typeof value.documentID === "string" && value.documentID.toLowerCase() === documentID
             && value.mediaGeneration === mediaGeneration && identity.sessionID === expected.sessionID
             && identity.entryID === expected.entryID && identity.trackID === expected.trackID
             && identity.generation === expected.generation && contentReady && video.readyState >= 1
