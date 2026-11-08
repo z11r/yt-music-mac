@@ -51,8 +51,13 @@ import FoundationModels
         """
         guard instructions.utf8.count <= 3_072, input.utf8.count <= ReviewedCommandValidator.maximumInputBytes else { throw ReviewedCommandIssue.invalid }
         let session = LanguageModelSession(model: SystemLanguageModel.default, tools: [], instructions: instructions)
-        let response = try await session.respond(to: input, generating: GuidedCommand.self,
-            options: GenerationOptions(samplingMode: .greedy, maximumResponseTokens: 256))
+        // Xcode 27 renamed this initializer; retain the Xcode 26 spelling for older SDKs.
+        #if compiler(>=6.4)
+        let options = GenerationOptions(samplingMode: .greedy, maximumResponseTokens: 256)
+        #else
+        let options = GenerationOptions(sampling: .greedy, maximumResponseTokens: 256)
+        #endif
+        let response = try await session.respond(to: input, generating: GuidedCommand.self, options: options)
         try Task.checkCancellation()
         let json = response.rawContent.jsonString
         return try CommandInterpretation.decode(Data(json.utf8))
