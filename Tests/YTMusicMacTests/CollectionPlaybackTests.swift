@@ -414,9 +414,10 @@ private actor CollectionTransport: MusicHTTPTransport {
 }
 
 @MainActor private func waitUntil(_ condition: () -> Bool) async throws {
-    let deadline = ContinuousClock.now.advanced(by: .seconds(2))
+    // Hosted runners may initialize several isolated WebKit sessions concurrently.
+    let deadline = ContinuousClock.now.advanced(by: .seconds(15))
     while !condition() {
         guard ContinuousClock.now < deadline else { throw MusicServiceError.serviceUnavailable }
-        await Task.yield()
+        try await Task.sleep(for: .milliseconds(2))
     }
 }
