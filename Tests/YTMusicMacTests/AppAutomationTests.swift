@@ -47,6 +47,16 @@ struct AppAutomationTests {
         #expect(session.lookups.isEmpty)
     }
 
+    @Test func explicitNavigationRequestsMainButTransportDoesNotPresentAWindow() async throws {
+        let session = AutomationFixture(), dispatcher = MusicAutomation { session }
+        try await dispatcher.perform(.pause)
+        try await dispatcher.perform(.volume(35))
+        #expect(session.presentations == 0)
+        try await dispatcher.perform(.search("fixture"))
+        try await dispatcher.perform(.openLink(URL(string: "https://music.youtube.com/playlist?list=PLfixture")!))
+        #expect(session.presentations == 2 && session.searches == ["fixture"] && session.destinations.count == 1)
+    }
+
     @Test func invalidParametersNeverPrepareOrMutateTheSession() async {
         let session = AutomationFixture()
         let dispatcher = MusicAutomation { session }
@@ -213,6 +223,7 @@ private final class AutomationFixture: MusicAutomationSession {
     private(set) var played: [String] = []
     private(set) var destinations: [MusicDestination] = []
     private(set) var searches: [String] = []
+    private(set) var presentations = 0
 
     func prepareForAutomation() async { preparations += 1; await prepare() }
     func beginScriptedPlaybackRequest() -> UUID { request = UUID(); return request }
@@ -228,6 +239,7 @@ private final class AutomationFixture: MusicAutomationSession {
     func setVolume(_ value: Double) { volumes.append(value) }
     func navigate(to target: MusicDestination, recordHistory: Bool) { destinations.append(target) }
     func searchForAutomation(_ query: String) { searches.append(query) }
+    func presentAutomationNavigation() { presentations += 1 }
 }
 
 private actor AutomationGate {

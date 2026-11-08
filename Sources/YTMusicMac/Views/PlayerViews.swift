@@ -308,6 +308,9 @@ struct MiniPlayerView: View {
             }
             SeekView(session: session)
             CompactPlayerDestinations(session: session)
+            Divider()
+            SettingsLink { Text(verbatim: StartupWindowText.text("Settings…")) }
+            Button(StartupWindowText.text("Quit YT Music for Mac")) { NSApp.terminate(nil) }
             if let message = session.player.errorMessage {
                 Text(message).font(.caption).foregroundStyle(.secondary).lineLimit(3)
                 Button("Retry Playback", action: session.retryPlayback)
@@ -340,6 +343,9 @@ struct MenuBarPlayerView: View {
             }
             Button("Mini-Player", systemImage: "pip") { openWindow(id: "mini-player") }
             CompactPlayerDestinations(session: session)
+            Divider()
+            SettingsLink { Text(verbatim: StartupWindowText.text("Settings…")) }
+            Button(StartupWindowText.text("Quit YT Music for Mac")) { NSApp.terminate(nil) }
         }
         .buttonStyle(.borderless)
         .padding(16)

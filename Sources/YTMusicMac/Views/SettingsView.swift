@@ -5,6 +5,7 @@ struct SettingsView: View {
     var songNotifications: SongChangeNotifier? = nil
     var playbackBindings: PlaybackShortcutBindings? = nil
     var profiles: AppProfileOwner<NativeAppProfileRuntime>? = nil
+    var startupPreferences: StartupWindowPreferences? = nil
     @AppStorage("appearance") private var appearance = "system"
     @Environment(\.openWindow) private var openWindow
     @State private var isSigningOut = false
@@ -13,9 +14,10 @@ struct SettingsView: View {
 
     init(session: AppSession, songNotifications: SongChangeNotifier? = nil,
          playbackBindings: PlaybackShortcutBindings? = nil,
-         profiles: AppProfileOwner<NativeAppProfileRuntime>? = nil) {
+         profiles: AppProfileOwner<NativeAppProfileRuntime>? = nil, startupPreferences: StartupWindowPreferences? = nil) {
         self.session = session; self.songNotifications = songNotifications
         self.playbackBindings = playbackBindings; self.profiles = profiles
+        self.startupPreferences = startupPreferences
         _appearance = AppStorage(wrappedValue: "system", "appearance", store: session.preferences)
     }
 
@@ -23,7 +25,7 @@ struct SettingsView: View {
         Form {
             if let profiles { AppProfilesSection(owner: profiles) }
             LocalPrivacySection(session: session)
-            Section("Startup") { StartupSettings() }
+            Section("Startup") { StartupSettings(windowPreferences: startupPreferences) }
             Section("Appearance") {
                 Picker("Appearance", selection: $appearance) {
                     Text("System").tag("system")

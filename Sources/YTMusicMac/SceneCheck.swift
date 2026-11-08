@@ -7,6 +7,11 @@ import YouTubeMusic
 
 enum SceneCheckLaunch {
     static let isRequested = CommandLine.arguments.contains("--check-ui-scenes")
+    static var startupPolicy: StartupWindowPolicy? {
+        guard isRequested, let index = CommandLine.arguments.firstIndex(of: "--check-startup-window"),
+              CommandLine.arguments.indices.contains(index + 1) else { return nil }
+        return StartupWindowPolicy(rawValue: CommandLine.arguments[index + 1])
+    }
 
     static var identifier: UUID? {
         guard let index = CommandLine.arguments.firstIndex(of: "--check-id"),
@@ -154,6 +159,7 @@ final class SceneCheckDriver {
     private var progress = SceneCheckProgress()
     private var hasStarted = false
     private weak var window: NSWindow?
+    private weak var miniWindow: NSWindow?
 
     /// Lets app launch code report milestones; set only while a scene check runs.
     static private(set) weak var current: SceneCheckDriver?
@@ -185,13 +191,37 @@ final class SceneCheckDriver {
         if progress.acknowledge(revision, attached: true) { completion.record(rendered: progress.rendered) }
     }
 
-    func start(session: AppSession) {
+    func miniAttached(_ window: NSWindow?) { miniWindow = window }
+
+    func start(session: AppSession, startup: AppLaunchCoordinator? = nil, reopenMain: (() -> Bool)? = nil) {
         guard !hasStarted else { return }
         hasStarted = true
         completion.record("sessionStarted")
         Task { @MainActor in
+            if let policy = SceneCheckLaunch.startupPolicy, policy != .system {
+                try? await Task.sleep(for: .milliseconds(500))
+                guard session.sceneCheckIsIsolated, let startup, startup.hasStatusPresenter,
+                      startup.readyActivation != nil else {
+                    completion.finish(success: false, reason: "startup-status-presenter")
+                }
+                completion.record("startupStatusPresenter")
+                if policy == .none {
+                    guard window == nil, miniWindow == nil else { completion.finish(success: false, reason: "startup-unexpected-window") }
+                    completion.record("startupNoWindows")
+                }
+                if policy == .mini {
+                    guard window == nil, miniWindow != nil else { completion.finish(success: false, reason: "startup-mini-window") }
+                    completion.record("startupMiniOnly")
+                }
+                let accepted = policy == .none ? reopenMain?() == true : startup.requestWindow(.main, expectedActivation: startup.readyActivation)
+                guard accepted else {
+                    completion.finish(success: false, reason: "startup-explicit-open")
+                }
+                completion.record(policy == .none ? "startupDockReopenHandled" : "startupExplicitMainRequested")
+            }
             while window == nil { try? await Task.sleep(for: .milliseconds(10)) }
             completion.record("revisionsStarted")
+            if SceneCheckLaunch.startupPolicy != nil { completion.record("startupMainAttached") }
             completion.record(windowVisible: window?.occlusionState.contains(.visible) ?? false)
             for _ in 0..<SceneCheckProgress.target {
                 guard session.sceneCheckIsIsolated,

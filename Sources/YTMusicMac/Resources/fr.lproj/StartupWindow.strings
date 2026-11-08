@@ -1,0 +1,14 @@
+"Cancel" = "Annuler";
+"Main Window" = "Fenêtre principale";
+"Mini Player" = "Mini-lecteur";
+"No Startup Window" = "Aucune fenêtre au démarrage";
+"Open YT Music for Mac" = "Ouvrir YT Music for Mac";
+"Quit YT Music for Mac" = "Quitter YT Music for Mac";
+"Settings…" = "Réglages…";
+"The requested window could not be opened. You can use the default window setting next time and quit safely." = "La fenêtre demandée n’a pas pu être ouverte. Vous pouvez utiliser le réglage de fenêtre par défaut au prochain démarrage et quitter l’app normalement.";
+"This saved window setting is not supported. It was kept; macOS window settings will be used." = "Ce réglage de fenêtre enregistré n’est pas pris en charge. Il a été conservé ; les réglages de fenêtres de macOS seront utilisés.";
+"Use Default Startup and Quit" = "Utiliser le démarrage par défaut et quitter";
+"Use macOS Window Settings" = "Utiliser les réglages de fenêtres de macOS";
+"When the App Opens" = "À l’ouverture de l’app";
+"Window changes apply next launch to all local profiles. Playback stays paused. The Dock and menu bar remain available." = "Les changements de fenêtre s’appliquent au prochain démarrage à tous les profils locaux. La lecture reste en pause. Le Dock et la barre des menus restent disponibles.";
+"Window selection requires macOS 15 or later. This Mac uses its current main-window and restoration behavior; saved choices are kept." = "Le choix de fenêtre nécessite macOS 15 ou une version ultérieure. Ce Mac conserve son comportement actuel de fenêtre principale et de restauration ; les choix enregistrés sont conservés.";

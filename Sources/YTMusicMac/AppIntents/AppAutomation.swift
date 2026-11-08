@@ -56,6 +56,11 @@ protocol MusicAutomationSession: AnyObject {
     func setVolume(_ value: Double)
     func navigate(to target: MusicDestination, recordHistory: Bool)
     func searchForAutomation(_ query: String)
+    func presentAutomationNavigation()
+}
+
+extension MusicAutomationSession {
+    func presentAutomationNavigation() {}
 }
 
 /// Resolves the installed app's existing owner at invocation time. Constructing
@@ -107,6 +112,7 @@ final class MusicAutomation {
             catch { throw MusicAutomationError.lookupFailed }
         case let .openLink(url):
             guard let link = MusicLink(url: url) else { throw MusicAutomationError.invalidLink }
+            session.presentAutomationNavigation()
             switch link {
             case let .track(id):
                 // Use the exact same request token and validated resolver. Calling
@@ -123,6 +129,7 @@ final class MusicAutomation {
             case let .playlist(id): session.navigate(to: .collection(MusicCollection(id: id, kind: .playlist, title: AppLocalization.text("Playlist"))), recordHistory: true)
             }
         case let .search(query):
+            session.presentAutomationNavigation()
             session.searchForAutomation(query)
         }
     }
@@ -149,6 +156,7 @@ final class MusicAutomation {
 }
 
 extension AppSession: MusicAutomationSession {
+    func presentAutomationNavigation() { if acceptsProfileActions { onAutomationNavigation?() } }
     var automationState: MusicAutomationState {
         MusicAutomationState(isReady: hasFinishedStartup && !isShuttingDown && !account.isWorking && !showsAccount,
                              isSignedIn: account.isSignedIn, hasSelection: currentTrack != nil, hasNextSong: queue.hasNext)

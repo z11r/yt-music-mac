@@ -147,6 +147,8 @@ final class AppSession {
     let nativeHaptics: NativeHaptics
     private(set) var localAudioLibrary: LocalAudioLibraryController<LocalAudioQueueTarget>?
     @ObservationIgnored let localAudioResources: LocalAudioSessionResources?
+    @ObservationIgnored var onAutomationNavigation: (() -> Void)?
+    @ObservationIgnored var onLaunchContextChanged: (() -> Void)?
     private(set) var destination: MusicDestination = .home
     private(set) var page: MusicPage?
     private(set) var chartCountries: [MusicChartCountry] = []
@@ -216,6 +218,7 @@ final class AppSession {
         preserveTransportPosition()
         player.invalidateOwner()
         renewLocalAudioLibraryOwnership()
+        onLaunchContextChanged?()
     } }
     @ObservationIgnored private var backHistory: [MusicDestination] = []
     @ObservationIgnored private var forwardHistory: [MusicDestination] = []

@@ -2,6 +2,7 @@ import AppKit
 import CoreSpotlight
 import Darwin
 import SwiftUI
+import YouTubeMusic
 
 @main @MainActor
 struct YTMusicMacApp: App {
@@ -9,6 +10,8 @@ struct YTMusicMacApp: App {
     @State private var profiles: AppProfileOwner<NativeAppProfileRuntime>
     @State private var keyboardFocus: KeyboardFocusMonitor
     private let sceneCheck: SceneCheckDriver?
+    private let startupPreferences: StartupWindowPreferences
+    private var startup: AppLaunchCoordinator { delegate.launchCoordinator! }
     private var session: AppSession { profiles.current.session }
     private var playbackBindings: PlaybackShortcutBindings { profiles.current.bindings }
 
@@ -38,6 +41,10 @@ struct YTMusicMacApp: App {
         }
         let sceneCheck = SceneCheckLaunch.isRequested ? SceneCheckDriver() : nil
         self.sceneCheck = sceneCheck
+        let supportsWindowSelection: Bool
+        if #available(macOS 15, *) { supportsWindowSelection = true } else { supportsWindowSelection = false }
+        startupPreferences = StartupWindowPreferences(access: .defaults(sceneCheck == nil ? AppIdentity.preferences : SceneCheckPreferences.current.defaults),
+            supportsSelection: supportsWindowSelection, launchOverride: sceneCheck == nil ? nil : (SceneCheckLaunch.startupPolicy ?? .main))
         let directory = sceneCheck == nil ? try? AppIdentity.applicationSupportDirectory() : nil
         let registry: any AppProfileRegistry = directory.map {
             AppProfileRegistryStore(io: FileAppProfileRegistryIO(file: $0.appendingPathComponent("app-profiles.json")))
@@ -67,8 +74,9 @@ struct YTMusicMacApp: App {
             guard let directory, sceneCheck == nil else { throw AppProfileError.unavailable }
             return try await NativeAppProfileFactory(legacyDirectory: directory, registry: registry, outputAdmission: outputAdmission,
                 localAudioReferences: localAudioReferences).prepare(profile, allowCreation: allowCreation)
-        }, bind: { runtime, _ in
-            AppScripting.session = sceneCheck == nil ? runtime?.session : nil
+        }, bind: { _, _ in
+            // Revoke immediately; the process coordinator publishes only a ready activation.
+            AppScripting.session = nil
         })
         if let directory, sceneCheck == nil { owner.installDeletionAdapter(NativeProfileCleanup(root: directory)) }
         _profiles = State(initialValue: owner)
@@ -78,27 +86,81 @@ struct YTMusicMacApp: App {
         _keyboardFocus = State(initialValue: keyboardFocus)
         AppScripting.session = nil
         if sceneCheck == nil { MusicShortcutRegistration.register() }
+        let appDelegate = delegate
+        let startupPreferences = startupPreferences
+        let launch = AppLaunchCoordinator(policy: startupPreferences.launchPolicy, ownership: { [weak owner] in
+            guard let owner else { return .init(activation: UUID(), ready: false) }
+            let activation = owner.activationID
+            let session = owner.current.session
+            return .init(activation: activation, accountEpoch: session.accountGeneration,
+                ready: owner.accepts(activation) && session.hasFinishedStartup && session.acceptsProfileActions)
+        }, start: { [weak owner] in await owner?.start() }, activate: { [weak owner, weak appDelegate] activation in
+            guard let owner, owner.accepts(activation), let appDelegate else { return }
+            let session = owner.current.session
+            appDelegate.session = session
+            AppScripting.session = sceneCheck == nil ? session : nil
+            session.links.isReady = sceneCheck == nil
+            session.onLaunchContextChanged = { [weak owner, weak appDelegate] in
+                guard let owner, owner.accepts(activation) else { return }
+                appDelegate?.launchCoordinator?.ownershipChanged()
+            }
+            session.onAutomationNavigation = { [weak owner, weak appDelegate] in
+                guard let owner, owner.accepts(activation) else { return }
+                appDelegate?.launchCoordinator?.requestWindow(.main, expectedActivation: activation)
+            }
+            session.player.videoPresentation.didReturnToMain = { [weak owner, weak session, weak appDelegate] in
+                guard let owner, owner.accepts(activation), owner.current.session === session else { return }
+                session?.showsWebPlayer = true
+                appDelegate?.launchCoordinator?.requestWindow(.main, expectedActivation: activation)
+            }
+            session.processPendingMusicLink()
+            sceneCheck?.start(session: session, startup: appDelegate.launchCoordinator, reopenMain: { [weak appDelegate] in
+                appDelegate?.applicationShouldHandleReopen(NSApp, hasVisibleWindows: false) == false
+            })
+        }, receiveURL: { [weak owner] url, activation in
+            guard let owner, owner.accepts(activation) else { return }
+            owner.current.session.receiveMusicLink(url)
+        }, receiveSpotlight: { [weak owner] identifier, activation in
+            guard let owner, owner.accepts(activation) else { return false }
+            return owner.current.session.receiveSpotlightResult(identifier)
+        }, shutdown: { [weak owner] in await owner?.shutdown() }, recovery: NativeStartupRecoveryPresenter(),
+        resetAndQuit: { startupPreferences.select(.system); NSApp.terminate(nil) },
+        validateURL: { MusicLink(url: $0) != nil }, activateApplication: { NSApp.activate(ignoringOtherApps: true) })
+        appDelegate.launchCoordinator = launch
+        appDelegate.sessionProvider = { [weak owner, weak launch] in
+            guard let owner, let activation = launch?.readyActivation, owner.accepts(activation),
+                  owner.current.session.acceptsProfileActions else { return nil }
+            return owner.current.session
+        }
+        appDelegate.shutdownOwner = { [weak launch] in await launch?.shutdown() }
+        appDelegate.openMainWindow = { [weak launch] in launch?.requestWindow(.main) }
     }
 
     private func surface<Content: View>(@ViewBuilder content: @escaping () -> Content) -> some View {
         AppProfileSurface(runtime: profiles.current, activationID: profiles.activationID,
                           isSwitching: profiles.isSwitching || profiles.isLoading, content: content)
             .id(profiles.activationID)
+            .modifier(WindowActionBridge(coordinator: startup))
     }
 
     var body: some Scene {
         Window(AppIdentity.displayName, id: "main") {
             surface {
-                MainSceneView(session: session, profiles: profiles, delegate: delegate, sceneCheck: sceneCheck)
+                MainSceneView(session: session, profiles: profiles, sceneCheck: sceneCheck)
                     .frame(minWidth: 860, minHeight: 600)
             }
         }
         .defaultSize(width: 1180, height: 780)
+        .startupWindowPolicy(startupPreferences.launchPolicy, window: .main)
         .commands {
             SidebarCommands()
             CommandGroup(replacing: .newItem) { }
+            if profiles.accepts(profiles.activationID) {
             CommandGroup(after: .newItem) {
-                Button("Open Music Link…") { if session.acceptsProfileActions { session.links.showsSheet = true } }
+                Button("Open Music Link…") { if session.acceptsProfileActions {
+                    startup.requestWindow(.main, expectedActivation: profiles.activationID)
+                    session.links.showsSheet = true
+                } }
                     .keyboardShortcut("o", modifiers: .command)
             }
             PlaybackCommands(session: session, keyboardFocus: keyboardFocus, bindings: playbackBindings)
@@ -109,28 +171,38 @@ struct YTMusicMacApp: App {
                 PlayerWindowCommands(session: session)
             }
             MusicSearchCommands()
+            }
         }
         Window("Mini Player", id: "mini-player") {
-            surface { MiniPlayerView(session: session) }
+            surface {
+                MiniPlayerView(session: session).background {
+                    if let sceneCheck { StartupMiniWindowProbe(driver: sceneCheck).frame(width: 0, height: 0) }
+                }
+            }
         }
         .defaultSize(width: 360, height: 180)
         .windowResizability(.contentSize)
+        .startupWindowPolicy(startupPreferences.launchPolicy, window: .mini)
         Window("Now Playing", id: "now-playing") {
             surface { ExpandedPlayerView(session: session) }
         }
         .defaultSize(width: 520, height: 700)
+        .startupWindowPolicy(startupPreferences.launchPolicy)
         Window("Lyrics", id: "lyrics") {
             surface { LyricsPanel(session: session) }
         }
         .defaultSize(width: 560, height: 620)
+        .startupWindowPolicy(startupPreferences.launchPolicy)
         Window("Song Credits", id: "song-credits") {
             surface { SongCreditsPanel(session: session) }
         }
         .defaultSize(width: 560, height: 600)
+        .startupWindowPolicy(startupPreferences.launchPolicy)
         Window("Queue", id: "queue") {
             surface { QueueView(session: session).frame(minWidth: 300, minHeight: 360) }
         }
         .defaultSize(width: 380, height: 640)
+        .startupWindowPolicy(startupPreferences.launchPolicy)
         Window("Local Audio", id: "local-audio-library") {
             surface {
                 if profiles.isLoading || profiles.isSwitching {
@@ -144,19 +216,25 @@ struct YTMusicMacApp: App {
             }
         }
         .defaultSize(width: 820, height: 660)
+        .startupWindowPolicy(startupPreferences.launchPolicy)
         Window("Build a Queue", id: "catalog-queue-builder") {
             surface { CatalogQueueBuilderView(session: session) }
         }
         .defaultSize(width: 740, height: 740)
-        MenuBarExtra("YT Music for Mac", systemImage: "music.note") {
+        .startupWindowPolicy(startupPreferences.launchPolicy)
+        MenuBarExtra {
             surface { MenuBarPlayerView(session: session) }
+        } label: {
+            Image(systemName: "music.note")
+                .accessibilityLabel(AppIdentity.displayName)
+                .modifier(WindowActionBridge(coordinator: startup, statusLabel: true))
         }.menuBarExtraStyle(.window)
         Settings {
             surface {
                 SettingsView(session: session, songNotifications: profiles.current.notifications,
-                             playbackBindings: playbackBindings, profiles: sceneCheck == nil ? profiles : nil)
+                             playbackBindings: playbackBindings, profiles: sceneCheck == nil ? profiles : nil, startupPreferences: startupPreferences)
             }
-        }
+        }.startupWindowPolicy(startupPreferences.launchPolicy)
     }
 }
 
@@ -175,7 +253,6 @@ private struct MusicSearchCommands: Commands {
 private struct MainSceneView: View {
     let session: AppSession
     let profiles: AppProfileOwner<NativeAppProfileRuntime>
-    let delegate: AppDelegate
     let sceneCheck: SceneCheckDriver?
     @Environment(\.openWindow) private var openWindow
 
@@ -191,10 +268,6 @@ private struct MainSceneView: View {
                         .accessibilityElement(children: .combine)
                 }
             }
-            .onOpenURL { url in
-                openWindow(id: "main")
-                session.receiveMusicLink(url)
-            }
             .sheet(isPresented: Binding(get: { session.links.showsSheet }, set: { session.links.showsSheet = $0 })) {
                 OpenMusicLinkSheet(session: session)
             }
@@ -204,38 +277,13 @@ private struct MainSceneView: View {
             )) {
                 Button("OK", role: .cancel) { session.links.error = nil }
             } message: { Text(session.links.error ?? "") }
-            .onContinueUserActivity(CSSearchableItemActionType) { activity in
-                guard let identifier = activity.userInfo?[CSSearchableItemActivityIdentifier] as? String,
-                      session.receiveSpotlightResult(identifier) else { return }
-                openWindow(id: "main")
-                NSApp.activate(ignoringOtherApps: true)
-            }
             .background {
                 if let sceneCheck {
                     SceneCheckRenderProbe(driver: sceneCheck, revision: session.sceneCheckRevision)
                         .frame(width: 0, height: 0)
                 }
             }
-            .task(id: "\(profiles.activationID)-\(profiles.isSwitching)-\(profiles.isLoading)") {
-                delegate.sessionProvider = { profiles.accepts(profiles.activationID) ? profiles.current.session : nil }
-                delegate.shutdownOwner = { await profiles.shutdown() }
-                let activation = profiles.activationID
-                await profiles.start()
-                guard !Task.isCancelled, profiles.accepts(activation), profiles.current.session === session else { return }
-                delegate.session = session
-                delegate.openMainWindow = { openWindow(id: "main") }
-                let open = openWindow
-                session.player.videoPresentation.didReturnToMain = { [weak session = session] in
-                    guard profiles.accepts(activation), profiles.current.session === session else { return }
-                    session?.showsWebPlayer = true
-                    open(id: "main")
-                }
-                await session.start()
-                guard !Task.isCancelled, profiles.accepts(activation), profiles.current.session === session else { return }
-                session.links.isReady = sceneCheck == nil
-                session.processPendingMusicLink()
-                sceneCheck?.start(session: session)
-            }
+
     }
 }
 
@@ -265,6 +313,7 @@ private struct PlayerWindowCommands: View {
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    var launchCoordinator: AppLaunchCoordinator?
     weak var session: AppSession?
     var sessionProvider: (() -> AppSession?)?
     var shutdownOwner: (() async -> Void)?
@@ -274,6 +323,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApplication.shared.setActivationPolicy(.regular)
         SceneCheckDriver.current?.record("didFinishLaunching")
+        launchCoordinator?.start()
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
@@ -289,9 +339,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        openMainWindow?()
+        guard !flag, let launchCoordinator else { return true }
+        guard launchCoordinator.requestWindow(.main) else { return false }
         sender.activate(ignoringOtherApps: true)
-        return true
+        return false
+    }
+
+    func application(_ application: NSApplication, open urls: [URL]) {
+        guard urls.count <= 16, let last = urls.last else { return }
+        _ = launchCoordinator?.openURL(last)
+    }
+
+    func application(_ application: NSApplication, continue userActivity: NSUserActivity,
+                     restorationHandler: @escaping ([any NSUserActivityRestoring]) -> Void) -> Bool {
+        guard userActivity.activityType == CSSearchableItemActionType,
+              let identifier = userActivity.userInfo?[CSSearchableItemActivityIdentifier] as? String else { return false }
+        return launchCoordinator?.openSpotlight(identifier) == true
     }
 
     func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {

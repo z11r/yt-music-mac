@@ -1,0 +1,14 @@
+"Cancel" = "Cancel";
+"Main Window" = "Main Window";
+"Mini Player" = "Mini Player";
+"No Startup Window" = "No Startup Window";
+"Open YT Music for Mac" = "Open YT Music for Mac";
+"Quit YT Music for Mac" = "Quit YT Music for Mac";
+"Settings…" = "Settings…";
+"The requested window could not be opened. You can use the default window setting next time and quit safely." = "The requested window could not be opened. You can use the default window setting next time and quit safely.";
+"This saved window setting is not supported. It was kept; macOS window settings will be used." = "This saved window setting is not supported. It was kept; macOS window settings will be used.";
+"Use Default Startup and Quit" = "Use Default Startup and Quit";
+"Use macOS Window Settings" = "Use macOS Window Settings";
+"When the App Opens" = "When the App Opens";
+"Window changes apply next launch to all local profiles. Playback stays paused. The Dock and menu bar remain available." = "Window changes apply next launch to all local profiles. Playback stays paused. The Dock and menu bar remain available.";
+"Window selection requires macOS 15 or later. This Mac uses its current main-window and restoration behavior; saved choices are kept." = "Window selection requires macOS 15 or later. This Mac uses its current main-window and restoration behavior; saved choices are kept.";
