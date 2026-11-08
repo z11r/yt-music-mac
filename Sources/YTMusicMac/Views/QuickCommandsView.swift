@@ -16,7 +16,7 @@ struct QuickCommandsView: View {
             Text("Quick Commands").font(.title2)
             Text("Exact commands run existing app controls. Search opens results without starting playback.")
                 .font(.caption).foregroundStyle(.secondary)
-            TextField("Type an exact command", text: Binding(get: { palette.input }, set: palette.edit))
+            TextField("Type an exact command", text: Binding(get: { palette.input }, set: { palette.edit($0) }))
                 .textFieldStyle(.roundedBorder).focused($inputFocused)
                 .accessibilityIdentifier("quick-command-input")
                 .onSubmit { _ = palette.run(ticket: ticket) }
@@ -28,7 +28,7 @@ struct QuickCommandsView: View {
                 }.frame(maxWidth: .infinity, alignment: .leading)
             }.frame(maxHeight: 240)
             HStack {
-                Button("Close", role: .cancel, action: palette.invalidate).keyboardShortcut(.cancelAction)
+                Button("Close", role: .cancel) { palette.invalidate() }.keyboardShortcut(.cancelAction)
                 Spacer()
                 Button("Run Command") { _ = palette.run(ticket: ticket) }
                     .keyboardShortcut(.defaultAction).disabled(palette.input.isEmpty)
