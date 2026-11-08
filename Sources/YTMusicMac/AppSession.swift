@@ -96,6 +96,7 @@ final class AppSession {
     let player: WebPlayer
     /// Radio requests and how the queue continues past its end. See AppSession+Radio.swift.
     let radio: RadioSession
+    let sleepTimer = SleepTimer()
     var queue = PlaybackQueue()
     private(set) var destination: MusicDestination = .home
     private(set) var page: MusicPage?
@@ -157,6 +158,10 @@ final class AppSession {
         queueStore = configuration.queueStore
         queueError = configuration.queueStorageError
         player.onEnded = { [weak self] occurrence in self?.ended(occurrence) }
+        sleepTimer.onExpired = { [weak self] in
+            self?.cancelRadio()
+            self?.pause()
+        }
         player.onRecoveryRequested = { [weak self] occurrence, position in
             guard let self else { return nil }
             return self.resumeState.recover(occurrence, queue: self.queue, playerPosition: position)
@@ -479,6 +484,7 @@ final class AppSession {
         guard !tracks.isEmpty, tracks.indices.contains(index) else { return }
         guard account.isSignedIn else { openAccount(); return }
         cancelPendingCollectionRadio()
+        sleepTimer.allowPlayback()
         wantsPlayback = true
         request(queue.replace(with: tracks, startAt: index))
     }
@@ -492,6 +498,7 @@ final class AppSession {
         guard !queue.isEmpty else { return }
         guard account.isSignedIn else { openAccount(); return }
         cancelPendingCollectionRadio()
+        sleepTimer.allowPlayback()
         wantsPlayback = true
         if queue.currentOccurrence == nil {
             let position = resumeState.position(for: queue, playerPosition: player.clock.position)
@@ -543,6 +550,7 @@ final class AppSession {
         scriptingPlayGeneration = UUID()
         guard account.isSignedIn else { openAccount(); return }
         cancelPendingCollectionRadio()
+        sleepTimer.allowPlayback()
         let position = resumeState.position(for: queue, playerPosition: player.clock.position)
         wantsPlayback = true
         request(queue.beginPlayback(), resumingAt: position)
@@ -552,6 +560,7 @@ final class AppSession {
         scriptingPlayGeneration = UUID()
         guard account.isSignedIn else { openAccount(); return }
         cancelPendingCollectionRadio()
+        sleepTimer.allowPlayback()
         wantsPlayback = true
         request(queue.select(entryID: id))
     }
@@ -601,6 +610,7 @@ final class AppSession {
     func request(_ occurrence: PlaybackOccurrence?, resumingAt position: TimeInterval = 0) {
         guard !isSceneCheck else { return }
         guard let occurrence, let track = queue.currentTrack else { return }
+        sleepTimer.bind(to: occurrence)
         resumeState.begin(occurrence, recovering: position)
         player.load(track: track, occurrence: occurrence, autoplay: wantsPlayback)
         if position > 0 { player.seek(to: position) }
@@ -610,6 +620,7 @@ final class AppSession {
 
     private func ended(_ occurrence: PlaybackOccurrence) {
         guard queue.accepts(occurrence) else { return }
+        guard !sleepTimer.consumeEnd(occurrence) else { return }
         continueQueue(after: occurrence)
         systemMedia?.refresh()
     }
@@ -631,6 +642,7 @@ final class AppSession {
         accountGeneration = UUID()
         searchSuggestions.close()
         searchHistory.clear()
+        sleepTimer.cancel()
         cancelRadio()
         resetLibraryEditing()
         pageGeneration = UUID()
@@ -655,6 +667,7 @@ final class AppSession {
 
     private func accountChanged(replacedAccount: Bool) {
         cancelMusicLink()
+        sleepTimer.cancel()
         accountGeneration = UUID()
         searchSuggestions.close()
         searchHistory.clear()
@@ -702,6 +715,7 @@ final class AppSession {
     func shutdown() async {
         cancelMusicLink()
         scriptingPlayGeneration = UUID()
+        sleepTimer.cancel()
         cancelRadio()
         wantsPlayback = false
         player.pause()

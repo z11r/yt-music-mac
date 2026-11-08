@@ -20,6 +20,7 @@ struct SettingsView: View {
             }
             Section("Playback") {
                 LabeledContent("Volume") { VolumeView(session: session).frame(width: 190) }
+                LabeledContent("Sleep Timer") { SleepTimerMenu(session: session) }
                 Toggle(isOn: Binding(get: { session.radio.autoplayEnabled }, set: { session.setAutoplayEnabled($0) })) {
                     Text("Autoplay")
                     Text("When the queue ends with repeat off, keep playing related songs.")
