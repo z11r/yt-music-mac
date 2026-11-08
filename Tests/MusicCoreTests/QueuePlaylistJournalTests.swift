@@ -30,6 +30,11 @@ struct QueuePlaylistJournalTests {
         #expect(plan.title == "Private queue")
         let uploaded = QueueSnapshot(entries: [QueueEntry(track: Track(id: "abcDEF12_-3", title: "Upload", artist: "Artist", origin: .upload))])
         #expect(throws: QueuePlaylistJournalError.uploadedMusicUnsupported) { try QueuePlaylistPlan.reviewedSongs(uploaded) }
+        for track in [Track(id: "abcDEF12_-3", title: "Episode", artist: "Show", contentKind: .podcastEpisode),
+                      Track(id: "abcDEF12_-3", title: "Episode", artist: "Show", episode: .init(identity: .init(browseID: "MPEDfixture")))] {
+            let episode = QueueSnapshot(entries: [QueueEntry(track: track)])
+            #expect(throws: QueuePlaylistJournalError.podcastUnsupported) { try QueuePlaylistPlan.reviewedSongs(episode) }
+        }
         let unsafe = QueueSnapshot(entries: [QueueEntry(track: Track(id: "file:///private", title: "Bad", artist: "Artist"))])
         #expect(throws: QueuePlaylistJournalError.invalidQueue) { try QueuePlaylistPlan.reviewedSongs(unsafe) }
     }
