@@ -114,7 +114,7 @@ struct LocalCollectionFilterTests {
             "{\"version\":2,\"folders\":[],\"bookmarks\":[],\"tags\":[],\"savedFilters\":[],\"futureOrganization\":true}",
             "{\"version\":2,\"folders\":[],\"bookmarks\":[],\"tags\":[],\"savedFilters\":[{\"id\":\"\(UUID())\",\"name\":\"Future\",\"criteria\":{\"scope\":\"allServiceMusic\",\"titleContains\":\"\",\"pinnedOnly\":false}}]}",
             "{\"version\":2,\"folders\":[],\"bookmarks\":[],\"tags\":[],\"savedFilters\":[{\"id\":\"\(UUID())\",\"name\":\"Future\",\"criteria\":{\"scope\":\"loadedLibraryCollections\",\"titleContains\":\"\",\"pinnedOnly\":false,\"downloadsOnly\":true}}]}",
-            "{\"version\":2,\"folders\":[],\"bookmarks\":[],\"tags\":[],\"savedFilters\":[{\"id\":\"\(UUID())\",\"name\":\"Future\",\"criteria\":{\"scope\":\"loadedLibraryCollections\",\"titleContains\":\"\",\"pinnedOnly\":false,\"kind\":\"podcast\"}}]}"
+            "{\"version\":2,\"folders\":[],\"bookmarks\":[],\"tags\":[],\"savedFilters\":[{\"id\":\"\(UUID())\",\"name\":\"Future\",\"criteria\":{\"scope\":\"loadedLibraryCollections\",\"titleContains\":\"\",\"pinnedOnly\":false,\"kind\":\"futureUnsupportedKind\"}}]}"
         ]
         for document in documents {
             let bytes = Data(document.utf8)
