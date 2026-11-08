@@ -98,7 +98,7 @@ SOFTWARE.
 
 Playlist description, privacy, occurrence reordering, album library status,
 artist subscription, chart country, song credits, episode details, playlist
-contributor metadata, discovery shelf links, paired recording metadata, and
+contributor metadata, artist About text, discovery shelf links, paired recording metadata, and
 library-scoped search request and response paths follow
 [ytmusicapi](https://github.com/sigma67/ytmusicapi/tree/206d470bd857dde9e4c588170a23188037e03ad5)
 at commit `206d470bd857dde9e4c588170a23188037e03ad5` (version 1.12.3):
@@ -122,6 +122,7 @@ at commit `206d470bd857dde9e4c588170a23188037e03ad5` (version 1.12.3):
 - `ytmusicapi/navigation.py`
 - `ytmusicapi/mixins/watch.py`
 - `ytmusicapi/parsers/watch.py`
+- `ytmusicapi/helpers.py`
 
 MIT License
 

@@ -122,6 +122,7 @@ struct MusicContentView: View {
                     Button("Refresh", systemImage: "arrow.clockwise", action: session.reload)
                         .labelStyle(.iconOnly).buttonStyle(.borderless).help("Refresh this page")
                 }
+                ArtistAboutButton(session: session)
                 UnavailableMusicNotice(page: page)
                 if page.sections.isEmpty && page.items.isEmpty {
                     if case let .search(query, _) = session.destination {

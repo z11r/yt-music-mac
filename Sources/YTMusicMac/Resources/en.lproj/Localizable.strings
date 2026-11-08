@@ -1063,6 +1063,10 @@
 "Playlist Contributors" = "Playlist Contributors";
 
 "Open this playlist again to view its contributors." = "Open this playlist again to view its contributors.";
+"About This Artist…" = "About This Artist…";
+"About This Artist" = "About This Artist";
+"Supplied Source Addresses" = "Supplied Source Addresses";
+"Open this artist again to view current information." = "Open this artist again to view current information.";
 
 /* Custom control accent. */
 "Custom Accent" = "Custom Accent";

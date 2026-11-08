@@ -7,13 +7,15 @@ public struct MusicCollectionHeader: Hashable, Sendable {
     public let summary: String?
     public let description: String?
     public let collaboration: MusicPlaylistCollaboration?
+    public let artistAbout: MusicArtistAbout?
 
     public init(subtitle: String? = nil, summary: String? = nil, description: String? = nil,
-                collaboration: MusicPlaylistCollaboration? = nil) {
+                collaboration: MusicPlaylistCollaboration? = nil, artistAbout: MusicArtistAbout? = nil) {
         self.subtitle = Self.bounded(subtitle, bytes: 4_096)
         self.summary = Self.bounded(summary, bytes: 4_096)
         self.description = Self.bounded(description, bytes: 16_384)
         self.collaboration = collaboration
+        self.artistAbout = artistAbout
     }
 
     private static func bounded(_ value: String?, bytes: Int) -> String? {
@@ -31,8 +33,8 @@ enum MusicCollectionHeaderParser {
         let parsed = MusicCollectionHeader(subtitle: value["subtitle"].text,
             summary: value["secondSubtitle"].text,
             description: value["description"]["musicDescriptionShelfRenderer"]["description"].text ?? value["description"].text,
-            collaboration: MusicPlaylistCollaborationParser.parse(value))
-        return parsed.subtitle == nil && parsed.summary == nil && parsed.description == nil && parsed.collaboration == nil ? nil : parsed
+            collaboration: MusicPlaylistCollaborationParser.parse(value), artistAbout: MusicArtistAboutParser.parse(root))
+        return parsed.subtitle == nil && parsed.summary == nil && parsed.description == nil && parsed.collaboration == nil && parsed.artistAbout == nil ? nil : parsed
     }
 
     /// The exact primary renderer, independent of whether its display fields validate.

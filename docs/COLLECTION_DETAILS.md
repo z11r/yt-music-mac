@@ -34,6 +34,41 @@ establishes the service's subtitle and description shapes. This implementation
 retains those displayed values instead of copying its numeral extraction.
 No additional endpoint, provider or service write is introduced.
 
+## Artist About text
+
+Artist pages show About This Artist when the current response supplies a usable
+description. The explicit native popover displays the complete supplied text,
+including source and license credits. Supplied full source addresses appear as
+selectable plain text; the app does not infer addresses from shortened labels,
+open them, or request another provider. Provided by YouTube Music identifies the
+delivery source, without claiming that YouTube wrote the biography.
+Artist collection links and service-supplied artist shelf links are supported;
+discography, category and upload destinations do not supply artist About.
+
+The description comes from the direct description shelf in the selected primary
+artist tab, or the immersive header when no description shelf is advertised.
+Both single-column and two-column primary layouts are supported. Menus,
+secondary content, related cards, unselected tabs, and ambiguous or malformed
+renderers cannot supply it. An advertised malformed shelf never falls back to
+header text. Unsupported extra attribution fields remain unavailable.
+
+Descriptions are bounded to 16 KiB with at most eight supplied source addresses,
+each at most 2 KiB. Oversize text or attribution is rejected as a whole instead
+of being truncated. The popover has a fixed scrollable area. Its presentation
+identity, profile, account, destination and metadata snapshot remain fixed;
+changes hide the old content, and late disappearance cannot dismiss a newer
+explicit presentation. It makes no request, changes no playback or service data,
+and introduces no biography cache.
+
+The pinned [artist implementation](https://github.com/sigma67/ytmusicapi/blob/206d470bd857dde9e4c588170a23188037e03ad5/ytmusicapi/mixins/browsing.py#L258-L290)
+and [description-run helper](https://github.com/sigma67/ytmusicapi/blob/206d470bd857dde9e4c588170a23188037e03ad5/ytmusicapi/helpers.py)
+establish these description and supplied-address fields. Google's
+[artist profile guide](https://support.google.com/youtubemusic/answer/7237533?hl=en)
+describes biographies appearing in YouTube Music. Native fixtures use synthetic
+text and addresses, preserving the response structure without copying artist
+biographies. Live biography coverage and native keyboard, VoiceOver, long-text
+and right-to-left layout acceptance remain unperformed.
+
 Synthetic tests cover localized text, selected-header isolation, malformed and
 oversized fields, client propagation, first-header preservation across pages,
 duplicated recordings, unknown durations, overflow and English/French plurals.
