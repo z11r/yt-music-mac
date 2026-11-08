@@ -125,7 +125,7 @@ private struct MusicCard: View {
     var body: some View {
         Button { session.activate(item) } label: {
             VStack(alignment: .leading, spacing: 9) {
-                ArtworkView(url: item.artworkURL, isArtist: isArtist)
+                ArtworkView(url: item.artworkURL, isArtist: isArtist, videoID: trackID)
                     .overlay(alignment: .bottomTrailing) {
                         if isHovered || isFocused {
                             Image(systemName: isTrack ? "play.fill" : "arrow.up.forward")
@@ -183,6 +183,7 @@ private struct MusicCard: View {
     }
 
     private var isTrack: Bool { if case .track = item { true } else { false } }
+    private var trackID: String? { if case let .track(track) = item { track.id } else { nil } }
 }
 
 private struct CollectionTracksView: View {
@@ -261,7 +262,7 @@ private struct CollectionTracksView: View {
             Table(rows, selection: $selection) {
                 TableColumn("Title") { row in
                     HStack(spacing: 10) {
-                        ArtworkView(url: row.track.artworkURL, size: 36)
+                        ArtworkView(url: row.track.artworkURL, size: 36, videoID: row.track.id)
                         VStack(alignment: .leading, spacing: 3) {
                             Text(row.track.title).fontWeight(.medium).lineLimit(1)
                             Text(row.track.artist).font(.caption).foregroundStyle(.secondary).lineLimit(1)

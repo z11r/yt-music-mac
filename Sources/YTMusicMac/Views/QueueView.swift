@@ -69,7 +69,7 @@ struct QueueView: View {
 
     private func queueRow(_ entry: QueueEntry, index: Int) -> some View {
         HStack(spacing: 10) {
-            ArtworkView(url: entry.track.artworkURL, size: 40)
+            ArtworkView(url: entry.track.artworkURL, size: 40, videoID: entry.track.id)
             VStack(alignment: .leading, spacing: 4) {
                 Text(entry.track.title).fontWeight(entry.id == session.queue.currentEntryID ? .semibold : .regular)
                     .lineLimit(1)

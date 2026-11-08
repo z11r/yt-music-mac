@@ -55,6 +55,8 @@ when it does not, and expose a retry action if recovery fails.
 Update progress in the controls that display it. Avoid invalidating the library
 view every second. Cancel obsolete search and artwork requests, limit cache size
 using decoded image cost, and stop decorative animation when it is not visible.
+Request artwork near its display size, decode it once into a cropped square, and
+draw cached artwork on the first frame so reused rows do not flash a placeholder.
 
 ## Sessions and storage
 

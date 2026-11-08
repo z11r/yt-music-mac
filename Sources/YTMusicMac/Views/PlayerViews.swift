@@ -65,7 +65,7 @@ struct TrackIdentityView: View {
 
     var body: some View {
         HStack(spacing: 11) {
-            ArtworkView(url: session.currentTrack?.artworkURL, size: artworkSize)
+            ArtworkView(url: session.currentTrack?.artworkURL, size: artworkSize, videoID: session.currentTrack?.id)
             VStack(alignment: .leading, spacing: 4) {
                 Text(session.currentTrack?.title ?? "Choose a song")
                     .font(.headline).lineLimit(1)

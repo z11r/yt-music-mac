@@ -21,7 +21,7 @@ show the same track and queue. Quit stops playback.
 | --- | --- |
 | Sidebar | Home, Search, and Library, followed by liked music and playlists when available. Use a native sidebar list, clear selection, and collapsible sections. Start around 240 points wide and allow resizing. |
 | Toolbar | Standard sidebar toggle, back and forward when navigation history exists, global search, and account access. Disable commands that cannot run. |
-| Content | Artwork shelves for Home; a responsive grid or track list for collections. Album artwork stays square; artist portraits can be circular. Use a clear heading and a short secondary label. |
+| Content | Artwork shelves for Home; a responsive grid or track list for collections. Album artwork stays square; artist portraits can be circular. Music videos show a centered square from the video thumbnail, without letterbox bars. Use a clear heading and a short secondary label. |
 | Player | Persistent bottom area with artwork, title, artist, transport, seek, volume, and queue access. Keep its size stable when metadata changes. |
 | Queue | Optional trailing inspector with the current track and Up Next. Start around 300 points wide. Allow duplicate songs as separate entries and show the selected occurrence. |
 
