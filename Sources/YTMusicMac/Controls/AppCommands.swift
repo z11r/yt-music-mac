@@ -87,6 +87,7 @@ struct NavigationCommands: Commands {
     var body: some Commands {
         CommandGroup(before: .sidebar) {
             QuickCommandsMenuButton()
+            CommandReviewMenuButton()
             Divider()
             NavigationCommandButtons(session: session)
             Divider()

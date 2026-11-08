@@ -138,6 +138,7 @@ final class AppSession {
     let lastFM: LastFMSession
     let streamingExport: StreamingMetadataExport?
     let quickCommands = QuickCommandPalette()
+    let commandReview: CommandReviewSession
     @ObservationIgnored var quickCommandProfile: String?
     let discordPresence: DiscordPresenceSession?
     private(set) var destination: MusicDestination = .home
@@ -193,7 +194,7 @@ final class AppSession {
     @ObservationIgnored private let queuePersistenceGate = LocalPersistenceGate()
     @ObservationIgnored private var saveTask: Task<Void, Never>?
     @ObservationIgnored private var pageGeneration = UUID()
-    @ObservationIgnored var accountGeneration = UUID() { didSet { recommendations.cancel(); credits.clear() } }
+    @ObservationIgnored var accountGeneration = UUID() { didSet { recommendations.cancel(); credits.clear(); commandReview.invalidate() } }
     @ObservationIgnored private var backHistory: [MusicDestination] = []
     @ObservationIgnored private var forwardHistory: [MusicDestination] = []
     @ObservationIgnored private var resumeState = PlaybackResumeState()
@@ -214,6 +215,9 @@ final class AppSession {
 
     init(configuration: AppSessionConfiguration = .live()) {
         preferences = configuration.preferences
+        commandReview = CommandReviewSession(preferences: configuration.preferences,
+            interpreter: configuration.commandInterpreter ?? SystemCommandInterpreter(),
+            gate: configuration.commandGenerationGate ?? .shared)
         persistsLocalQueue = configuration.preferences.object(forKey: "persistsLocalQueue") as? Bool ?? true
         let progress = EpisodePlaybackSession(store: configuration.episodeProgressStore)
         progress.setPersistenceEnabled(configuration.preferences.object(forKey: "persistsEpisodeProgress") as? Bool ?? true)
@@ -270,6 +274,11 @@ final class AppSession {
         }
         quickCommands.environment = { [weak self] in self?.quickCommandEnvironment }
         quickCommands.execute = { [weak self] command, environment in self?.executeQuickCommand(command, environment: environment) }
+        commandReview.environment = { [weak self, namespace = configuration.profileNamespace] in
+            guard let self else { return nil }
+            return .init(quick: self.quickCommandEnvironment, localProfile: namespace, queueRevision: self.queue.revision)
+        }
+        commandReview.execute = { [weak self] command, environment in self?.executeQuickCommand(command, environment: environment) }
         queuePersistenceGate.setEnabled(persistsLocalQueue)
         player.onEnded = { [weak self] occurrence in self?.ended(occurrence) }
         sleepTimer.onExpired = { [weak self] in
@@ -327,7 +336,7 @@ final class AppSession {
         account.onAccountChanged = { [weak self] changed in self?.accountChanged(replacedAccount: changed) }
         account.onAccountConfirmed = { [weak self] hash in
             guard let self, self.acceptsProfileActions else { return }
-            if self.quickCommandProfile != hash { self.quickCommands.invalidate() }
+            if self.quickCommandProfile != hash { self.quickCommands.invalidate(); self.commandReview.invalidate() }
             self.quickCommandProfile = hash
             self.bindEpisodeAccount(hash)
             self.streamingExport?.bindAccount(hash)
@@ -1126,6 +1135,7 @@ final class AppSession {
     func openAccount() {
         guard acceptsProfileActions else { return }
         quickCommands.invalidate()
+        commandReview.invalidate()
         guard !isSceneCheck else { return }
         credits.clear()
         lyrics.clear()
@@ -1397,6 +1407,7 @@ final class AppSession {
     func quiesceForProfileSwitch() {
         guard !isProfileSuspended else { return }
         isProfileSuspended = true
+        commandReview.invalidate()
         credits.clear()
         quickCommands.invalidate(); quickCommandProfile = nil
         streamingExport?.quiesce(); discordPresence?.quiesce()
@@ -1422,6 +1433,7 @@ final class AppSession {
     }
 
     func settleForProfileSwitch() async {
+        await commandReview.waitForIdle()
         await sessionOperations.waitForIdle()
         await pageTask?.value
         if isEditingLibrary { await withCheckedContinuation { libraryEditWaiters.append($0) } }

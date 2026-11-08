@@ -28,6 +28,8 @@ struct AppSessionConfiguration {
     var lastFMCoordinator: LastFMCoordinator? = nil
     var streamingMetadataWriter: (any StreamingMetadataWriting)? = nil
     var discordPresenceClient: (any DiscordPresenceProviding)? = nil
+    var commandInterpreter: (any CommandInterpreting)? = nil
+    var commandGenerationGate: CommandGenerationGate? = nil
 
     static func withoutSystemMedia(_ source: Self) -> Self {
         var result = source; result.installsSystemMedia = false; return result

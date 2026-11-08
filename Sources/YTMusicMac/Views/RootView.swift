@@ -86,6 +86,10 @@ struct RootView: View {
         .background(SearchSuggestionsAttachment(session: session))
         .focusedSceneValue(\.focusMusicSearch, searchAction)
         .focusedSceneValue(\.openQuickCommands, quickCommandsAction)
+        .focusedSceneValue(\.openCommandReview, commandReviewAction)
+        .sheet(isPresented: Binding(get: { session.commandReview.isPresented }, set: { if !$0 { session.commandReview.invalidate() } })) {
+            CommandReviewView(review: session.commandReview)
+        }
         .sheet(isPresented: Binding(get: { session.quickCommands.isPresented }, set: { if !$0 { session.quickCommands.invalidate() } })) {
             QuickCommandsView(palette: session.quickCommands)
         }
@@ -105,12 +109,19 @@ struct RootView: View {
 
     private var quickCommandsAction: (() -> Void)? {
         guard !session.showsAccount, libraryEditor == nil, !session.showsLocalFolders, !session.showsSongRules,
-              !session.links.showsSheet, !session.quickCommands.isPresented else { return nil }
+              !session.links.showsSheet, !session.quickCommands.isPresented, !session.commandReview.isPresented else { return nil }
         return { session.quickCommands.present() }
     }
 
+    private var commandReviewAction: (() -> Void)? {
+        guard session.acceptsProfileActions, !session.showsAccount, libraryEditor == nil, !session.showsLocalFolders,
+              !session.showsSongRules, !session.links.showsSheet, !session.quickCommands.isPresented,
+              !session.commandReview.isPresented else { return nil }
+        return { session.commandReview.present() }
+    }
+
     private var searchAction: (() -> Void)? {
-        guard !session.showsAccount, libraryEditor == nil, !session.quickCommands.isPresented else { return nil }
+        guard !session.showsAccount, libraryEditor == nil, !session.quickCommands.isPresented, !session.commandReview.isPresented else { return nil }
         return { focusSearch() }
     }
 

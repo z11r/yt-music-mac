@@ -931,3 +931,34 @@
 "Close" = "Close";
 "Build a Queue" = "Build a Queue";
 "Build a Queue from Searches…" = "Build a Queue from Searches…";
+
+/* Reviewed on-device commands */
+"Apple Intelligence is not enabled on this Mac. Exact Quick Commands remain available." = "Apple Intelligence is not enabled on this Mac. Exact Quick Commands remain available.";
+"Cancel Interpretation" = "Cancel Interpretation";
+"Check the action and every value. Search opens results; choosing a recording remains a separate action." = "Check the action and every value. Search opens results; choosing a recording remains a separate action.";
+"Describe one supported action" = "Describe one supported action";
+"Enable On-device Command Interpretation" = "Enable On-device Command Interpretation";
+"Enable on-device command interpretation in Settings first." = "Enable on-device command interpretation in Settings first.";
+"Interpret Request" = "Interpret Request";
+"Interpret one request, check the proposed exact command, then choose Run Proposed Command. Interpretation never runs an action by itself." = "Interpret one request, check the proposed exact command, then choose Run Proposed Command. Interpretation never runs an action by itself.";
+"Interpreting or stopping the previous request…" = "Interpreting or stopping the previous request…";
+"On-device Command Review" = "On-device Command Review";
+"On-device Command Review…" = "On-device Command Review…";
+"On-device Commands" = "On-device Commands";
+"On-device interpretation is unavailable. Exact Quick Commands remain available." = "On-device interpretation is unavailable. Exact Quick Commands remain available.";
+"On-device interpretation requires macOS 26 and an eligible Apple silicon Mac. Use exact Quick Commands here." = "On-device interpretation requires macOS 26 and an eligible Apple silicon Mac. Use exact Quick Commands here.";
+"Only one supported action can be reviewed. Split compound requests or use an exact Quick Command." = "Only one supported action can be reviewed. Split compound requests or use an exact Quick Command.";
+"Only the text you explicitly submit is given to Apple's on-device model. The app sends no account, queue or listening metadata with it and stores no prompt or response history. A proposed action always needs your review and Run." = "Only the text you explicitly submit is given to Apple's on-device model. The app sends no account, queue or listening metadata with it and stores no prompt or response history. A proposed action always needs your review and Run.";
+"Proposed Exact Command" = "Proposed Exact Command";
+"Ready for an explicit on-device interpretation." = "Ready for an explicit on-device interpretation.";
+"Requires macOS 26, an eligible Apple silicon Mac, Apple Intelligence enabled and a ready model. The app does not enable Apple Intelligence, download a model or use a cloud fallback. Exact Quick Commands remain available on macOS 14 and Intel." = "Requires macOS 26, an eligible Apple silicon Mac, Apple Intelligence enabled and a ready model. The app does not enable Apple Intelligence, download a model or use a cloud fallback. Exact Quick Commands remain available on macOS 14 and Intel.";
+"Run Proposed Command" = "Run Proposed Command";
+"The input, profile, account, startup state or recording changed. Close and reopen command review before interpreting again." = "The input, profile, account, startup state or recording changed. Close and reopen command review before interpreting again.";
+"The on-device model does not support the current language. Use exact Quick Commands instead." = "The on-device model does not support the current language. Use exact Quick Commands instead.";
+"The on-device model is not ready. The app does not start a download; try again later or use exact Quick Commands." = "The on-device model is not ready. The app does not start a download; try again later or use exact Quick Commands.";
+"The previous interpretation is still stopping. Wait for it to finish before trying again." = "The previous interpretation is still stopping. Wait for it to finish before trying again.";
+"The request could not be interpreted. Try one supported action or use an exact Quick Command." = "The request could not be interpreted. Try one supported action or use an exact Quick Command.";
+"This Mac is not eligible for the on-device model. Use exact Quick Commands here." = "This Mac is not eligible for the on-device model. Use exact Quick Commands here.";
+"Use digits for volume and minutes, m:ss for a position, or double quotes around an exact search query." = "Use digits for volume and minutes, m:ss for a position, or double quotes around an exact search query.";
+"Use explicit digits for values, m:ss for positions, and double quotes around a search query. Values are never filled in for you." = "Use explicit digits for values, m:ss for positions, and double quotes around a search query. Values are never filled in for you.";
+"Use one short request within 512 UTF-8 bytes, without control characters." = "Use one short request within 512 UTF-8 bytes, without control characters.";

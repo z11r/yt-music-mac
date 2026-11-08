@@ -7,9 +7,11 @@ the sheet. Ordinary text-editing and playback controls keep their existing
 bindings.
 
 G51 is **Partial**: typed playback, navigation, search, timer, volume, and queue
-mode commands are implemented. Generated playlists and open-ended requests
-remain feasibility work. The palette has no model, cloud parser, new runtime or
-dependency, command history, background suggestions, or automatic retries.
+mode commands are implemented. A separate optional [on-device command review](ON_DEVICE_COMMANDS.md)
+can propose an exact command for explicit approval on eligible systems. Generated
+playlists and requests beyond the supported actions remain separate work. This
+exact-command palette has no model, cloud parser, new runtime or dependency,
+command history, background suggestions, or automatic retries.
 
 ## Grammar
 

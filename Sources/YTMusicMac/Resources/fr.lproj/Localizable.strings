@@ -931,3 +931,34 @@
 "Close" = "Fermer";
 "Build a Queue" = "Créer une file";
 "Build a Queue from Searches…" = "Créer une file à partir de recherches…";
+
+/* Reviewed on-device commands */
+"Apple Intelligence is not enabled on this Mac. Exact Quick Commands remain available." = "Apple Intelligence n’est pas activé sur ce Mac. Les commandes rapides exactes restent disponibles.";
+"Cancel Interpretation" = "Annuler l’interprétation";
+"Check the action and every value. Search opens results; choosing a recording remains a separate action." = "Vérifiez l’action et chaque valeur. La recherche ouvre des résultats ; le choix d’un enregistrement reste une action distincte.";
+"Describe one supported action" = "Décrivez une action prise en charge";
+"Enable On-device Command Interpretation" = "Activer l’interprétation locale des commandes";
+"Enable on-device command interpretation in Settings first." = "Activez d’abord l’interprétation locale des commandes dans les réglages.";
+"Interpret Request" = "Interpréter la demande";
+"Interpret one request, check the proposed exact command, then choose Run Proposed Command. Interpretation never runs an action by itself." = "Interprétez une demande, vérifiez la commande exacte proposée, puis choisissez Exécuter la commande proposée. L’interprétation n’exécute jamais une action seule.";
+"Interpreting or stopping the previous request…" = "Interprétation ou arrêt de la demande précédente…";
+"On-device Command Review" = "Vérification des commandes locales";
+"On-device Command Review…" = "Vérification des commandes locales…";
+"On-device Commands" = "Commandes locales";
+"On-device interpretation is unavailable. Exact Quick Commands remain available." = "L’interprétation locale est indisponible. Les commandes rapides exactes restent disponibles.";
+"On-device interpretation requires macOS 26 and an eligible Apple silicon Mac. Use exact Quick Commands here." = "L’interprétation locale nécessite macOS 26 et un Mac à puce Apple compatible. Utilisez ici les commandes rapides exactes.";
+"Only one supported action can be reviewed. Split compound requests or use an exact Quick Command." = "Une seule action prise en charge peut être vérifiée. Séparez les demandes multiples ou utilisez une commande rapide exacte.";
+"Only the text you explicitly submit is given to Apple's on-device model. The app sends no account, queue or listening metadata with it and stores no prompt or response history. A proposed action always needs your review and Run." = "Seul le texte que vous envoyez explicitement est transmis au modèle local d’Apple. L’app n’y joint aucune métadonnée de compte, de file ou d’écoute et ne conserve aucun historique de demandes ou de réponses. Toute action proposée doit être vérifiée et exécutée par vous.";
+"Proposed Exact Command" = "Commande exacte proposée";
+"Ready for an explicit on-device interpretation." = "Prêt pour une interprétation locale explicite.";
+"Requires macOS 26, an eligible Apple silicon Mac, Apple Intelligence enabled and a ready model. The app does not enable Apple Intelligence, download a model or use a cloud fallback. Exact Quick Commands remain available on macOS 14 and Intel." = "Nécessite macOS 26, un Mac à puce Apple compatible, Apple Intelligence activé et un modèle prêt. L’app n’active pas Apple Intelligence, ne télécharge pas de modèle et n’utilise aucun recours au cloud. Les commandes rapides exactes restent disponibles sous macOS 14 et sur Intel.";
+"Run Proposed Command" = "Exécuter la commande proposée";
+"The input, profile, account, startup state or recording changed. Close and reopen command review before interpreting again." = "Le texte, le profil, le compte, l’état de démarrage ou l’enregistrement a changé. Fermez puis rouvrez la vérification des commandes avant de relancer l’interprétation.";
+"The on-device model does not support the current language. Use exact Quick Commands instead." = "Le modèle local ne prend pas en charge la langue actuelle. Utilisez les commandes rapides exactes.";
+"The on-device model is not ready. The app does not start a download; try again later or use exact Quick Commands." = "Le modèle local n’est pas prêt. L’app ne lance aucun téléchargement ; réessayez plus tard ou utilisez les commandes rapides exactes.";
+"The previous interpretation is still stopping. Wait for it to finish before trying again." = "L’interprétation précédente est encore en cours d’arrêt. Attendez la fin avant de réessayer.";
+"The request could not be interpreted. Try one supported action or use an exact Quick Command." = "La demande n’a pas pu être interprétée. Essayez une action prise en charge ou utilisez une commande rapide exacte.";
+"This Mac is not eligible for the on-device model. Use exact Quick Commands here." = "Ce Mac n’est pas compatible avec le modèle de langage local. Utilisez ici les commandes rapides exactes.";
+"Use digits for volume and minutes, m:ss for a position, or double quotes around an exact search query." = "Utilisez des chiffres pour le volume et les minutes, m:ss pour une position, ou des guillemets doubles pour une recherche exacte.";
+"Use explicit digits for values, m:ss for positions, and double quotes around a search query. Values are never filled in for you." = "Indiquez les valeurs en chiffres, les positions au format m:ss et les recherches entre guillemets doubles. Aucune valeur n’est complétée pour vous.";
+"Use one short request within 512 UTF-8 bytes, without control characters." = "Utilisez une demande courte limitée à 512 octets UTF-8, sans caractères de contrôle.";
