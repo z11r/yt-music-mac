@@ -63,7 +63,7 @@ def main():
                 errors.append(f"{module}: missing compiler-extracted key {key!r}")
     # Feature-specific tables use explicit lookup helpers rather than SwiftUI's
     # default Localizable table; keep their checks in the same CI entry point.
-    for table, helper in [("QueueBuilder", "QueueBuilderCopy"), ("SponsorBlock", "SponsorBlockText")]:
+    for table, helper in [("QueueBuilder", "QueueBuilderCopy"), ("SponsorBlock", "SponsorBlockText"), ("Haptics", "HapticsText")]:
         source = root / "Sources/YTMusicMac"
         english = read_strings(source / f"Resources/en.lproj/{table}.strings")
         french = read_strings(source / f"Resources/fr.lproj/{table}.strings")
