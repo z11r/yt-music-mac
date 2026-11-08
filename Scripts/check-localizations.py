@@ -61,6 +61,24 @@ def main():
                 errors.append("No compiler-extracted app strings found; build with -emit-localized-strings first")
             for key in extracted - english.keys():
                 errors.append(f"{module}: missing compiler-extracted key {key!r}")
+    # Feature-specific tables use explicit lookup helpers rather than SwiftUI's
+    # default Localizable table; keep their checks in the same CI entry point.
+    for table, helper in [("QueueBuilder", "QueueBuilderCopy"), ("SponsorBlock", "SponsorBlockText")]:
+        source = root / "Sources/YTMusicMac"
+        english = read_strings(source / f"Resources/en.lproj/{table}.strings")
+        french = read_strings(source / f"Resources/fr.lproj/{table}.strings")
+        if english.keys() != french.keys():
+            errors.append(f"{table}: English and French keys differ")
+        for key in english.keys() & french.keys():
+            if signature(english[key]) != signature(french[key]):
+                errors.append(f"{table}: format arguments differ for {key!r}")
+        lookup = re.compile(rf'{helper}\.text\("((?:[^"\\]|\\.)*)"')
+        for path in source.rglob("*.swift"):
+            for match in lookup.finditer(path.read_text()):
+                key = json.loads('"' + match[1] + '"')
+                if key not in english:
+                    errors.append(f"{table}: missing explicit key {key!r}")
+        counts[table] = len(english)
     for language in ["en", "fr"]:
         phrases = read_strings(root / f"Sources/YTMusicMac/Resources/{language}.lproj/AppShortcuts.strings")
         if len(phrases) != 8 or any(key.count("${applicationName}") != 1 or
