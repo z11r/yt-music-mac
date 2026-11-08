@@ -134,7 +134,10 @@ public struct MusicContinuation: Sendable, CustomStringConvertible, CustomDebugS
     public var debugDescription: String { description }
 }
 
-enum MusicEndpoint: String, Sendable { case browse, search }
+enum MusicEndpoint: String, Sendable {
+    case browse, search
+    case searchSuggestions = "music/get_search_suggestions"
+}
 
 public enum MusicServiceError: Error, Equatable, Sendable, LocalizedError {
     case signInRequired

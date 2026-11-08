@@ -40,10 +40,12 @@ public actor YouTubeMusicClient {
 
     public func home() async throws -> MusicPage { try await browse("FEmusic_home", title: "Home") }
     public func explore() async throws -> MusicPage { try await browse("FEmusic_explore", title: "Explore") }
-    public func search(query: String) async throws -> MusicPage {
+    public func search(query: String, filter: MusicSearchFilter = .all) async throws -> MusicPage {
         let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty, query.count <= 500 else { throw MusicServiceError.invalidInput }
-        return try await firstPage(endpoint: .search, body: ["query": query], title: "Search", requiresAuthentication: false, preservesOccurrences: false)
+        var body = ["query": query]
+        if let params = filter.params { body["params"] = params }
+        return try await firstPage(endpoint: .search, body: body, title: "Search", requiresAuthentication: false, preservesOccurrences: false)
     }
     public func library(category: LibraryCategory = .all) async throws -> MusicPage {
         var body = ["browseId": category.browseID]
@@ -172,7 +174,7 @@ public actor YouTubeMusicClient {
                          likeStates: parsed.likeStates)
     }
 
-    private func request(endpoint: MusicEndpoint, body: [String: String], session: MusicSession, requiresAuthentication: Bool) async throws -> Data {
+    func request(endpoint: MusicEndpoint, body: [String: String], session: MusicSession, requiresAuthentication: Bool) async throws -> Data {
         try Task.checkCancellation()
         if requiresAuthentication && !session.isAuthenticated { throw MusicServiceError.signInRequired }
         let configuration: MusicClientConfiguration

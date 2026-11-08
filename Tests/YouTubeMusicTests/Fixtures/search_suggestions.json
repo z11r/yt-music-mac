@@ -1,0 +1,129 @@
+{
+  "contents": [
+    {
+      "searchSuggestionsSectionRenderer": {
+        "contents": [
+          {
+            "searchSuggestionRenderer": {
+              "suggestion": {
+                "runs": [
+                  {
+                    "text": "exam",
+                    "bold": true
+                  },
+                  {
+                    "text": "ple"
+                  }
+                ]
+              },
+              "navigationEndpoint": {
+                "searchEndpoint": {
+                  "query": "example"
+                }
+              }
+            }
+          },
+          {
+            "searchSuggestionRenderer": {
+              "suggestion": {
+                "runs": [
+                  {
+                    "text": "exam",
+                    "bold": true
+                  },
+                  {
+                    "text": "ple song"
+                  }
+                ]
+              },
+              "navigationEndpoint": {
+                "searchEndpoint": {
+                  "query": "example song"
+                }
+              }
+            }
+          },
+          {
+            "searchSuggestionRenderer": {
+              "suggestion": {
+                "runs": [
+                  {
+                    "text": "exam",
+                    "bold": true
+                  },
+                  {
+                    "text": "ple artist live"
+                  }
+                ]
+              },
+              "navigationEndpoint": {
+                "searchEndpoint": {
+                  "query": "example artist live"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "searchSuggestionsSectionRenderer": {
+        "contents": [
+          {
+            "musicResponsiveListItemRenderer": {
+              "thumbnail": {
+                "musicThumbnailRenderer": {
+                  "thumbnail": {
+                    "thumbnails": [
+                      {
+                        "url": "https://lh3.googleusercontent.com/fixture-artwork=w226-h226",
+                        "width": 120,
+                        "height": 120
+                      }
+                    ]
+                  },
+                  "thumbnailCrop": "MUSIC_THUMBNAIL_CROP_CIRCLE",
+                  "thumbnailScale": "MUSIC_THUMBNAIL_SCALE_ASPECT_FILL"
+                }
+              },
+              "flexColumns": [
+                {
+                  "musicResponsiveListItemFlexColumnRenderer": {
+                    "text": {
+                      "runs": [
+                        {
+                          "text": "Artist 3"
+                        }
+                      ]
+                    }
+                  }
+                },
+                {
+                  "musicResponsiveListItemFlexColumnRenderer": {
+                    "text": {
+                      "runs": [
+                        {
+                          "text": "67.5M monthly audience"
+                        }
+                      ]
+                    }
+                  }
+                }
+              ],
+              "navigationEndpoint": {
+                "browseEndpoint": {
+                  "browseId": "UCfixture02",
+                  "browseEndpointContextSupportedConfigs": {
+                    "browseEndpointContextMusicConfig": {
+                      "pageType": "MUSIC_PAGE_TYPE_ARTIST"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

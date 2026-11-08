@@ -10,6 +10,7 @@ from [Kaset](https://github.com/sozercan/kaset) at commit
 - `Sources/Kaset/Services/API/InnerTubeSupport.swift`
 - `Sources/Kaset/Services/API/Parsers/HomeResponseParser.swift`
 - `Sources/Kaset/Services/API/Parsers/SearchResponseParser.swift`
+- `Sources/Kaset/Services/API/Parsers/SearchSuggestionsParser.swift`
 - `Sources/Kaset/Services/API/Parsers/PlaylistParser.swift`
 - `Sources/Kaset/Services/API/Parsers/ParsingHelpers.swift`
 - `Sources/Kaset/Services/API/Parsers/ParsingHelpers+Playlist.swift`
