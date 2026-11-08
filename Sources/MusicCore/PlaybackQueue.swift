@@ -9,6 +9,7 @@ public struct PlaybackQueue: Sendable {
 
     private let sessionID = UUID()
     private var generation: UInt64 = 0
+    private var editCount: UInt64 = 0
     private var unshuffledOrder: [UUID] = []
     private let undoLimit: Int
     private var undoHistory: [EditState] = []
@@ -46,6 +47,9 @@ public struct PlaybackQueue: Sendable {
     }
 
     public var currentTrack: Track? { self.currentEntry?.track }
+    /// Changes when entries are replaced, added, removed, or reordered, and differs between queue instances.
+    /// Playback requests and track metadata updates leave it unchanged.
+    public var revision: QueueRevision { QueueRevision(queueID: self.sessionID, edit: self.editCount) }
     public var canUndo: Bool { !self.undoHistory.isEmpty }
     public var isEmpty: Bool { self.entries.isEmpty }
 
@@ -218,6 +222,7 @@ public struct PlaybackQueue: Sendable {
     @discardableResult
     public mutating func undo() -> Bool {
         guard let prior = self.undoHistory.popLast() else { return false }
+        self.editCount &+= 1
         let selection = self.currentEntryID
         let occurrence = self.currentOccurrence
         self.entries = prior.entries
@@ -265,6 +270,7 @@ public struct PlaybackQueue: Sendable {
     }
 
     private mutating func rememberEdit() {
+        self.editCount &+= 1
         guard self.undoLimit > 0 else { return }
         self.undoHistory.append(EditState(
             entries: self.entries,

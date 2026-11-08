@@ -1,0 +1,361 @@
+{
+  "contents": {
+    "singleColumnMusicWatchNextResultsRenderer": {
+      "tabbedRenderer": {
+        "watchNextTabbedResultsRenderer": {
+          "tabs": [
+            {
+              "tabRenderer": {
+                "title": "Up next",
+                "content": {
+                  "musicQueueRenderer": {
+                    "header": {
+                      "musicQueueHeaderRenderer": {
+                        "title": {
+                          "runs": [
+                            {
+                              "text": "Playing from"
+                            }
+                          ]
+                        },
+                        "subtitle": {
+                          "runs": [
+                            {
+                              "text": "The Best of Me Mix"
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    "content": {
+                      "playlistPanelRenderer": {
+                        "playlistId": "RDAMPLOLAK5uy_kKzgbumGI8XJFtMr9MZyCAq-oW7G1GOuY",
+                        "isInfinite": true,
+                        "contents": [
+                          {
+                            "playlistPanelVideoRenderer": {
+                              "title": {
+                                "runs": [
+                                  {
+                                    "text": "Somebody Loves Me"
+                                  }
+                                ]
+                              },
+                              "longBylineText": {
+                                "runs": [
+                                  {
+                                    "text": "Rick Astley",
+                                    "navigationEndpoint": {
+                                      "browseEndpoint": {
+                                        "browseId": "UCwZEU0wAwIyZb4x5G_KJp2w",
+                                        "browseEndpointContextSupportedConfigs": {
+                                          "browseEndpointContextMusicConfig": {
+                                            "pageType": "MUSIC_PAGE_TYPE_ARTIST"
+                                          }
+                                        }
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "text": " • "
+                                  },
+                                  {
+                                    "text": "50",
+                                    "navigationEndpoint": {
+                                      "browseEndpoint": {
+                                        "browseId": "MPREb_WSSBtNYRiMx",
+                                        "browseEndpointContextSupportedConfigs": {
+                                          "browseEndpointContextMusicConfig": {
+                                            "pageType": "MUSIC_PAGE_TYPE_ALBUM"
+                                          }
+                                        }
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "text": " • "
+                                  },
+                                  {
+                                    "text": "2016"
+                                  }
+                                ]
+                              },
+                              "shortBylineText": {
+                                "runs": [
+                                  {
+                                    "text": "Rick Astley"
+                                  }
+                                ]
+                              },
+                              "thumbnail": {
+                                "thumbnails": [
+                                  {
+                                    "url": "https://yt3.googleusercontent.com/mQU3QpKv7aewCTrmvMblXZyVaIRh2Yjf0EKCa7v4LhmKbSb8zNxYPrYV0TzcjooufOU28SfWinr1Ptw=w60-h60-l90-rj",
+                                    "width": 60,
+                                    "height": 60
+                                  },
+                                  {
+                                    "url": "https://yt3.googleusercontent.com/mQU3QpKv7aewCTrmvMblXZyVaIRh2Yjf0EKCa7v4LhmKbSb8zNxYPrYV0TzcjooufOU28SfWinr1Ptw=w120-h120-l90-rj",
+                                    "width": 120,
+                                    "height": 120
+                                  }
+                                ]
+                              },
+                              "lengthText": {
+                                "runs": [
+                                  {
+                                    "text": "3:23"
+                                  }
+                                ]
+                              },
+                              "selected": true,
+                              "navigationEndpoint": {
+                                "watchEndpoint": {
+                                  "videoId": "0XEnBSWZYNs",
+                                  "playlistId": "RDAMPLOLAK5uy_kKzgbumGI8XJFtMr9MZyCAq-oW7G1GOuY",
+                                  "index": 0,
+                                  "watchEndpointMusicSupportedConfigs": {
+                                    "watchEndpointMusicConfig": {
+                                      "hasPersistentPlaylistPanel": true,
+                                      "musicVideoType": "MUSIC_VIDEO_TYPE_ATV"
+                                    }
+                                  }
+                                }
+                              },
+                              "videoId": "0XEnBSWZYNs",
+                              "playlistSetVideoId": "56B44F6D10557CC6"
+                            }
+                          },
+                          {
+                            "playlistPanelVideoRenderer": {
+                              "title": {
+                                "runs": [
+                                  {
+                                    "text": "I’ll Have to Say I Love You in a Song"
+                                  }
+                                ]
+                              },
+                              "longBylineText": {
+                                "runs": [
+                                  {
+                                    "text": "Jim Croce",
+                                    "navigationEndpoint": {
+                                      "browseEndpoint": {
+                                        "browseId": "UCgHHxoD5eBpYkAVVQ_R-TrA",
+                                        "browseEndpointContextSupportedConfigs": {
+                                          "browseEndpointContextMusicConfig": {
+                                            "pageType": "MUSIC_PAGE_TYPE_ARTIST"
+                                          }
+                                        }
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "text": " • "
+                                  },
+                                  {
+                                    "text": "I Got a Name",
+                                    "navigationEndpoint": {
+                                      "browseEndpoint": {
+                                        "browseId": "MPREb_xtndTHF2PI7",
+                                        "browseEndpointContextSupportedConfigs": {
+                                          "browseEndpointContextMusicConfig": {
+                                            "pageType": "MUSIC_PAGE_TYPE_ALBUM"
+                                          }
+                                        }
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "text": " • "
+                                  },
+                                  {
+                                    "text": "1973"
+                                  }
+                                ]
+                              },
+                              "shortBylineText": {
+                                "runs": [
+                                  {
+                                    "text": "Jim Croce"
+                                  }
+                                ]
+                              },
+                              "thumbnail": {
+                                "thumbnails": [
+                                  {
+                                    "url": "https://yt3.googleusercontent.com/BVN49zxmSroPLpOU2yvm2DOZ55xos_r1V8B9XP934xJ-cjpsoaGNr7uTPn7-p2ybtkAEZbKjapron5sTtw=w60-h60-l90-rj",
+                                    "width": 60,
+                                    "height": 60
+                                  },
+                                  {
+                                    "url": "https://yt3.googleusercontent.com/BVN49zxmSroPLpOU2yvm2DOZ55xos_r1V8B9XP934xJ-cjpsoaGNr7uTPn7-p2ybtkAEZbKjapron5sTtw=w120-h120-l90-rj",
+                                    "width": 120,
+                                    "height": 120
+                                  }
+                                ]
+                              },
+                              "lengthText": {
+                                "runs": [
+                                  {
+                                    "text": "2:35"
+                                  }
+                                ]
+                              },
+                              "selected": false,
+                              "navigationEndpoint": {
+                                "watchEndpoint": {
+                                  "videoId": "Tc8FyMkYXaQ",
+                                  "playlistId": "RDAMPLOLAK5uy_kKzgbumGI8XJFtMr9MZyCAq-oW7G1GOuY",
+                                  "index": 1,
+                                  "watchEndpointMusicSupportedConfigs": {
+                                    "watchEndpointMusicConfig": {
+                                      "hasPersistentPlaylistPanel": true,
+                                      "musicVideoType": "MUSIC_VIDEO_TYPE_ATV"
+                                    }
+                                  }
+                                }
+                              },
+                              "videoId": "Tc8FyMkYXaQ",
+                              "playlistSetVideoId": "289F4A46DF0A30D2"
+                            }
+                          },
+                          {
+                            "playlistPanelVideoRenderer": {
+                              "title": {
+                                "runs": [
+                                  {
+                                    "text": "Sleeping (Edit)"
+                                  }
+                                ]
+                              },
+                              "longBylineText": {
+                                "runs": [
+                                  {
+                                    "text": "Rick Astley",
+                                    "navigationEndpoint": {
+                                      "browseEndpoint": {
+                                        "browseId": "UCwZEU0wAwIyZb4x5G_KJp2w",
+                                        "browseEndpointContextSupportedConfigs": {
+                                          "browseEndpointContextMusicConfig": {
+                                            "pageType": "MUSIC_PAGE_TYPE_ARTIST"
+                                          }
+                                        }
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "text": " • "
+                                  },
+                                  {
+                                    "text": "The Best of Me",
+                                    "navigationEndpoint": {
+                                      "browseEndpoint": {
+                                        "browseId": "MPREb_dYCLWaUC8Ao",
+                                        "browseEndpointContextSupportedConfigs": {
+                                          "browseEndpointContextMusicConfig": {
+                                            "pageType": "MUSIC_PAGE_TYPE_ALBUM"
+                                          }
+                                        }
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "text": " • "
+                                  },
+                                  {
+                                    "text": "2019"
+                                  }
+                                ]
+                              },
+                              "shortBylineText": {
+                                "runs": [
+                                  {
+                                    "text": "Rick Astley"
+                                  }
+                                ]
+                              },
+                              "thumbnail": {
+                                "thumbnails": [
+                                  {
+                                    "url": "https://yt3.googleusercontent.com/pBUkdzB7O-ZRbDQfC1V19daWyapE0HIskTvu7-k-mWWRW9BwB4MLERCC5fKBbXUsnmpaOYRny4QNQO4R=w60-h60-l90-rj",
+                                    "width": 60,
+                                    "height": 60
+                                  },
+                                  {
+                                    "url": "https://yt3.googleusercontent.com/pBUkdzB7O-ZRbDQfC1V19daWyapE0HIskTvu7-k-mWWRW9BwB4MLERCC5fKBbXUsnmpaOYRny4QNQO4R=w120-h120-l90-rj",
+                                    "width": 120,
+                                    "height": 120
+                                  }
+                                ]
+                              },
+                              "lengthText": {
+                                "runs": [
+                                  {
+                                    "text": "3:43"
+                                  }
+                                ]
+                              },
+                              "selected": false,
+                              "navigationEndpoint": {
+                                "watchEndpoint": {
+                                  "videoId": "BWcB8YYDDYM",
+                                  "playlistId": "RDAMPLOLAK5uy_kKzgbumGI8XJFtMr9MZyCAq-oW7G1GOuY",
+                                  "index": 2,
+                                  "watchEndpointMusicSupportedConfigs": {
+                                    "watchEndpointMusicConfig": {
+                                      "hasPersistentPlaylistPanel": true,
+                                      "musicVideoType": "MUSIC_VIDEO_TYPE_ATV"
+                                    }
+                                  }
+                                }
+                              },
+                              "videoId": "BWcB8YYDDYM",
+                              "playlistSetVideoId": "017208FAA85233F9"
+                            }
+                          }
+                        ],
+                        "continuations": [
+                          {
+                            "nextRadioContinuationData": {
+                              "continuation": "CDESVhILUzhDdjVYYkc0MjgiL1JEQU1QTE9MQUs1dXlfa0t6Z2J1bUdJOFhKRnRNcjlNWnlDQXEtb1c3RzFHT3VZODDQAQH6ARA1RTNBREYwMkI5QzU3RkY2GAo%3D"
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "tabRenderer": {
+                "title": "Lyrics",
+                "unselectable": true
+              }
+            },
+            {
+              "tabRenderer": {
+                "title": "Comments",
+                "unselectable": true
+              }
+            },
+            {
+              "tabRenderer": {
+                "title": "Related",
+                "unselectable": true
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "currentVideoEndpoint": {
+    "watchEndpoint": {
+      "videoId": "0XEnBSWZYNs",
+      "playlistId": "RDAMPLOLAK5uy_kKzgbumGI8XJFtMr9MZyCAq-oW7G1GOuY",
+      "index": 0
+    }
+  }
+}

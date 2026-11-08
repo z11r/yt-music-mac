@@ -172,7 +172,7 @@ public actor YouTubeMusicClient {
                          likeStates: parsed.likeStates)
     }
 
-    private func request(endpoint: MusicEndpoint, body: [String: String], session: MusicSession, requiresAuthentication: Bool) async throws -> Data {
+    func request(endpoint: MusicEndpoint, body: [String: Any], session: MusicSession, requiresAuthentication: Bool) async throws -> Data {
         try Task.checkCancellation()
         if requiresAuthentication && !session.isAuthenticated { throw MusicServiceError.signInRequired }
         let configuration: MusicClientConfiguration

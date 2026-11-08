@@ -82,7 +82,9 @@ struct PlaybackResumeState {
 final class AppSession {
     let account: WebSession
     let player: WebPlayer
-    private(set) var queue = PlaybackQueue()
+    /// Radio requests and how the queue continues past its end. See AppSession+Radio.swift.
+    let radio: RadioSession
+    var queue = PlaybackQueue()
     private(set) var destination: MusicDestination = .home
     private(set) var page: MusicPage?
     private(set) var isLoading = false
@@ -104,16 +106,16 @@ final class AppSession {
     private(set) var canGoBack = false
     private(set) var canGoForward = false
 
-    @ObservationIgnored private let client: YouTubeMusicClient
+    @ObservationIgnored let client: YouTubeMusicClient
     @ObservationIgnored private let queueStore: QueueStore?
     @ObservationIgnored private let preferences: UserDefaults
-    @ObservationIgnored private let isSceneCheck: Bool
+    @ObservationIgnored let isSceneCheck: Bool
     @ObservationIgnored private var started = false
-    @ObservationIgnored private var wantsPlayback = false
+    @ObservationIgnored var wantsPlayback = false
     @ObservationIgnored private var pageTask: Task<Void, Never>?
     @ObservationIgnored private var saveTask: Task<Void, Never>?
     @ObservationIgnored private var pageGeneration = UUID()
-    @ObservationIgnored private var accountGeneration = UUID()
+    @ObservationIgnored var accountGeneration = UUID()
     @ObservationIgnored private var backHistory: [MusicDestination] = []
     @ObservationIgnored private var forwardHistory: [MusicDestination] = []
     @ObservationIgnored private var resumeState = PlaybackResumeState()
@@ -124,6 +126,7 @@ final class AppSession {
 
     init(configuration: AppSessionConfiguration = .live()) {
         preferences = configuration.preferences
+        radio = RadioSession(preferences: configuration.preferences)
         isSceneCheck = configuration.isSceneCheck
         account = WebSession(dataStore: configuration.dataStore, credentials: configuration.credentials,
                              preferences: configuration.preferences)
@@ -561,7 +564,7 @@ final class AppSession {
         saveQueue()
     }
 
-    private func request(_ occurrence: PlaybackOccurrence?, resumingAt position: TimeInterval = 0) {
+    func request(_ occurrence: PlaybackOccurrence?, resumingAt position: TimeInterval = 0) {
         guard !isSceneCheck else { return }
         guard let occurrence, let track = queue.currentTrack else { return }
         resumeState.begin(occurrence, recovering: position)
@@ -573,8 +576,7 @@ final class AppSession {
 
     private func ended(_ occurrence: PlaybackOccurrence) {
         guard queue.accepts(occurrence) else { return }
-        if let next = queue.handleEnd(occurrence: occurrence) { request(next) }
-        else { wantsPlayback = false; player.stop(); saveQueue() }
+        continueQueue(after: occurrence)
         systemMedia?.refresh()
     }
 
@@ -592,6 +594,7 @@ final class AppSession {
 
     func signOut() async {
         accountGeneration = UUID()
+        cancelRadio()
         resetLibraryEditing()
         pageGeneration = UUID()
         pageTask?.cancel()
@@ -615,6 +618,7 @@ final class AppSession {
 
     private func accountChanged(replacedAccount: Bool) {
         accountGeneration = UUID()
+        cancelRadio()
         resetLibraryEditing()
         pageTask?.cancel()
         if replacedAccount {
@@ -631,7 +635,8 @@ final class AppSession {
         reload()
     }
 
-    private func saveQueue() {
+    func saveQueue() {
+        prepareQueueContinuation()
         guard let queueStore else { return }
         let previousTask = saveTask
         previousTask?.cancel()

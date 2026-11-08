@@ -1,0 +1,269 @@
+{
+  "continuationContents": {
+    "playlistPanelContinuation": {
+      "playlistId": "RDAMVMdQw4w9WgXcQ",
+      "isInfinite": true,
+      "contents": [
+        {
+          "playlistPanelVideoRenderer": {
+            "title": {
+              "runs": [
+                {
+                  "text": "Rhythm Is a Dancer (7\" Edit)"
+                }
+              ]
+            },
+            "longBylineText": {
+              "runs": [
+                {
+                  "text": "Snap!",
+                  "navigationEndpoint": {
+                    "browseEndpoint": {
+                      "browseId": "UCSiKBW51uqhuLU_5iC_vZvg",
+                      "browseEndpointContextSupportedConfigs": {
+                        "browseEndpointContextMusicConfig": {
+                          "pageType": "MUSIC_PAGE_TYPE_ARTIST"
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "text": " • "
+                },
+                {
+                  "text": "312M views"
+                },
+                {
+                  "text": " • "
+                },
+                {
+                  "text": "1.6M likes"
+                }
+              ]
+            },
+            "shortBylineText": {
+              "runs": [
+                {
+                  "text": "Snap!"
+                }
+              ]
+            },
+            "thumbnail": {
+              "thumbnails": [
+                {
+                  "url": "https://i.ytimg.com/vi/JYIaWeVL1JM/hqdefault.jpg?sqp=-oaymwEWCJADEOEBIAQqCggAEOADGC0guwJIWg&rs=AMzJL3m1zxkB3HdwhS4Z5qfiGYG6PuFLWw",
+                  "width": 400,
+                  "height": 225
+                },
+                {
+                  "url": "https://i.ytimg.com/vi/JYIaWeVL1JM/hq720.jpg?sqp=-oaymwEKCKAGEMIDIABIWg&rs=AMzJL3lLSnkUN5BnLNn9jjUr2rwikkmc7A",
+                  "width": 800,
+                  "height": 450
+                }
+              ]
+            },
+            "lengthText": {
+              "runs": [
+                {
+                  "text": "3:42"
+                }
+              ]
+            },
+            "selected": false,
+            "navigationEndpoint": {
+              "watchEndpoint": {
+                "videoId": "JYIaWeVL1JM",
+                "playlistId": "RDAMVMdQw4w9WgXcQ",
+                "index": 50,
+                "watchEndpointMusicSupportedConfigs": {
+                  "watchEndpointMusicConfig": {
+                    "hasPersistentPlaylistPanel": true,
+                    "musicVideoType": "MUSIC_VIDEO_TYPE_OMV"
+                  }
+                }
+              }
+            },
+            "videoId": "JYIaWeVL1JM",
+            "playlistSetVideoId": "8C5FAE6B164813C8"
+          }
+        },
+        {
+          "playlistPanelVideoRenderer": {
+            "title": {
+              "runs": [
+                {
+                  "text": "A Little Respect"
+                }
+              ]
+            },
+            "longBylineText": {
+              "runs": [
+                {
+                  "text": "Erasure",
+                  "navigationEndpoint": {
+                    "browseEndpoint": {
+                      "browseId": "UChIb6DuC8fo8SScTo65n8iw",
+                      "browseEndpointContextSupportedConfigs": {
+                        "browseEndpointContextMusicConfig": {
+                          "pageType": "MUSIC_PAGE_TYPE_ARTIST"
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "text": " • "
+                },
+                {
+                  "text": "104M views"
+                },
+                {
+                  "text": " • "
+                },
+                {
+                  "text": "590K likes"
+                }
+              ]
+            },
+            "shortBylineText": {
+              "runs": [
+                {
+                  "text": "Erasure"
+                }
+              ]
+            },
+            "thumbnail": {
+              "thumbnails": [
+                {
+                  "url": "https://i.ytimg.com/vi/x34icYC8zA0/hqdefault.jpg?sqp=-oaymwEWCJADEOEBIAQqCggAEOADGC0guwJIWg&rs=AMzJL3m4FrvLZzOZ2pbY7KFHePogEcMoaQ",
+                  "width": 400,
+                  "height": 225
+                },
+                {
+                  "url": "https://i.ytimg.com/vi/x34icYC8zA0/hq720.jpg?sqp=-oaymwEKCKAGEMIDIABIWg&rs=AMzJL3m4g2eIym25phpKKeHb2Zw82kjwww",
+                  "width": 800,
+                  "height": 450
+                }
+              ]
+            },
+            "lengthText": {
+              "runs": [
+                {
+                  "text": "3:32"
+                }
+              ]
+            },
+            "selected": false,
+            "navigationEndpoint": {
+              "watchEndpoint": {
+                "videoId": "x34icYC8zA0",
+                "playlistId": "RDAMVMdQw4w9WgXcQ",
+                "index": 51,
+                "watchEndpointMusicSupportedConfigs": {
+                  "watchEndpointMusicConfig": {
+                    "hasPersistentPlaylistPanel": true,
+                    "musicVideoType": "MUSIC_VIDEO_TYPE_OMV"
+                  }
+                }
+              }
+            },
+            "videoId": "x34icYC8zA0",
+            "playlistSetVideoId": "138030DF486135A9"
+          }
+        },
+        {
+          "playlistPanelVideoRenderer": {
+            "title": {
+              "runs": [
+                {
+                  "text": "Hungry Eyes (Official HD Video)"
+                }
+              ]
+            },
+            "longBylineText": {
+              "runs": [
+                {
+                  "text": "Eric Carmen",
+                  "navigationEndpoint": {
+                    "browseEndpoint": {
+                      "browseId": "UC2L66L7cONYIYGhWAKJBSFQ",
+                      "browseEndpointContextSupportedConfigs": {
+                        "browseEndpointContextMusicConfig": {
+                          "pageType": "MUSIC_PAGE_TYPE_ARTIST"
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "text": " • "
+                },
+                {
+                  "text": "396M views"
+                },
+                {
+                  "text": " • "
+                },
+                {
+                  "text": "1.4M likes"
+                }
+              ]
+            },
+            "shortBylineText": {
+              "runs": [
+                {
+                  "text": "Eric Carmen"
+                }
+              ]
+            },
+            "thumbnail": {
+              "thumbnails": [
+                {
+                  "url": "https://i.ytimg.com/vi/2ssCL292DQA/hqdefault.jpg?sqp=-oaymwEWCJADEOEBIAQqCggAEOADGC0guwJIWg&rs=AMzJL3l9D25c2RTl8hSQWlQm70gunryctg",
+                  "width": 400,
+                  "height": 225
+                },
+                {
+                  "url": "https://i.ytimg.com/vi/2ssCL292DQA/hq720.jpg?sqp=-oaymwEKCKAGEMIDIABIWg&rs=AMzJL3kg5KAZxe7ZJrWyJPIxAputZcovgQ",
+                  "width": 800,
+                  "height": 450
+                }
+              ]
+            },
+            "lengthText": {
+              "runs": [
+                {
+                  "text": "3:48"
+                }
+              ]
+            },
+            "selected": false,
+            "navigationEndpoint": {
+              "watchEndpoint": {
+                "videoId": "2ssCL292DQA",
+                "playlistId": "RDAMVMdQw4w9WgXcQ",
+                "index": 52,
+                "watchEndpointMusicSupportedConfigs": {
+                  "watchEndpointMusicConfig": {
+                    "hasPersistentPlaylistPanel": true,
+                    "musicVideoType": "MUSIC_VIDEO_TYPE_OMV"
+                  }
+                }
+              }
+            },
+            "videoId": "2ssCL292DQA",
+            "playlistSetVideoId": "30D50B2E1F78CC1A"
+          }
+        }
+      ],
+      "continuations": [
+        {
+          "nextRadioContinuationData": {
+            "continuation": "CGMSOBILWWU3RktjMUpRZTQiEVJEQU1WTWRRdzR3OVdnWGNROGLQAQH6ARA4QjNCNkRENjNFQTBEMUNDGAo%3D"
+          }
+        }
+      ]
+    }
+  }
+}
