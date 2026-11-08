@@ -35,6 +35,15 @@ struct ParsedMusicPage {
     var playlistItems: [MusicPlaylistItem] = []
     var playlistCapabilities = MusicPlaylistCapabilities()
     var playlistEditingDenied = false
+    var playlistDetails: MusicPlaylistDetails?
+    var albumLibraryCandidates: Set<MusicAlbumLibraryState> = []
+    var artistSubscriptionCandidates: Set<MusicArtistSubscription> = []
+    var albumLibraryState: MusicAlbumLibraryState? {
+        albumLibraryCandidates.count == 1 ? albumLibraryCandidates.first : nil
+    }
+    var artistSubscription: MusicArtistSubscription? {
+        artistSubscriptionCandidates.count == 1 ? artistSubscriptionCandidates.first : nil
+    }
     var ratingCandidates: [String: Set<MusicRating>] = [:]
     var ratings: [String: MusicRating] {
         ratingCandidates.compactMapValues { $0.count == 1 ? $0.first : nil }
@@ -124,8 +133,8 @@ enum MusicResponseParser {
             result.recognized = true
             try visitChildren(container["contents"].array, result: &result, path: path, preservesOccurrences: preservesOccurrences, depth: depth + 1)
             result.token = try result.token ?? continuation(container) ?? previousToken
-        } else if node["musicResponsiveHeaderRenderer"].exists {
-            result.title = node["musicResponsiveHeaderRenderer"]["title"].text ?? result.title
+        } else if node["musicResponsiveHeaderRenderer"].exists || node["musicEditablePlaylistDetailHeaderRenderer"].exists {
+            result.title = headerTitle(node) ?? result.title
             playlistControls(node, result: &result)
         } else {
             for key in ["musicCarouselShelfRenderer", "musicShelfRenderer", "musicPlaylistShelfRenderer", "musicCardShelfRenderer", "musicImmersiveCarouselShelfRenderer", "gridRenderer"] {
@@ -158,7 +167,8 @@ enum MusicResponseParser {
         // An explicit playlist shelf is authoritative, including when it is empty.
         let hasPlaylist = preservesOccurrences && children.contains { $0["musicPlaylistShelfRenderer"].exists }
         for (index, child) in children.enumerated() {
-            if hasPlaylist && !child["musicPlaylistShelfRenderer"].exists && !child["musicResponsiveHeaderRenderer"].exists { continue }
+            if hasPlaylist && !child["musicPlaylistShelfRenderer"].exists && !child["musicResponsiveHeaderRenderer"].exists &&
+                !child["musicEditablePlaylistDetailHeaderRenderer"].exists { continue }
             if preservesOccurrences, let title = child["musicShelfRenderer"]["title"].text?.lowercased(),
                title.contains("suggestion") || title == "recommended" { continue }
             try visit(child, result: &result, path: "\(path).\(index)", preservesOccurrences: preservesOccurrences, depth: depth)
@@ -234,7 +244,8 @@ enum MusicResponseParser {
         for key in ["musicDetailHeaderRenderer", "musicImmersiveHeaderRenderer", "musicVisualHeaderRenderer", "musicResponsiveHeaderRenderer"] {
             if let title = node[key]["title"].text { return title }
         }
-        return node["musicEditablePlaylistDetailHeaderRenderer"]["header"]["musicDetailHeaderRenderer"]["title"].text
+        let editable = node["musicEditablePlaylistDetailHeaderRenderer"]["header"]
+        return editable["musicDetailHeaderRenderer"]["title"].text ?? editable["musicResponsiveHeaderRenderer"]["title"].text
     }
 
     private static func item(_ node: JSONNode) -> MusicItem? {
@@ -287,6 +298,12 @@ enum MusicResponseParser {
 
     private static func playlistControls(_ header: JSONNode, result: inout ParsedMusicPage) {
         // Inspect the current header only; another playlist's menu in a shelf cannot grant these actions.
+        if let details = MusicCollectionControls.playlistDetails(header) {
+            result.playlistDetails = .init(description: details.description ?? result.playlistDetails?.description,
+                                           privacy: details.privacy ?? result.playlistDetails?.privacy)
+        }
+        result.albumLibraryCandidates.formUnion(MusicCollectionControls.albumLibraryStates(header))
+        result.artistSubscriptionCandidates.formUnion(MusicCollectionControls.artistSubscriptions(header))
         if containsEditDenial(header) {
             result.playlistEditingDenied = true
             result.playlistCapabilities = MusicPlaylistCapabilities()
@@ -296,6 +313,9 @@ enum MusicResponseParser {
             result.playlistCapabilities.canRename = true
             result.playlistCapabilities.canAddItems = true
             result.playlistCapabilities.canRemoveItems = true
+            result.playlistCapabilities.canEditDescription = true
+            result.playlistCapabilities.canEditPrivacy = true
+            result.playlistCapabilities.canReorder = true
         }
         if containsDeleteCommand(header) { result.playlistCapabilities.canDelete = true }
     }

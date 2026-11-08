@@ -206,7 +206,9 @@ public actor YouTubeMusicClient {
                          playlistItems: parsed.playlistItems, playlistCapabilities: parsed.playlistCapabilities,
                          likeStates: parsed.likeStates, ratings: parsed.ratings,
                          unavailableItemCount: parsed.unavailableItemCount,
-                         hasUnsupportedContent: parsed.hasUnsupportedContent)
+                         hasUnsupportedContent: parsed.hasUnsupportedContent,
+                         playlistDetails: parsed.playlistDetails, albumLibraryState: parsed.albumLibraryState,
+                         artistSubscription: parsed.artistSubscription)
     }
 
     func request(endpoint: MusicEndpoint, body: [String: Any], session: MusicSession, requiresAuthentication: Bool) async throws -> Data {

@@ -405,7 +405,9 @@ final class AppSession {
                     likeStates: initial.likeStates.merging(next.likeStates) { _, new in new },
                     ratings: initial.ratings.merging(next.ratings) { _, new in new },
                     unavailableItemCount: initial.unavailableItemCount + next.unavailableItemCount,
-                    hasUnsupportedContent: initial.hasUnsupportedContent || next.hasUnsupportedContent)
+                    hasUnsupportedContent: initial.hasUnsupportedContent || next.hasUnsupportedContent,
+                    playlistDetails: initial.playlistDetails, albumLibraryState: initial.albumLibraryState,
+                    artistSubscription: initial.artistSubscription)
                 self.songRatings.observe(next.ratings, from: ratingsRead)
                 self.isLoadingMore = false
             } catch {

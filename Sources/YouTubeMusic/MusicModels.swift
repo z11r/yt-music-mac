@@ -96,13 +96,20 @@ public struct MusicPlaylistCapabilities: Hashable, Sendable {
     public var canDelete: Bool
     public var canAddItems: Bool
     public var canRemoveItems: Bool
+    public var canEditDescription: Bool
+    public var canEditPrivacy: Bool
+    public var canReorder: Bool
 
     public init(canRename: Bool = false, canDelete: Bool = false,
-                canAddItems: Bool = false, canRemoveItems: Bool = false) {
+                canAddItems: Bool = false, canRemoveItems: Bool = false,
+                canEditDescription: Bool = false, canEditPrivacy: Bool = false, canReorder: Bool = false) {
         self.canRename = canRename
         self.canDelete = canDelete
         self.canAddItems = canAddItems
         self.canRemoveItems = canRemoveItems
+        self.canEditDescription = canEditDescription
+        self.canEditPrivacy = canEditPrivacy
+        self.canReorder = canReorder
     }
 }
 
@@ -128,19 +135,27 @@ public struct MusicPage: Sendable {
     /// Counts only the pages fetched so far, not the complete collection.
     public let unavailableItemCount: Int
     public let hasUnsupportedContent: Bool
+    public let playlistDetails: MusicPlaylistDetails?
+    public let albumLibraryState: MusicAlbumLibraryState?
+    public let artistSubscription: MusicArtistSubscription?
     public var tracks: [Track] { items.compactMap { if case let .track(track) = $0 { track } else { nil } } }
 
     public init(title: String, sections: [MusicSection], items: [MusicItem], continuation: MusicContinuation? = nil,
                 playlistItems: [MusicPlaylistItem] = [],
                 playlistCapabilities: MusicPlaylistCapabilities = MusicPlaylistCapabilities(),
                 likeStates: [String: Bool] = [:], ratings: [String: MusicRating] = [:],
-                unavailableItemCount: Int = 0, hasUnsupportedContent: Bool = false) {
+                unavailableItemCount: Int = 0, hasUnsupportedContent: Bool = false,
+                playlistDetails: MusicPlaylistDetails? = nil, albumLibraryState: MusicAlbumLibraryState? = nil,
+                artistSubscription: MusicArtistSubscription? = nil) {
         self.title = title
         self.sections = sections
         self.items = items
         self.continuation = continuation
         self.playlistItems = playlistItems
         self.playlistCapabilities = playlistCapabilities
+        self.playlistDetails = playlistDetails
+        self.albumLibraryState = albumLibraryState
+        self.artistSubscription = artistSubscription
         self.ratings = likeStates.compactMapValues { $0 ? .liked : nil }.merging(ratings) { _, explicit in explicit }
         self.likeStates = likeStates.merging(self.ratings.mapValues { $0 == .liked }) { _, explicit in explicit }
         self.unavailableItemCount = max(0, unavailableItemCount)
