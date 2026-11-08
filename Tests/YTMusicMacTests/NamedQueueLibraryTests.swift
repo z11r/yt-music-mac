@@ -91,6 +91,29 @@ struct NamedQueueLibraryTests {
         #expect(try await store.list(accountKey: fixture.second).isEmpty)
     }
 
+    @Test func staleFileDialogCallbacksCannotImportOrExportAfterAnAccountChange() async throws {
+        let fixture = SavedQueueFixture()
+        defer { fixture.remove() }
+        let store = NamedQueueStore(directoryURL: fixture.directory.appendingPathComponent("saved"))
+        let credentials = MusicSessionStore()
+        await authenticated(credentials, key: fixture.first)
+        let library = NamedQueueLibrary(store: store, sessions: credentials)
+        let oldScope = library.scope
+        let valid = QueueSnapshot(entries: [QueueEntry(track: Track(id: "abcDEF12_-3", title: "Song", artist: "Artist"))])
+        #expect(await library.save(name: "Original", snapshot: valid))
+        let id = try #require(library.queues.first?.id)
+        let input = fixture.directory.appendingPathComponent("input.json")
+        try NamedQueueExchange.encode(name: "Import", snapshot: valid).write(to: input)
+        let output = fixture.directory.appendingPathComponent("output.json")
+        library.invalidate()
+        await authenticated(credentials, key: fixture.second)
+        #expect(!(await library.importQueue(from: input, expectedScope: oldScope)))
+        #expect(!(await library.exportQueue(id: id, to: output, expectedScope: oldScope)))
+        #expect(try await store.list(accountKey: fixture.second).isEmpty)
+        #expect(!FileManager.default.fileExists(atPath: output.path))
+        #expect(library.queues.isEmpty && library.errorMessage == nil)
+    }
+
     @Test func anAccountChangeDuringAReadRejectsItsResults() async throws {
         let fixture = SavedQueueFixture()
         defer { fixture.remove() }

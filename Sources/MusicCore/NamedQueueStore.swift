@@ -107,6 +107,23 @@ public actor NamedQueueStore {
         try write(archive, accountKey: accountKey)
     }
 
+    @discardableResult public func importQueue(from url: URL, accountKey: String) throws -> NamedQueue {
+        _ = try fileURL(accountKey: accountKey)
+        let imported = try NamedQueueExchange.read(from: url)
+        return try save(name: imported.name, snapshot: imported.snapshot, accountKey: accountKey)
+    }
+
+    public func exportQueue(id: UUID, to url: URL, accountKey: String) throws {
+        let archive = try read(accountKey: accountKey)
+        guard let queue = archive.queues.first(where: { $0.id == id }) else { throw NamedQueueError.notFound }
+        let root = directoryURL.standardizedFileURL.resolvingSymlinksInPath().path
+        let destination = url.standardizedFileURL.resolvingSymlinksInPath().path
+        guard destination != root, !destination.hasPrefix(root + "/") else {
+            throw NamedQueueExchangeError.protectedDestination
+        }
+        try NamedQueueExchange.write(name: queue.name, snapshot: queue.snapshot, to: url)
+    }
+
     private static func validatedName(_ name: String) throws -> String {
         let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard (1...100).contains(name.count),

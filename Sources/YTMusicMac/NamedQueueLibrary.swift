@@ -71,6 +71,26 @@ final class NamedQueueLibrary {
         catch { report(error, request: request); return nil }
     }
 
+    func importQueue(from url: URL, expectedScope: UUID) async -> Bool {
+        let request = expectedScope
+        do {
+            queues = try await perform(expectedScope: expectedScope) { store, account in
+                try await store.importQueue(from: url, accountKey: account)
+                return try await store.list(accountKey: account)
+            }
+            return true
+        } catch { report(error, request: request); return false }
+    }
+
+    func exportQueue(id: UUID, to url: URL, expectedScope: UUID) async -> Bool {
+        do {
+            try await perform(expectedScope: expectedScope) { store, account in
+                try await store.exportQueue(id: id, to: url, accountKey: account)
+            }
+            return true
+        } catch { report(error, request: expectedScope); return false }
+    }
+
     private func perform<Value: Sendable>(
         expectedScope: UUID? = nil,
         _ operation: @Sendable (NamedQueueStore, String) async throws -> Value
@@ -100,6 +120,7 @@ final class NamedQueueLibrary {
            access == .signInRequired || access == .accountChanged { queues = [] }
         switch error {
         case let error as NamedQueueError: errorMessage = error.localizedDescription
+        case let error as NamedQueueExchangeError: errorMessage = error.localizedDescription
         case let error as QueuePersistenceError: errorMessage = error.localizedDescription
         case let error as SavedQueueAccessError: errorMessage = error.localizedDescription
         default: errorMessage = "Could not read or save these local queues. Existing files have been kept."

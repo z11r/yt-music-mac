@@ -1,5 +1,7 @@
+import AppKit
 import MusicCore
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct SavedQueuesView: View {
     let session: AppSession
@@ -67,6 +69,14 @@ struct SavedQueuesView: View {
                     Button("Refresh") { Task { await session.savedQueues.refresh(expectedScope: displayedScope) } }
                         .disabled(session.savedQueues.isWorking)
                 }
+                HStack {
+                    Button("Import Metadata…", action: chooseImport)
+                        .disabled(session.savedQueues.isWorking)
+                    Button("Export Metadata…", action: chooseExport)
+                        .disabled(selected == nil || session.savedQueues.isWorking)
+                    Text("Song information and YouTube Music links")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
             } else {
                 ContentUnavailableView("Sign In to Use Saved Queues", systemImage: "person.crop.circle",
                                        description: Text("Saved queues are kept separate for each confirmed account."))
@@ -114,6 +124,42 @@ struct SavedQueuesView: View {
                 }
             }
             Button("Cancel", role: .cancel) { renamedQueue = nil }
+        }
+    }
+
+    private func chooseImport() {
+        let scope = displayedScope
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.json]
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.message = "Import song information and links as a new local saved queue."
+        panel.begin { response in
+            Task { @MainActor in
+                guard response == .OK, let url = panel.url else { return }
+                let access = url.startAccessingSecurityScopedResource()
+                defer { if access { url.stopAccessingSecurityScopedResource() } }
+                _ = await session.savedQueues.importQueue(from: url, expectedScope: scope)
+            }
+        }
+    }
+
+    private func chooseExport() {
+        guard let selected else { return }
+        let scope = displayedScope
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.json]
+        panel.canCreateDirectories = true
+        panel.nameFieldStringValue = selected.name.replacingOccurrences(of: "/", with: "-")
+            .replacingOccurrences(of: ":", with: "-") + ".json"
+        panel.message = "Export song information and links without account information or playback position."
+        panel.begin { response in
+            Task { @MainActor in
+                guard response == .OK, let url = panel.url else { return }
+                let access = url.startAccessingSecurityScopedResource()
+                defer { if access { url.stopAccessingSecurityScopedResource() } }
+                _ = await session.savedQueues.exportQueue(id: selected.id, to: url, expectedScope: scope)
+            }
         }
     }
 }
