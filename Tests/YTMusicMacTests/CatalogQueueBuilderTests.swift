@@ -177,6 +177,45 @@ struct CatalogQueueBuilderTests {
             #expect(library.errorMessage == SavedQueueAccessError.accountChanged.localizedDescription)
         }
     }
+    @Test(arguments: [false, true])
+    func nativeSettlementAndShutdownWaitForHeldCatalogReads(_ shutdown: Bool) async throws {
+        let domain = "CatalogQueueSettlementTests." + UUID().uuidString
+        let preferences = try #require(UserDefaults(suiteName: domain))
+        defer { preferences.removePersistentDomain(forName: domain) }
+        let transport = BuilderHeldHTTP(), credentials = MusicSessionStore()
+        await credentials.replaceSession(accountID: String(repeating: "a", count: 64), cookieHeader: "fixture=1", sapisid: "fixture",
+            configuration: .init(apiKey: "fixture", clientVersion: "fixture"))
+        let session = AppSession(configuration: .init(preferences: preferences, dataStore: .nonPersistent(), credentials: credentials,
+            client: YouTubeMusicClient(transport: transport, sessions: credentials), queueStore: nil, queueStorageError: nil,
+            installsSystemMedia: false, isSceneCheck: true))
+        let owner = try #require(session.catalogQueueOwner), scope = await credentials.snapshot().scope
+        let reading = Task { try await session.readCatalogQueue(query: "held fixture", scope: scope, owner: owner) }
+        await transport.waitUntilHeld()
+        session.quiesceForProfileSwitch()
+        if shutdown { reading.cancel() }
+        var started = false, settled = false
+        let settling = Task {
+            started = true
+            if shutdown { await session.shutdown() }
+            else { await session.settleForProfileSwitch() }
+            settled = true
+        }
+        while !started { await Task.yield() }
+        // Give other idle session components a chance to drain. The held HTTP
+        // operation must remain an independent settlement barrier throughout.
+        for _ in 0..<200 { await Task.yield() }
+        #expect(!settled)
+        await #expect(throws: MusicServiceError.sessionChanged) {
+            try await session.readCatalogQueue(query: "must not start", scope: scope, owner: owner)
+        }
+        #expect(await transport.attempts == 1)
+        await transport.release()
+        if shutdown { await #expect(throws: CancellationError.self) { try await reading.value } }
+        else { await #expect(throws: MusicServiceError.sessionChanged) { try await reading.value } }
+        await settling.value
+        #expect(settled && session.queue.isEmpty && !session.wantsPlayback)
+        if !shutdown { await session.shutdown() }
+    }
 }
 
 private func song(_ number: Int) -> Track {
@@ -226,4 +265,18 @@ private actor BuilderSaveSnapshotGate: MusicSessionProviding {
     }
     func waitUntilHeld() async { if pending == nil { await withCheckedContinuation { arrival = $0 } } }
     func release(_ value: MusicSession) { pending?.resume(returning: value); pending = nil }
+}
+private actor BuilderHeldHTTP: MusicHTTPTransport {
+    private var reply: CheckedContinuation<Void, Never>?
+    private var arrival: CheckedContinuation<Void, Never>?
+    private(set) var attempts = 0
+    func send(_ request: URLRequest) async throws -> MusicHTTPResponse {
+        attempts += 1
+        #expect(request.url?.path == "/youtubei/v1/search")
+        // Deliberately does not cooperate with Task cancellation until release.
+        await withCheckedContinuation { reply = $0; arrival?.resume(); arrival = nil }
+        return .init(data: Data(#"{"contents":{"sectionListRenderer":{"contents":[]}}}"#.utf8), statusCode: 200)
+    }
+    func waitUntilHeld() async { if reply == nil { await withCheckedContinuation { arrival = $0 } } }
+    func release() { reply?.resume(); reply = nil }
 }

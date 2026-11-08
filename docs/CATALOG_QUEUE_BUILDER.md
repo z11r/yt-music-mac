@@ -44,6 +44,9 @@ Cancellation revokes results immediately; a transport that has not settled
 retains its slot. There is no scheduled refresh, background history, prefetch
 or controller retry. A failed phrase prevents partial results from becoming a
 review. Search again is an explicit new read of all phrases.
+Profile replacement and shutdown also wait for an admitted catalog read to
+settle, including a canceled request. Quiescing the session rejects new reads,
+and a late reply cannot return a page under the previous owner.
 
 ## Reference behavior and remaining checks
 

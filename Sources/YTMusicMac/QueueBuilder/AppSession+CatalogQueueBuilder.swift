@@ -18,11 +18,6 @@ extension AppSession {
                 await self?.commitCatalogQueue(owner: owner, identity: identity, tracks: tracks, name: name) ?? false
             })
     }
-    func readCatalogQueue(query: String, scope: UUID, owner: CatalogQueueOwner) async throws -> MusicPage {
-        try Task.checkCancellation()
-        guard catalogQueueOwner == owner else { throw MusicServiceError.sessionChanged }
-        return try await client.search(query: query, filter: .songs, expectedScope: scope)
-    }
     func commitCatalogQueue(owner: CatalogQueueOwner, identity: CatalogQueueIdentity, tracks: [Track], name: String?) async -> Bool {
         guard catalogQueueOwner == owner, (1...50).contains(tracks.count),
               tracks.allSatisfy(QueueRecommendations.supports), Set(tracks.map(\.id)).count == tracks.count else { return false }

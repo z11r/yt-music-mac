@@ -687,6 +687,16 @@ final class AppSession {
         return tracks.count
     }
 
+    func readCatalogQueue(query: String, scope: UUID, owner: CatalogQueueOwner) async throws -> MusicPage {
+        try Task.checkCancellation()
+        guard catalogQueueOwner == owner, sessionOperations.begin() else { throw MusicServiceError.sessionChanged }
+        defer { sessionOperations.end() }
+        let page = try await client.search(query: query, filter: .songs, expectedScope: scope)
+        try Task.checkCancellation()
+        guard catalogQueueOwner == owner else { throw MusicServiceError.sessionChanged }
+        return page
+    }
+
     func checkLibrary(expectedAccountGeneration generation: UUID) async throws -> MusicLibraryCheck {
         guard acceptsProfileActions, accountGeneration == generation else { throw AppScriptingError.superseded }
         guard account.isSignedIn else { throw AppScriptingError.signInRequired }
