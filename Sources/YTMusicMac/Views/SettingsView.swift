@@ -48,6 +48,7 @@ struct SettingsView: View {
                 Text("View cache usage, clear cached artwork and library metadata, and read your last library snapshot.")
                     .font(.caption).foregroundStyle(.secondary)
             }
+            SpotlightSettingsSection(session: session)
             Section("Account") {
                 LabeledContent("YouTube Music", value: session.account.isSignedIn ? "Signed in" : "Not signed in")
                 Button(session.account.isSignedIn ? "Open Account" : "Sign In") {

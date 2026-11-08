@@ -116,6 +116,7 @@ final class AppSession {
     let savedQueues: NamedQueueLibrary
     let localCollections: LocalCollectionsLibrary
     let storage: StorageController
+    let spotlight: SpotlightLibraryController
     var queue = PlaybackQueue()
     let collectionPlayback: CollectionPlayback
     let songRatings = SongRatings()
@@ -172,6 +173,8 @@ final class AppSession {
     @ObservationIgnored private var systemMedia: SystemMediaControls?
     @ObservationIgnored private var scriptingPlayGeneration = UUID()
     @ObservationIgnored private var libraryEditID: UUID?
+    @ObservationIgnored private var spotlightPageSource: SpotlightLibrarySource?
+    @ObservationIgnored private var pendingSpotlightResult: String?
 
     init(configuration: AppSessionConfiguration = .live()) {
         preferences = configuration.preferences
@@ -180,6 +183,8 @@ final class AppSession {
         localCollections = LocalCollectionsLibrary(store: configuration.localCollectionStore, sessions: configuration.credentials)
         storage = StorageController(cache: configuration.metadataCache, inventory: configuration.storageInventory,
                                     sessions: configuration.credentials, preferences: configuration.preferences)
+        spotlight = SpotlightLibraryController(index: configuration.spotlightIndex, sessions: configuration.credentials,
+            preferences: configuration.preferences, namespace: AppIdentity.identifier)
         isSceneCheck = configuration.isSceneCheck
         account = WebSession(dataStore: configuration.dataStore, credentials: configuration.credentials,
                              preferences: configuration.preferences)
@@ -288,6 +293,7 @@ final class AppSession {
         guard !started else { return }
         started = true
         defer { hasFinishedStartup = true }
+        spotlight.start()
         let restoreGeneration = accountGeneration
         if let queueStore, !preferences.bool(forKey: "sessionRestoreBlocked") {
             do {
@@ -322,6 +328,7 @@ final class AppSession {
         libraryFilter = ""
         collectionDisplayOrder = .serviceOrder
         page = nil
+        spotlightPageSource = nil
         pageError = nil
         isLoading = true
         isLoadingMore = false
@@ -333,8 +340,11 @@ final class AppSession {
         pageTask = Task { [weak self, client] in
             do {
                 let metadataContext: LibraryMetadataCaptureContext?
+                let spotlightSource: SpotlightLibrarySource?
                 if target == .library { metadataContext = await self?.storage.beginCapture() }
                 else { metadataContext = nil }
+                if target == .library { spotlightSource = await self?.spotlight.beginSource() }
+                else { spotlightSource = nil }
                 let result: MusicPage
                 switch target {
                 case .home: result = try await client.home()
@@ -358,8 +368,10 @@ final class AppSession {
                 guard let self, !Task.isCancelled, self.pageGeneration == generation else { return }
                 self.page = result
                 self.songRatings.observe(result.ratings, from: ratingsRead)
+                self.spotlightPageSource = spotlightSource
                 self.isLoading = false
                 if let metadataContext { await self.storage.capture(result, context: metadataContext) }
+                if let spotlightSource { await self.spotlight.capture(result, source: spotlightSource) }
             } catch {
                 guard let self, !Task.isCancelled, self.pageGeneration == generation else { return }
                 self.pageError = error.localizedDescription
@@ -434,8 +446,11 @@ final class AppSession {
         pageTask = Task { [weak self, client] in
             do {
                 let metadataContext: LibraryMetadataCaptureContext?
+                let spotlightSource: SpotlightLibrarySource?
                 if cachesLibrary { metadataContext = await self?.storage.beginCapture() }
                 else { metadataContext = nil }
+                if cachesLibrary { spotlightSource = await self?.spotlight.beginSource() }
+                else { spotlightSource = nil }
                 let next = try await client.nextPage(continuation)
                 guard let self, !Task.isCancelled, self.pageGeneration == generation else { return }
                 let combined = MusicPage(title: initial.title, sections: initial.sections + next.sections,
@@ -450,8 +465,10 @@ final class AppSession {
                     artistSubscription: initial.artistSubscription)
                 self.songRatings.observe(next.ratings, from: ratingsRead)
                 self.page = combined
+                self.spotlightPageSource = spotlightSource
                 self.isLoadingMore = false
                 if let metadataContext { await self.storage.capture(combined, context: metadataContext) }
+                if let spotlightSource { await self.spotlight.capture(combined, source: spotlightSource) }
             } catch {
                 guard let self, !Task.isCancelled, self.pageGeneration == generation else { return }
                 self.pageError = error.localizedDescription
@@ -853,6 +870,46 @@ final class AppSession {
         showsAccount = true
     }
 
+    func setSpotlightEnabled(_ enabled: Bool) {
+        spotlight.setEnabled(enabled)
+        if !enabled { pendingSpotlightResult = nil; return }
+        guard destination == .library, let page, let source = spotlightPageSource else { return }
+        Task { await spotlight.capture(page, source: source) }
+    }
+
+    func removeSpotlightEntries() {
+        pendingSpotlightResult = nil
+        spotlight.setEnabled(false)
+        spotlight.removeIndexedMetadata()
+    }
+
+    /// Spotlight can open a native collection after automatic session restoration; it never opens Account or starts audio.
+    @discardableResult func receiveSpotlightResult(_ identifier: String) -> Bool {
+        guard !isSceneCheck, spotlight.isEnabled, spotlight.policy.accountKey(in: identifier) != nil else { return false }
+        pendingSpotlightResult = identifier
+        Task { await routePendingSpotlightResult() }
+        return true
+    }
+
+    @discardableResult func openSpotlightResult(_ identifier: String) async -> Bool {
+        guard !isSceneCheck, spotlight.isEnabled, spotlight.policy.accountKey(in: identifier) != nil else { return false }
+        pendingSpotlightResult = identifier
+        return await routePendingSpotlightResult()
+    }
+
+    @discardableResult private func routePendingSpotlightResult() async -> Bool {
+        guard let identifier = pendingSpotlightResult else { return false }
+        let generation = accountGeneration
+        let reference = await spotlight.resolve(identifier)
+        guard accountGeneration == generation, pendingSpotlightResult == identifier else { return false }
+        if let reference {
+            pendingSpotlightResult = nil
+            navigate(to: .collection(reference.collection))
+            return true
+        } else if account.isSignedIn { pendingSpotlightResult = nil }
+        return false
+    }
+
     func closeAccount() {
         account.closeLogin()
         showsAccount = false
@@ -865,6 +922,9 @@ final class AppSession {
         lyrics.clear()
         searchSuggestions.close()
         searchHistory.clear()
+        pendingSpotlightResult = nil
+        spotlightPageSource = nil
+        spotlight.accountChanged(isSignedIn: false)
         savedQueues.invalidate()
         localCollections.invalidate()
         storage.invalidate()
@@ -881,6 +941,7 @@ final class AppSession {
         page = nil
         saveTask?.cancel()
         await saveTask?.value
+        await spotlight.waitForIdle()
         await account.signOut()
         do { try await queueStore?.clear() }
         catch { queueError = "The saved queue could not be removed. Try signing out again." }
@@ -894,6 +955,9 @@ final class AppSession {
 
     private func accountChanged(replacedAccount: Bool) {
         cancelMusicLink(keepingPending: !links.isReady && !replacedAccount)
+        spotlightPageSource = nil
+        spotlight.accountChanged(isSignedIn: account.isSignedIn)
+        if replacedAccount { pendingSpotlightResult = nil }
         savedQueues.invalidate()
         localCollections.invalidate()
         storage.invalidate()
@@ -924,6 +988,7 @@ final class AppSession {
             saveQueue()
         }
         reload()
+        if account.isSignedIn { Task { await routePendingSpotlightResult() } }
     }
 
     func saveQueue() {
@@ -962,6 +1027,7 @@ final class AppSession {
         player.pause()
         saveQueue()
         await saveTask?.value
+        await spotlight.waitForIdle()
         player.onStateChanged = nil
         player.stop()
         systemMedia?.refresh()

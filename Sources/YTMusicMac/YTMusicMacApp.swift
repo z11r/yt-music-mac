@@ -1,4 +1,5 @@
 import AppKit
+import CoreSpotlight
 import Darwin
 import SwiftUI
 
@@ -142,6 +143,12 @@ private struct MainSceneView: View {
             )) {
                 Button("OK", role: .cancel) { session.links.error = nil }
             } message: { Text(session.links.error ?? "") }
+            .onContinueUserActivity(CSSearchableItemActionType) { activity in
+                guard let identifier = activity.userInfo?[CSSearchableItemActivityIdentifier] as? String,
+                      session.receiveSpotlightResult(identifier) else { return }
+                openWindow(id: "main")
+                NSApp.activate(ignoringOtherApps: true)
+            }
             .background {
                 if let sceneCheck {
                     SceneCheckRenderProbe(driver: sceneCheck, revision: session.sceneCheckRevision)

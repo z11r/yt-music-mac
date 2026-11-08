@@ -18,6 +18,7 @@ struct AppSessionConfiguration {
     var localCollectionStore: LocalCollectionStore? = nil
     var metadataCache: LibraryMetadataCache? = nil
     var storageInventory: ProtectedStorageInventory? = nil
+    var spotlightIndex: (any LibrarySpotlightIndex)? = nil
 
     static func live() -> Self {
         let credentials = MusicSessionStore()
@@ -34,7 +35,8 @@ struct AppSessionConfiguration {
                     namedQueueStore: directory.map { NamedQueueStore(directoryURL: $0.appendingPathComponent("SavedQueues", isDirectory: true)) },
                     localCollectionStore: directory.map { LocalCollectionStore(directoryURL: $0.appendingPathComponent("LocalCollections", isDirectory: true)) },
                     metadataCache: directory.map { LibraryMetadataCache(directoryURL: $0.appendingPathComponent("MetadataCache", isDirectory: true)) },
-                    storageInventory: directory.map { ProtectedStorageInventory(directoryURL: $0) })
+                    storageInventory: directory.map { ProtectedStorageInventory(directoryURL: $0) },
+                    spotlightIndex: CoreSpotlightLibraryIndex(namespace: AppIdentity.identifier))
     }
 
     static func sceneCheck(preferences: UserDefaults, transport: SceneCheckTransport) -> Self {
