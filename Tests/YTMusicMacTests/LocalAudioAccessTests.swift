@@ -10,7 +10,7 @@ struct LocalAudioAccessTests {
     @Test func accessRemainsLeasedUntilExplicitRetirementAndReleaseIsIdempotent() async throws {
         let fixture = AccessFixture()
         let access = fixture.controller()
-        let lease = try await access.acquire(fixture.record.reference, expectedLibraryID: fixture.library.libraryID)
+        let lease = try await access.acquire(fixture.record.reference, expectedLibraryID: fixture.library.libraryID, authorization: await fixture.authorization)
         #expect(fixture.probe.counts == [1, 0, 1])
         #expect(!lease.isReleased)
         #expect(lease.reference == fixture.record.reference)
@@ -23,19 +23,19 @@ struct LocalAudioAccessTests {
         let fixture = AccessFixture(mode: .securityScopedReadOnly, granted: false)
         let access = fixture.controller()
         await #expect(throws: LocalAudioAccessError.accessDenied) {
-            try await access.acquire(fixture.record.reference, expectedLibraryID: fixture.library.libraryID)
+            try await access.acquire(fixture.record.reference, expectedLibraryID: fixture.library.libraryID, authorization: await fixture.authorization)
         }
         #expect(fixture.probe.counts == [1, 0, 0])
     }
 
     @Test func explicitOrdinaryModeStillRequiresActualReadableSafeFileFacts() async throws {
         let fixture = AccessFixture(mode: .ordinary, granted: false)
-        let lease = try await fixture.controller().acquire(fixture.record.reference, expectedLibraryID: fixture.library.libraryID)
+        let lease = try await fixture.controller().acquire(fixture.record.reference, expectedLibraryID: fixture.library.libraryID, authorization: await fixture.authorization)
         lease.release()
         #expect(fixture.probe.counts == [1, 0, 1])
         let denied = AccessFixture(granted: false, facts: accessFacts(readable: false))
         await #expect(throws: LocalAudioAccessError.unavailableFile) {
-            try await denied.controller().acquire(denied.record.reference, expectedLibraryID: denied.library.libraryID)
+            try await denied.controller().acquire(denied.record.reference, expectedLibraryID: denied.library.libraryID, authorization: await denied.authorization)
         }
     }
 
@@ -44,13 +44,13 @@ struct LocalAudioAccessTests {
                         AccessFixture(url: URL(string: "https://example.test/audio.mp3")!),
                         AccessFixture(url: URL(string: "file://remote.test/audio.mp3")!)] {
             await #expect(throws: (any Error).self) {
-                try await fixture.controller().acquire(fixture.record.reference, expectedLibraryID: fixture.library.libraryID)
+                try await fixture.controller().acquire(fixture.record.reference, expectedLibraryID: fixture.library.libraryID, authorization: await fixture.authorization)
             }
             #expect(fixture.probe.counts == [0, 0, 0])
         }
         let fixture = AccessFixture()
         await #expect(throws: LocalAudioLibraryError.wrongLibrary) {
-            try await fixture.controller().acquire(fixture.record.reference, expectedLibraryID: UUID())
+            try await fixture.controller().acquire(fixture.record.reference, expectedLibraryID: UUID(), authorization: await fixture.authorization)
         }
         #expect(fixture.probe.counts == [0, 0, 0])
     }
@@ -62,7 +62,7 @@ struct LocalAudioAccessTests {
         for facts in cases {
             let fixture = AccessFixture(facts: facts)
             await #expect(throws: (any Error).self) {
-                try await fixture.controller().acquire(fixture.record.reference, expectedLibraryID: fixture.library.libraryID)
+                try await fixture.controller().acquire(fixture.record.reference, expectedLibraryID: fixture.library.libraryID, authorization: await fixture.authorization)
             }
             #expect(fixture.probe.counts == [1, 1, 1])
         }
@@ -73,18 +73,19 @@ struct LocalAudioAccessTests {
         let held = LocalAudioReadGate()
         let shared = LocalAudioReadAdmission()
         let access = LocalAudioAccessController(load: { await held.wait(); return fixture.library },
-            bookmarks: fixture.probe, files: fixture.probe, admission: shared)
+            bookmarks: fixture.probe, files: fixture.probe, profiles: TestLocalAudioProfiles(storageID: fixture.library.profileID),
+            references: LocalAudioReferenceUseRegistry(profileStorageID: fixture.library.profileID), admission: shared)
         let otherProfile = fixture.controller(admission: shared)
-        let first = Task { try await access.acquire(fixture.record.reference, expectedLibraryID: fixture.library.libraryID) }
+        let first = Task { try await access.acquire(fixture.record.reference, expectedLibraryID: fixture.library.libraryID, authorization: await fixture.authorization) }
         await held.waitUntilStarted()
         first.cancel()
         await #expect(throws: LocalAudioAccessError.busy) {
-            try await otherProfile.acquire(fixture.record.reference, expectedLibraryID: fixture.library.libraryID)
+            try await otherProfile.acquire(fixture.record.reference, expectedLibraryID: fixture.library.libraryID, authorization: await fixture.authorization)
         }
         await held.release()
         await #expect(throws: CancellationError.self) { try await first.value }
         #expect(fixture.probe.counts == [0, 0, 0])
-        let retry = try? await access.acquire(fixture.record.reference, expectedLibraryID: fixture.library.libraryID)
+        let retry = try? await access.acquire(fixture.record.reference, expectedLibraryID: fixture.library.libraryID, authorization: await fixture.authorization)
         retry?.release()
         #expect(retry != nil)
     }
@@ -189,8 +190,10 @@ private struct AccessFixture: Sendable {
         library = LocalAudioLibraryDocument(profileID: UUID(), libraryID: reference.libraryID, records: [record])
         probe = LocalAudioAccessProbe(url: url, granted: granted, stale: stale, facts: facts)
     }
+    @MainActor var authorization: LocalAudioIOAuthorization { .init(profileStorageID: library.profileID, isCurrent: { true }) }
     func controller(admission: LocalAudioReadAdmission = LocalAudioReadAdmission()) -> LocalAudioAccessController {
-        LocalAudioAccessController(load: { library }, bookmarks: probe, files: probe, admission: admission)
+        LocalAudioAccessController(load: { library }, bookmarks: probe, files: probe, profiles: TestLocalAudioProfiles(storageID: library.profileID),
+            references: LocalAudioReferenceUseRegistry(profileStorageID: library.profileID), admission: admission)
     }
 }
 

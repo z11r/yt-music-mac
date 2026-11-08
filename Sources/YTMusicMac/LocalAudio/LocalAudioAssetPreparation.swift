@@ -1,5 +1,6 @@
 import AVFoundation
 import Foundation
+import ObjectiveC
 
 struct LocalAudioAssetFacts: Sendable {
     let isPlayable: Bool
@@ -46,11 +47,11 @@ final class LocalAudioPreparationAdmission {
 
 /// Retain alongside the AVPlayerItem until that item and its observers are retired.
 @MainActor
-final class PreparedLocalAudioAsset {
+final class PreparedLocalAudioAsset: LocalAudioPreparedSource {
     let asset: AVURLAsset
     let lease: LocalAudioResourceLease
     let duration: TimeInterval
-    init(asset: AVURLAsset, lease: LocalAudioResourceLease, duration: TimeInterval) {
+    fileprivate init(asset: AVURLAsset, lease: LocalAudioResourceLease, duration: TimeInterval) {
         self.asset = asset; self.lease = lease; self.duration = duration
     }
     func release() { asset.cancelLoading(); lease.release() }
@@ -58,7 +59,7 @@ final class PreparedLocalAudioAsset {
 
 @MainActor
 protocol LocalAudioAssetPreparing: AnyObject {
-    func prepare(_ lease: LocalAudioResourceLease) async throws -> PreparedLocalAudioAsset
+    func prepare(_ lease: LocalAudioResourceLease) async throws -> any LocalAudioPreparedSource
 }
 
 /// No player, file picker, media copying, or URL resource-loader bypass.
@@ -72,23 +73,34 @@ final class NativeLocalAudioAssetPreparer: LocalAudioAssetPreparing {
         self.admission = admission; self.files = files; self.reads = reads
     }
 
-    func prepare(_ lease: LocalAudioResourceLease) async throws -> PreparedLocalAudioAsset {
+    func prepare(_ lease: LocalAudioResourceLease) async throws -> any LocalAudioPreparedSource {
         do {
             return try await admission.perform {
                 try Task.checkCancellation()
-                guard !lease.isReleased else { throw LocalAudioAccessError.accessDenied }
+                try await lease.profileLifetime.checkCurrent()
+                guard lease.acceptsNewUses, lease.hasValidReferenceOwnership,
+                      lease.profileLifetime.authorization.profileStorageID == lease.profileLifetime.profileStorageID else {
+                    throw LocalAudioAccessError.accessDenied
+                }
                 try LocalAudioFilePolicy.validateURL(lease.fileURL)
                 let files = self.files
                 let file = try await self.reads.perform { try files.inspect(lease.fileURL) }
                 try LocalAudioFilePolicy.validate(file)
                 guard file.identity == lease.identity else { throw LocalAudioAccessError.identityChanged }
                 try Task.checkCancellation()
+                try await lease.profileLifetime.checkCurrent()
+                let use = try lease.retainUse()
                 let asset = AVURLAsset(url: lease.fileURL, options: LocalAudioAssetPolicy.options)
+                NativeLocalAudioAssetLifetime.attach(use, to: asset)
                 do {
                     let playable = try await asset.load(.isPlayable)
+                    try await lease.profileLifetime.checkCurrent()
                     let protected = try await asset.load(.hasProtectedContent)
+                    try await lease.profileLifetime.checkCurrent()
                     let audio = try await asset.loadTracks(withMediaType: .audio)
+                    try await lease.profileLifetime.checkCurrent()
                     let video = try await asset.loadTracks(withMediaType: .video)
+                    try await lease.profileLifetime.checkCurrent()
                     let duration = try await asset.load(.duration).seconds
                     try LocalAudioAssetFacts(isPlayable: playable, hasAudio: !audio.isEmpty, hasVideo: !video.isEmpty,
                                             hasProtectedContent: protected, duration: duration).validate()
@@ -97,6 +109,14 @@ final class NativeLocalAudioAssetPreparer: LocalAudioAssetPreparing {
                     return PreparedLocalAudioAsset(asset: asset, lease: lease, duration: duration)
                 } catch { asset.cancelLoading(); throw error }
             }
-        } catch { lease.release(); throw error }
+        } catch { lease.release(); throw LocalAudioPlaybackIssue.sanitizing(error) }
+    }
+}
+
+/// The holder has no reference to the asset, driver, item or engine.
+@MainActor private enum NativeLocalAudioAssetLifetime {
+    private static var key: UInt8 = 0
+    static func attach(_ use: LocalAudioResourceUse, to asset: AVURLAsset) {
+        objc_setAssociatedObject(asset, &key, use, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
     }
 }

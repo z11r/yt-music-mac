@@ -1,0 +1,10 @@
+"This local audio request is no longer current." = "Cette demande audio locale n’est plus actuelle.";
+"Local audio is busy. Wait for the previous operation to finish." = "L’audio local est occupé. Attendez la fin de l’opération précédente.";
+"This local audio file is unavailable. Locate it or choose another file." = "Ce fichier audio local est indisponible. Localisez-le ou choisissez un autre fichier.";
+"Access to this local audio file must be authorized again." = "L’accès à ce fichier audio local doit être autorisé à nouveau.";
+"This file cannot be used for local audio playback." = "Ce fichier ne peut pas être utilisé pour la lecture audio locale.";
+"The local audio file is not ready." = "Le fichier audio local n’est pas prêt.";
+"The local audio operation did not finish in time." = "L’opération audio locale ne s’est pas terminée à temps.";
+"The local audio playback position could not be changed." = "La position de lecture audio locale n’a pas pu être modifiée.";
+"The previous audio output could not be confirmed stopped." = "L’arrêt de la sortie audio précédente n’a pas pu être confirmé.";
+"The local audio operation was cancelled." = "L’opération audio locale a été annulée.";

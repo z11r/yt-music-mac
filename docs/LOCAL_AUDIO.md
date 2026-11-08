@@ -1,9 +1,10 @@
 # Local audio foundation
 
 Local-file playback is incomplete. The source model, private library store,
-access contracts and service exclusions are implemented. There is no local-file
-chooser, library screen or active local playback engine yet. Existing playback
-controls continue to use the service player.
+access contracts and service exclusions are implemented. A separate
+[engine adapter](LOCAL_AUDIO_ENGINE.md) adds native output and lifetime contracts,
+tested with fakes. The app facade, library screen and file chooser are separate
+integration work; no native playback success is established by these tests.
 
 ## Source and queue identity
 

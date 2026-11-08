@@ -1,0 +1,10 @@
+"This local audio request is no longer current." = "This local audio request is no longer current.";
+"Local audio is busy. Wait for the previous operation to finish." = "Local audio is busy. Wait for the previous operation to finish.";
+"This local audio file is unavailable. Locate it or choose another file." = "This local audio file is unavailable. Locate it or choose another file.";
+"Access to this local audio file must be authorized again." = "Access to this local audio file must be authorized again.";
+"This file cannot be used for local audio playback." = "This file cannot be used for local audio playback.";
+"The local audio file is not ready." = "The local audio file is not ready.";
+"The local audio operation did not finish in time." = "The local audio operation did not finish in time.";
+"The local audio playback position could not be changed." = "The local audio playback position could not be changed.";
+"The previous audio output could not be confirmed stopped." = "The previous audio output could not be confirmed stopped.";
+"The local audio operation was cancelled." = "The local audio operation was cancelled.";
