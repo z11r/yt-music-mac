@@ -258,7 +258,7 @@ actor ArtworkCache {
         shared.memory.value(for: request.cacheKey)
     }
 
-    func image(for request: ArtworkRequest) async -> DecodedArtwork? {
+    func image(for request: ArtworkRequest, admission: ArtworkLoadAdmission? = nil) async -> DecodedArtwork? {
         if let value = memory.value(for: request.cacheKey) { return value }
         let requestGeneration = generation
         let sources = ArtworkSource.candidates(url: request.url, videoID: request.videoID, pixels: request.pixels)
@@ -266,7 +266,8 @@ actor ArtworkCache {
             guard !Task.isCancelled, generation == requestGeneration else { return nil }
             let data: Data
             do {
-                data = try await load(source.url)
+                if let admission { data = try await admission.load(source.url) }
+                else { data = try await load(source.url) }
             } catch ArtworkTransfer.Failure.refused {
                 guard generation == requestGeneration else { return nil }
                 if refused.count >= 512 { refused.removeAll() }
@@ -291,7 +292,7 @@ actor ArtworkCache {
 
 /// All mutable transfer state is protected by the lock. This session has no
 /// cookies, credential storage, or disk cache, and never reads the account store.
-private final class ArtworkTransfer: NSObject, URLSessionDataDelegate, @unchecked Sendable {
+final class ArtworkTransfer: NSObject, URLSessionDataDelegate, @unchecked Sendable {
     enum Failure: Error { case refused }
 
     static let shared = ArtworkTransfer()
@@ -348,17 +349,24 @@ private final class ArtworkTransfer: NSObject, URLSessionDataDelegate, @unchecke
         return try await withTaskCancellationHandler {
             try Task.checkCancellation()
             return try await withCheckedThrowingContinuation { continuation in
-                var request = URLRequest(url: url)
-                request.setValue("image/*", forHTTPHeaderField: "Accept")
-                request.httpShouldHandleCookies = false
-                let task = session.dataTask(with: request)
-                lock.withLock { requests[task.taskIdentifier] = Request(continuation: continuation) }
-                cancellation.set(task)
-                task.resume()
+                start(url, continuation: continuation, cancellation: cancellation)
             }
         } onCancel: {
             cancellation.cancel()
         }
+    }
+
+    /// Synchronous so a caller may perform its ownership check and native start
+    /// in one actor turn. Requests still settle only through the delegate.
+    func start(_ url: URL, continuation: CheckedContinuation<Data, any Error>, cancellation: ArtworkCancellation) {
+        guard Self.allows(url) else { continuation.resume(throwing: Failure.refused); return }
+        var request = URLRequest(url: url)
+        request.setValue("image/*", forHTTPHeaderField: "Accept")
+        request.httpShouldHandleCookies = false
+        let task = session.dataTask(with: request)
+        lock.withLock { requests[task.taskIdentifier] = Request(continuation: continuation) }
+        cancellation.set(task)
+        task.resume()
     }
 
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask,
@@ -411,7 +419,7 @@ private final class ArtworkTransfer: NSObject, URLSessionDataDelegate, @unchecke
     }
 }
 
-private final class ArtworkCancellation: @unchecked Sendable {
+final class ArtworkCancellation: @unchecked Sendable {
     private let lock = NSLock()
     private var task: URLSessionTask?
     private var isCancelled = false

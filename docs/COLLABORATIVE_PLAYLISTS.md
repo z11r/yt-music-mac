@@ -73,7 +73,13 @@ compare-and-swap revision, leaving concurrent-write guarantees unverified.
    It accepts at most 1 KiB of supplied plain text and eight distinct HTTPS
    portrait sources from the allowed Google image hosts. A malformed label is
    unavailable. Profile, account, destination and header changes revoke the
-   display. Labels and portraits grant no edit authority.
+   display. Each explicit presentation retains its original target and gets a
+   separate cache identity; a view refresh cannot refresh its authority. Labels
+   and portraits grant no edit authority. Portrait requests recheck that target
+   and presentation immediately before creating and resuming their native task,
+   in one synchronous main-actor admission. Disappearance revokes only that
+   original presentation, so a delayed teardown cannot clear a newer one.
+   Closing a popover does not cancel other artwork requests.
 2. Establish fresh target-specific role and per-occurrence permissions before
    enabling edits. Test owner, collaborator, viewer, withdrawn membership,
    duplicate songs, voting order, missing controls, and account changes with
@@ -107,6 +113,8 @@ unknown.
 
 Deterministic fixtures cover the recognized header, malformed and unrelated
 renderers, bounded labels and image sources, and contributor/artist separation.
+Injected portrait starters also check held admission, owner and presentation
+revocation, cancellation, and old-presentation teardown without native requests.
 Signed-in schema coverage, portrait delivery, invitation lifecycle, concurrent
 edits, keyboard access and VoiceOver still need runtime acceptance. Shared
 playlist editing supplies no synchronized listening or shared playback-clock

@@ -318,7 +318,7 @@ private struct CollectionTracksView: View {
     let presentEditor: (LibraryEditorRequest) -> Void
     @State private var selection: Set<Int> = []
     @State private var showsDescription = false
-    @State private var showsContributors = false
+    @State private var presentedContributors: PlaylistContributorsPresentation?
 
     private typealias Row = CollectionDisplayRow
     private var allTracks: [Track] { CollectionPresentation.tracks(in: page) }
@@ -453,9 +453,9 @@ private struct CollectionTracksView: View {
             PaginationView(session: session).padding(12)
         }
         .onChange(of: session.collectionFilter) { selection.removeAll() }
-        .onChange(of: session.destination) { selection.removeAll(); showsDescription = false; showsContributors = false }
-        .onChange(of: session.accountGeneration) { showsDescription = false; showsContributors = false }
-        .onChange(of: page.collectionHeader) { showsContributors = false }
+        .onChange(of: session.destination) { selection.removeAll(); showsDescription = false; presentedContributors = nil }
+        .onChange(of: session.accountGeneration) { showsDescription = false; presentedContributors = nil }
+        .onChange(of: page.collectionHeader) { presentedContributors = nil }
         .onChange(of: session.collectionDisplayOrder) { selection.removeAll() }
     }
 
@@ -563,20 +563,24 @@ private struct CollectionTracksView: View {
                 Text(verbatim: subtitle).foregroundStyle(.secondary).lineLimit(2)
             }
             if isPlaylist, let collaboration = page.collectionHeader?.collaboration {
-                let account = session.accountGeneration
-                let profile = session.playbackProfileGeneration
-                let destination = session.destination
+                let candidate = PlaylistContributorsPresentation(profile: session.playbackProfileGeneration,
+                    account: session.accountGeneration, destination: session.destination, collaboration: collaboration)
                 Button("Contributors…", systemImage: "person.2.fill") {
-                    guard session.acceptsProfileActions, session.account.isSignedIn, !session.account.isWorking else { return }
-                    showsContributors = true
+                    guard candidate.isCurrent(in: session) else { return }
+                    presentedContributors = candidate
                 }
                     .buttonStyle(.borderless)
-                    .popover(isPresented: $showsContributors) {
-                        PlaylistContributorsView(collaboration: collaboration, isCurrent: {
-                            session.acceptsProfileActions && session.account.isSignedIn && !session.account.isWorking &&
-                            session.accountGeneration == account && session.playbackProfileGeneration == profile &&
-                            session.destination == destination && session.page?.collectionHeader?.collaboration == collaboration
-                        })
+                    .popover(isPresented: Binding(get: { presentedContributors != nil }, set: {
+                        if !$0 { presentedContributors = nil }
+                    })) {
+                        if let presentation = presentedContributors {
+                            PlaylistContributorsView(collaboration: presentation.collaboration,
+                                isCurrent: {
+                                    presentedContributors?.id == presentation.id && presentation.isCurrent(in: session)
+                                })
+                                .id(presentation.id)
+                                .onDisappear { presentation.removeIfCurrent(from: &presentedContributors) }
+                        }
                     }
             }
             if let summary = page.collectionHeader?.summary {

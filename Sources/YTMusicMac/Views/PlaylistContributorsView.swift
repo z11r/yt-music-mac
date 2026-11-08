@@ -1,11 +1,30 @@
 import SwiftUI
 import YouTubeMusic
 
+/// An explicit presentation keeps its original admission identity across view refreshes.
+struct PlaylistContributorsPresentation: Identifiable {
+    let id = UUID()
+    let profile: UUID
+    let account: UUID
+    let destination: MusicDestination
+    let collaboration: MusicPlaylistCollaboration
+
+    @MainActor func isCurrent(in session: AppSession) -> Bool {
+        session.acceptsProfileActions && session.account.isSignedIn && !session.account.isWorking &&
+        session.accountGeneration == account && session.playbackProfileGeneration == profile &&
+        session.destination == destination && session.page?.collectionHeader?.collaboration == collaboration
+    }
+
+    func removeIfCurrent(from current: inout Self?) {
+        if current?.id == id { current = nil }
+    }
+}
+
 /// One private, bounded image cache for the currently presented attribution.
 /// No person metadata enters the shared artwork cache or a persistent store.
 struct PlaylistContributorsView: View {
     let collaboration: MusicPlaylistCollaboration
-    let isCurrent: @MainActor () -> Bool
+    let isCurrent: @MainActor @Sendable () -> Bool
     @State private var cache = ArtworkCache(memory: BoundedMemoryCache(
         byteLimit: 1_024 * 1_024, countLimit: 8, observesMemoryPressure: false))
 
@@ -37,7 +56,7 @@ struct PlaylistContributorsView: View {
 private struct ContributorPortrait: View {
     let url: URL
     let cache: ArtworkCache
-    let isCurrent: @MainActor () -> Bool
+    let isCurrent: @MainActor @Sendable () -> Bool
     @State private var loaded: DecodedArtwork?
     @Environment(\.displayScale) private var displayScale
     @Environment(\.allowsProfileArtworkLoading) private var allowsLoading
@@ -60,7 +79,7 @@ private struct ContributorPortrait: View {
         .frame(width: 32, height: 32).clipShape(Circle()).accessibilityHidden(true)
         .task(id: Request(artwork: artwork, allowed: allowed)) {
             guard allowed, isCurrent(), !Task.isCancelled else { return }
-            let image = await cache.image(for: artwork)
+            let image = await cache.image(for: artwork, admission: ArtworkLoadAdmission(isCurrent: isCurrent))
             guard !Task.isCancelled, isCurrent() else { return }
             loaded = image
         }
