@@ -7,7 +7,112 @@ final class MusicExtendedLibraryEditTests: XCTestCase {
     private let first = PlaylistItemReference(videoID: "same-song", setVideoID: "first=")
     private let second = PlaylistItemReference(videoID: "same-song", setVideoID: "second=")
     private let third = PlaylistItemReference(videoID: "other-song", setVideoID: "third=")
-    private let all = MusicLibraryEditCapabilities()
+    private let all = MusicLibraryEditCapabilities(playlistDescription: true, playlistPrivacy: true, playlistReorder: true)
+
+    func testDescriptionCanBeClearedOnlyAfterKnownStateAndMatchingReadback() async throws {
+        let transport = ExtendedEditTransport([.response(playlist(description: "Original")), .response(confirmed()),
+                                               .response(playlist(description: ""))])
+        let result = try await client(transport).performLibraryEdit(.setPlaylistDescription(id: "VLPLtest", description: ""))
+        XCTAssertEqual(result, .playlistDescriptionChanged(id: "PLtest"))
+        let requests = await transport.requests
+        XCTAssertEqual(requests.count, 3)
+        XCTAssertEqual(try body(requests[1])["actions"] as? [[String: String]],
+                       [["action": "ACTION_SET_PLAYLIST_DESCRIPTION", "playlistDescription": ""]])
+        XCTAssertEqual(try body(requests[1])["playlistId"] as? String, "PLtest")
+    }
+
+    func testPrivacyRequiresReadbackAndUsesTheExactEnumValue() async throws {
+        let transport = ExtendedEditTransport([.response(playlist(privacy: "PRIVATE")), .response(confirmed()),
+                                               .response(playlist(privacy: "UNLISTED"))])
+        let result = try await client(transport).performLibraryEdit(.setPlaylistPrivacy(id: "PLtest", privacy: .unlisted))
+        XCTAssertEqual(result, .playlistPrivacyChanged(id: "PLtest", privacy: .unlisted))
+        let requests = await transport.requests
+        XCTAssertEqual(try body(requests[1])["actions"] as? [[String: String]],
+                       [["action": "ACTION_SET_PLAYLIST_PRIVACY", "playlistPrivacy": "UNLISTED"]])
+    }
+
+    func testReorderUsesOccurrenceIdentityAndOmittedSuccessorMeansEnd() async throws {
+        let transport = ExtendedEditTransport([.response(playlist(items: [first, second, third])), .response(confirmed()),
+            .response(playlist(items: [second, first, third])), .response(playlist(items: [second, first, third])),
+            .response(confirmed()), .response(playlist(items: [first, third, second]))])
+        let client = await client(transport)
+        let before = try await client.performLibraryEdit(.movePlaylistItem(playlistID: "PLtest", item: second, before: first))
+        XCTAssertEqual(before, .playlistItemMoved(playlistID: "PLtest", item: second, before: first))
+        let end = try await client.performLibraryEdit(.movePlaylistItem(playlistID: "PLtest", item: second, before: nil))
+        XCTAssertEqual(end, .playlistItemMoved(playlistID: "PLtest", item: second, before: nil))
+        let requests = await transport.requests
+        XCTAssertEqual(requests.count, 6)
+        XCTAssertEqual(try body(requests[1])["actions"] as? [[String: String]],
+                       [["action": "ACTION_MOVE_VIDEO_BEFORE", "setVideoId": second.setVideoID, "movedSetVideoIdSuccessor": first.setVideoID]])
+        XCTAssertEqual(try body(requests[4])["actions"] as? [[String: String]],
+                       [["action": "ACTION_MOVE_VIDEO_BEFORE", "setVideoId": second.setVideoID]])
+    }
+
+    func testReorderFindsAndConfirmsOccurrencesAcrossContinuationPages() async throws {
+        let transport = ExtendedEditTransport([.response(playlist(items: [first], continuation: "pre-next")),
+            .response(continuation([second, third])), .response(confirmed()),
+            .response(playlist(items: [second], continuation: "post-next")), .response(continuation([first, third]))])
+        let result = try await client(transport).performLibraryEdit(.movePlaylistItem(playlistID: "PLtest", item: second, before: first))
+        XCTAssertEqual(result, .playlistItemMoved(playlistID: "PLtest", item: second, before: first))
+        let requests = await transport.requests
+        XCTAssertEqual(requests.count, 5)
+        XCTAssertEqual(try body(requests[1])["continuation"] as? String, "pre-next")
+        XCTAssertEqual(try body(requests[4])["continuation"] as? String, "post-next")
+    }
+
+    func testOversizedAndAmbiguousReorderSnapshotsNeverWrite() async throws {
+        let large = (0...10_000).map { PlaylistItemReference(videoID: "same-song", setVideoID: "occurrence-\($0)=") }
+        for (items, expected) in [([first, second, first], MusicServiceError?.none), (large, .pageLimitReached)] {
+            let transport = ExtendedEditTransport([.response(playlist(items: items))])
+            do { _ = try await client(transport).performLibraryEdit(.movePlaylistItem(playlistID: "PLtest", item: first, before: second)); XCTFail("Expected bounded unambiguous occurrences") }
+            catch {
+                if let expected { XCTAssertEqual(error as? MusicServiceError, expected) }
+                else { XCTAssertEqual(error as? MusicLibraryEditError, .invalidPlaylistItems) }
+            }
+            let requests = await transport.requests
+            XCTAssertEqual(requests.count, 1)
+        }
+    }
+
+    func testRefusedAndUncertainAcknowledgementsNeverTriggerReadbackOrRetry() async throws {
+        let steps: [(ExtendedEditTransport.Step, MusicLibraryEditError?)] = [
+            (.response(.init(data: Data(), statusCode: 403)), nil),
+            (.response(response(["responseContext": [:]])), .unconfirmedOutcome), (.failure, .unconfirmedOutcome),
+        ]
+        for (step, expected) in steps {
+            let transport = ExtendedEditTransport([.response(playlist()), step])
+            do { _ = try await client(transport).performLibraryEdit(.setPlaylistPrivacy(id: "PLtest", privacy: .public)); XCTFail("Expected non-success") }
+            catch {
+                if let expected { XCTAssertEqual(error as? MusicLibraryEditError, expected) }
+                else { XCTAssertEqual(error as? MusicServiceError, .accessDenied) }
+            }
+            let requests = await transport.requests
+            XCTAssertEqual(requests.count, 2)
+        }
+    }
+
+    func testAccountChangesFencePreflightWriteAndReadback() async throws {
+        for boundary in 1...3 {
+            let store = await session()
+            let transport = ExtendedEditTransport([.response(playlist()), .response(confirmed()), .response(playlist(privacy: "PUBLIC"))],
+                                                   store: store, clearAt: boundary)
+            do { _ = try await client(transport, store: store).performLibraryEdit(.setPlaylistPrivacy(id: "PLtest", privacy: .public)); XCTFail("Expected account fence") }
+            catch { XCTAssertEqual(error as? MusicServiceError, .sessionChanged) }
+            let requests = await transport.requests
+            XCTAssertEqual(requests.count, boundary)
+        }
+    }
+
+    func testOldExpectedScopeAndInvalidReorderNeverStartRequests() async throws {
+        let transport = ExtendedEditTransport([])
+        let client = await client(transport)
+        do { _ = try await client.performLibraryEdit(.setPlaylistPrivacy(id: "PLtest", privacy: .public), expectedScope: UUID()); XCTFail("Expected account fence") }
+        catch { XCTAssertEqual(error as? MusicServiceError, .sessionChanged) }
+        do { _ = try await client.performLibraryEdit(.movePlaylistItem(playlistID: "PLtest", item: first, before: first)); XCTFail("Expected same occurrence refusal") }
+        catch { XCTAssertEqual(error as? MusicLibraryEditError, .invalidPlaylistItems) }
+        let requests = await transport.requests
+        XCTAssertTrue(requests.isEmpty)
+    }
 
     func testHeaderStatesPreserveUnknownEmptyDislikedAndContradictoryValues() throws {
         let empty = try MusicResponseParser.parse(playlist(description: "", privacy: "PRIVATE").data, preservesOccurrences: true)

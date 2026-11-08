@@ -1,9 +1,10 @@
 // Request shapes adapted from Kaset, copyright (c) 2025 sozercan, under the MIT License.
 // See THIRD_PARTY_NOTICES.md for the license and upstream source paths.
+// Additional playlist actions follow ytmusicapi, copyright (c) 2026 sigma67, MIT License.
 import CryptoKit
 import Foundation
 
-public enum PlaylistPrivacy: String, Equatable, Sendable {
+public enum PlaylistPrivacy: String, Hashable, Sendable {
     case `private` = "PRIVATE"
     case unlisted = "UNLISTED"
     case `public` = "PUBLIC"
@@ -17,6 +18,9 @@ public enum MusicLibraryEditAction: Equatable, Sendable {
     case deletePlaylist(id: String)
     case addItems(playlistID: String, videoIDs: [String], allowDuplicates: Bool)
     case removeItems(playlistID: String, items: [PlaylistItemReference])
+    case setPlaylistDescription(id: String, description: String)
+    case setPlaylistPrivacy(id: String, privacy: PlaylistPrivacy)
+    case movePlaylistItem(playlistID: String, item: PlaylistItemReference, before: PlaylistItemReference?)
 }
 
 /// Enabled separately only after the corresponding signed-in operations have been verified.
@@ -24,14 +28,23 @@ public struct MusicLibraryEditCapabilities: Hashable, Sendable {
     public let likes: Bool
     public let dislikes: Bool
     public let playlists: Bool
+    public let playlistDescription: Bool
+    public let playlistPrivacy: Bool
+    public let playlistReorder: Bool
 
-    public init(likes: Bool = false, dislikes: Bool = false, playlists: Bool = false) {
+    public init(likes: Bool = false, dislikes: Bool = false, playlists: Bool = false,
+                playlistDescription: Bool = false, playlistPrivacy: Bool = false, playlistReorder: Bool = false) {
         self.likes = likes
         self.dislikes = dislikes
         self.playlists = playlists
+        self.playlistDescription = playlistDescription
+        self.playlistPrivacy = playlistPrivacy
+        self.playlistReorder = playlistReorder
     }
 
-    public var hasAny: Bool { likes || dislikes || playlists }
+    public var hasAny: Bool {
+        likes || dislikes || playlists || playlistDescription || playlistPrivacy || playlistReorder
+    }
 
     public func allows(_ action: MusicLibraryEditAction) -> Bool {
         switch action {
@@ -42,6 +55,9 @@ public struct MusicLibraryEditCapabilities: Hashable, Sendable {
             case .disliked: dislikes
             case .neutral: likes || dislikes
             }
+        case .setPlaylistDescription: playlistDescription
+        case .setPlaylistPrivacy: playlistPrivacy
+        case .movePlaylistItem: playlistReorder
         default: playlists
         }
     }
@@ -67,6 +83,9 @@ public enum MusicLibraryEditResult: Equatable, Sendable {
     case playlistDeleted(id: String)
     case itemsAdded(playlistID: String, items: [PlaylistItemReference])
     case itemsRemoved(playlistID: String, items: [PlaylistItemReference])
+    case playlistDescriptionChanged(id: String)
+    case playlistPrivacyChanged(id: String, privacy: PlaylistPrivacy)
+    case playlistItemMoved(playlistID: String, item: PlaylistItemReference, before: PlaylistItemReference?)
 }
 
 public enum MusicLibraryEditError: Error, Equatable, LocalizedError, Sendable {
@@ -78,6 +97,7 @@ public enum MusicLibraryEditError: Error, Equatable, LocalizedError, Sendable {
     case interactionRequired
     case unconfirmedOutcome
     case verificationCleanupRequired
+    case collectionStateUnavailable
 
     public var errorDescription: String? {
         switch self {
@@ -89,6 +109,7 @@ public enum MusicLibraryEditError: Error, Equatable, LocalizedError, Sendable {
         case .interactionRequired: "YouTube Music requires an account action before making this change. Open YouTube Music to continue."
         case .unconfirmedOutcome: "YouTube Music did not confirm the change. Check your library before trying again."
         case .verificationCleanupRequired: "A previous verification playlist still needs cleanup before another check can start."
+        case .collectionStateUnavailable: "Reload this collection to confirm its current permissions, occurrences, and library state before editing."
         }
     }
 }
@@ -116,6 +137,7 @@ extension YouTubeMusicClient {
         if let expectedScope { scope = expectedScope }
         else { scope = await sessions.snapshot().scope }
         try await validateScope(scope)
+        try await validateExtendedEdit(action, scope: scope)
         switch action {
         case let .setLiked(videoID, liked): return try await setLiked(liked, videoID: videoID, expectedScope: scope)
         case let .setRating(videoID, rating): return try await setRating(rating, videoID: videoID, expectedScope: scope)
@@ -126,6 +148,12 @@ extension YouTubeMusicClient {
         case let .addItems(playlistID, videoIDs, allowDuplicates):
             return try await addPlaylistItems(playlistID: playlistID, videoIDs: videoIDs, allowDuplicates: allowDuplicates, expectedScope: scope)
         case let .removeItems(playlistID, items): return try await removePlaylistItems(playlistID: playlistID, items: items, expectedScope: scope)
+        case let .setPlaylistDescription(id, description):
+            return try await setPlaylistDescription(id: id, description: description, expectedScope: scope)
+        case let .setPlaylistPrivacy(id, privacy):
+            return try await setPlaylistPrivacy(id: id, privacy: privacy, expectedScope: scope)
+        case let .movePlaylistItem(id, item, before):
+            return try await movePlaylistItem(playlistID: id, item: item, before: before, expectedScope: scope)
         }
     }
 
@@ -224,6 +252,114 @@ extension YouTubeMusicClient {
         ], expectedScope: expectedScope)
         try Self.requireMutationConfirmation(response)
         return .itemsRemoved(playlistID: playlistID, items: items)
+    }
+
+    func setPlaylistDescription(id: String, description: String, expectedScope: UUID) async throws -> MusicLibraryEditResult {
+        let id = try editablePlaylistID(id)
+        guard description.count <= 5_000,
+              !description.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) && $0 != "\n" && $0 != "\t" }) else {
+            throw MusicServiceError.invalidInput
+        }
+        let response = try await libraryMutation(endpoint: "browse/edit_playlist", body: [
+            "playlistId": id, "actions": [["action": "ACTION_SET_PLAYLIST_DESCRIPTION", "playlistDescription": description]],
+        ], expectedScope: expectedScope)
+        try Self.requireMutationConfirmation(response)
+        try await verifyExtendedEdit(.setPlaylistDescription(id: id, description: description), scope: expectedScope)
+        return .playlistDescriptionChanged(id: id)
+    }
+
+    func setPlaylistPrivacy(id: String, privacy: PlaylistPrivacy, expectedScope: UUID) async throws -> MusicLibraryEditResult {
+        let id = try editablePlaylistID(id)
+        let response = try await libraryMutation(endpoint: "browse/edit_playlist", body: [
+            "playlistId": id, "actions": [["action": "ACTION_SET_PLAYLIST_PRIVACY", "playlistPrivacy": privacy.rawValue]],
+        ], expectedScope: expectedScope)
+        try Self.requireMutationConfirmation(response)
+        try await verifyExtendedEdit(.setPlaylistPrivacy(id: id, privacy: privacy), scope: expectedScope)
+        return .playlistPrivacyChanged(id: id, privacy: privacy)
+    }
+
+    func movePlaylistItem(playlistID: String, item: PlaylistItemReference, before: PlaylistItemReference?,
+                          expectedScope: UUID) async throws -> MusicLibraryEditResult {
+        let id = try editablePlaylistID(playlistID)
+        try validateReferences([item] + (before.map { [$0] } ?? []))
+        var action = ["action": "ACTION_MOVE_VIDEO_BEFORE", "setVideoId": item.setVideoID]
+        if let before { action["movedSetVideoIdSuccessor"] = before.setVideoID }
+        let response = try await libraryMutation(endpoint: "browse/edit_playlist", body: ["playlistId": id, "actions": [action]],
+                                                 expectedScope: expectedScope)
+        try Self.requireMutationConfirmation(response)
+        try await verifyExtendedEdit(.movePlaylistItem(playlistID: id, item: item, before: before), scope: expectedScope)
+        return .playlistItemMoved(playlistID: id, item: item, before: before)
+    }
+
+    /// Acknowledgement plus a fresh authoritative read is required for these
+    /// separately enabled operations. Readback failure never repeats the write.
+    private func verifyExtendedEdit(_ action: MusicLibraryEditAction, scope: UUID) async throws {
+        do {
+            try await validateScope(scope)
+            let matches: Bool
+            switch action {
+            case let .setPlaylistDescription(id, description):
+                matches = try await playlist(id: id).playlistDetails?.description == description
+            case let .setPlaylistPrivacy(id, privacy):
+                matches = try await playlist(id: id).playlistDetails?.privacy == privacy
+            case let .movePlaylistItem(id, item, before):
+                let first = try await playlist(id: id)
+                let references = try await reorderReferences(startingWith: first)
+                if let index = references.firstIndex(of: item) {
+                    matches = before.map { index + 1 < references.count && references[index + 1] == $0 } ?? (index == references.count - 1)
+                } else { matches = false }
+            default: matches = false
+            }
+            try await validateScope(scope)
+            guard matches else { throw MusicLibraryEditError.unconfirmedOutcome }
+        } catch is CancellationError { throw CancellationError() }
+        catch MusicServiceError.sessionChanged { throw MusicServiceError.sessionChanged }
+        catch { throw MusicLibraryEditError.unconfirmedOutcome }
+    }
+
+    private func validateExtendedEdit(_ action: MusicLibraryEditAction, scope: UUID) async throws {
+        let permitted: Bool
+        switch action {
+        case let .setPlaylistDescription(id, description):
+            guard description.count <= 5_000 else { throw MusicServiceError.invalidInput }
+            let page = try await playlist(id: id)
+            permitted = page.playlistCapabilities.canEditDescription && page.playlistDetails?.description != nil
+        case let .setPlaylistPrivacy(id, _):
+            let page = try await playlist(id: id)
+            permitted = page.playlistCapabilities.canEditPrivacy && page.playlistDetails?.privacy != nil
+        case let .movePlaylistItem(id, item, before):
+            try validateReferences([item] + (before.map { [$0] } ?? []))
+            let first = try await playlist(id: id)
+            guard first.playlistCapabilities.canReorder else { throw MusicLibraryEditError.collectionStateUnavailable }
+            let references = try await reorderReferences(startingWith: first)
+            permitted = references.contains(item) &&
+                (before.map { references.contains($0) } ?? true)
+        default: return
+        }
+        try Task.checkCancellation()
+        try await validateScope(scope)
+        guard permitted else { throw MusicLibraryEditError.collectionStateUnavailable }
+    }
+
+    private func reorderReferences(startingWith first: MusicPage) async throws -> [PlaylistItemReference] {
+        var page = first
+        var pageCount = 0
+        var references: [PlaylistItemReference] = []
+        var seen = Set<String>()
+        while true {
+            try Task.checkCancellation()
+            pageCount += 1
+            let current = page.playlistItems.compactMap(\.removalReference)
+            guard current.count == page.tracks.count else { throw MusicLibraryEditError.invalidPlaylistItems }
+            guard references.count + current.count <= 10_000 else { throw MusicServiceError.pageLimitReached }
+            for reference in current {
+                guard seen.insert(reference.setVideoID).inserted else { throw MusicLibraryEditError.invalidPlaylistItems }
+            }
+            references.append(contentsOf: current)
+            guard let next = page.continuation else { return references }
+            guard pageCount < 100 else { throw MusicServiceError.pageLimitReached }
+            page = try await nextPage(next)
+        }
     }
 
     private func editablePlaylistID(_ id: String) throws -> String {

@@ -6,6 +6,8 @@ import YouTubeMusic
 enum LibraryEditorRequest: Identifiable {
     case createPlaylist(tracks: [Track])
     case renamePlaylist(MusicCollection)
+    case editDescription(MusicCollection, description: String)
+    case editPrivacy(MusicCollection, privacy: PlaylistPrivacy)
     case deletePlaylist(MusicCollection)
     case addItems(tracks: [Track])
     case removeItems(playlist: MusicCollection, tracks: [Track], references: [PlaylistItemReference])
@@ -14,6 +16,8 @@ enum LibraryEditorRequest: Identifiable {
         switch self {
         case .createPlaylist: "create"
         case let .renamePlaylist(value): "rename:\(value.id)"
+        case let .editDescription(value, _): "description:\(value.id)"
+        case let .editPrivacy(value, _): "privacy:\(value.id)"
         case let .deletePlaylist(value): "delete:\(value.id)"
         case .addItems: "add"
         case let .removeItems(value, _, _): "remove:\(value.id)"
@@ -24,6 +28,8 @@ enum LibraryEditorRequest: Identifiable {
         switch self {
         case .createPlaylist: "New Playlist"
         case .renamePlaylist: "Rename Playlist"
+        case .editDescription: "Edit Playlist Description"
+        case .editPrivacy: "Edit Playlist Visibility"
         case .deletePlaylist: "Delete Playlist?"
         case .addItems: "Add to Playlist"
         case .removeItems: "Remove Songs?"
@@ -34,6 +40,8 @@ enum LibraryEditorRequest: Identifiable {
         switch self {
         case .createPlaylist: "Create Playlist"
         case .renamePlaylist: "Save Name"
+        case .editDescription: "Save Description"
+        case .editPrivacy: "Save Visibility"
         case .deletePlaylist: "Delete Playlist"
         case .addItems: "Add Songs"
         case .removeItems: "Remove Songs"
@@ -82,6 +90,8 @@ struct LibraryEditorView: View {
         } else {
             _title = State(initialValue: "")
         }
+        if case let .editDescription(_, value) = request { _description = State(initialValue: value) }
+        if case let .editPrivacy(_, value) = request { _privacy = State(initialValue: value) }
     }
 
     var body: some View {
@@ -100,7 +110,7 @@ struct LibraryEditorView: View {
                 Button("Cancel") { dismiss() }
                     .keyboardShortcut(.cancelAction).disabled(isSubmitting)
                 submitButton
-                    .disabled(!session.remoteLibraryEditingEnabled || session.isEditingLibrary ||
+                    .disabled(!(action.map(session.canSubmitLibraryEdit) ?? false) || session.isEditingLibrary ||
                               isSubmitting || action == nil || validationMessage != nil)
             }
         }
@@ -139,6 +149,18 @@ struct LibraryEditorView: View {
             if !request.tracks.isEmpty { selectionSummary }
         case .renamePlaylist:
             nameField
+        case .editDescription:
+            TextField("Playlist description", text: $description, axis: .vertical)
+                .lineLimit(4...8).textFieldStyle(.roundedBorder)
+                .accessibilityLabel("Playlist description")
+            Text("An empty description removes the existing description.").font(.caption).foregroundStyle(.secondary)
+        case .editPrivacy:
+            Picker("Visibility", selection: $privacy) {
+                Text("Private").tag(PlaylistPrivacy.private)
+                Text("Unlisted").tag(PlaylistPrivacy.unlisted)
+                Text("Public").tag(PlaylistPrivacy.public)
+            }
+            Text(privacyDescription).font(.caption).foregroundStyle(.secondary)
         case let .deletePlaylist(collection):
             Text("Delete “\(collection.title)” from YouTube Music? This cannot be undone.")
                 .fixedSize(horizontal: false, vertical: true)
@@ -215,6 +237,8 @@ struct LibraryEditorView: View {
                 return "Use a name of up to 150 characters without angle brackets or control characters."
             }
             if description.count > 5_000 { return "Keep the description within 5,000 characters." }
+        case .editDescription:
+            if description.count > 5_000 { return "Keep the description within 5,000 characters." }
         default: break
         }
         if request.tracks.count > 100 { return "Choose up to 100 songs for one change." }
@@ -234,6 +258,8 @@ struct LibraryEditorView: View {
         case let .renamePlaylist(collection):
             guard !cleanedTitle.isEmpty else { return nil }
             return .renamePlaylist(id: collection.id, title: cleanedTitle)
+        case let .editDescription(collection, _): return .setPlaylistDescription(id: collection.id, description: description)
+        case let .editPrivacy(collection, _): return .setPlaylistPrivacy(id: collection.id, privacy: privacy)
         case let .deletePlaylist(collection): return .deletePlaylist(id: collection.id)
         case let .addItems(tracks):
             guard !isLoadingPlaylists, playlists.contains(where: { $0.id == selectedPlaylistID }), !tracks.isEmpty else { return nil }
@@ -246,7 +272,7 @@ struct LibraryEditorView: View {
 
     private func submit() {
         guard let action, validationMessage == nil, !isSubmitting, !session.isEditingLibrary,
-              session.remoteLibraryEditingEnabled, session.libraryEditingScope == accountScope else { return }
+              session.canSubmitLibraryEdit(action), session.libraryEditingScope == accountScope else { return }
         let operationScope = accountScope
         isSubmitting = true
         errorMessage = nil

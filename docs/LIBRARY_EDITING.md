@@ -3,6 +3,8 @@
 Remote edits are disabled by default while signed-in verification is pending.
 Likes, dislikes, and playlist operations have independent capabilities in
 `MusicLibraryEditCapabilities`; enabling one does not enable the others.
+Description, privacy, and playlist order each have a separate capability. Enabling basic playlist edits leaves these
+additional operations disabled until their own signed-in checks pass.
 
 When enabled, song rating actions are available in the player, track menus,
 and queue menus. A song can be liked, disliked, neutral, or unknown. Like and
@@ -32,6 +34,25 @@ credential snapshot and before and after the request. Responses must confirm
 the requested operation; HTTP success alone does not establish success.
 Writes are never automatically repeated after a timeout, lost connection,
 server error, or uncertain result. Check the service before submitting again.
+
+## Playlist details and library membership
+
+When enabled, a playlist's actions menu offers description and visibility
+forms only when its current response grants permission and supplies the
+existing value. A known empty description can be cleared or replaced; a
+missing description remains unknown. Custom cover upload is not implemented.
+
+Move Up and Move Down operate on one service occurrence, including when a
+song appears more than once. They are available in the unfiltered service
+order through the song menu and accessibility actions. A move across the
+loaded-page boundary stays unavailable until its successor is loaded.
+The client checks current edit permission and occurrence membership across
+up to 100 pages and 10,000 occurrences before submission.
+
+These additional operations require both an explicit success response and a
+matching fresh service read before reporting success. Order readback checks
+the exact occurrence and successor. A failed or mismatched readback is uncertain
+and never repeats the write.
 
 ## Disposable playlist verification
 

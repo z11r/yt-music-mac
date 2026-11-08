@@ -338,6 +338,7 @@ private struct CollectionTracksView: View {
                         Button("Add Selected to Queue") { session.addToQueue(selectedTracks) }
                         LibraryTrackActions(session: session, tracks: selectedTracks, presentEditor: presentEditor)
                         removalAction(for: selection)
+                        reorderActions(for: selection)
                     } label: {
                         Label("Selected Songs", systemImage: "ellipsis.circle")
                     }
@@ -373,6 +374,7 @@ private struct CollectionTracksView: View {
                         Button("Start Radio") { session.startRadio(from: row.track) }
                         TrackRatingActions(session: session, track: row.track)
                         TrackMetadataActions(track: row.track, session: session)
+                        reorderActions(for: [row.id])
                     }
                 }.width(min: 190, ideal: 380)
                 TableColumn("Time") { row in
@@ -396,6 +398,7 @@ private struct CollectionTracksView: View {
                         TrackMetadataActions(track: track, session: session)
                     }
                     removalAction(for: ids)
+                    reorderActions(for: ids)
                 }
             } primaryAction: { ids in
                 if let first = rows.firstIndex(where: { ids.contains($0.id) }) {
@@ -449,21 +452,52 @@ private struct CollectionTracksView: View {
     }
 
     @ViewBuilder private var playlistActions: some View {
-        if session.remoteLibraryEditingEnabled,
+        if session.account.isSignedIn,
            case let .collection(playlist) = session.destination, playlist.kind == .playlist,
-           page.playlistCapabilities.canRename || page.playlistCapabilities.canDelete {
+           hasPlaylistMenuActions {
             Menu {
-                if page.playlistCapabilities.canRename {
+                if session.remoteLibraryEditingEnabled && page.playlistCapabilities.canRename {
                     Button("Rename Playlist…") { presentEditor(.renamePlaylist(playlist)) }
                 }
-                if page.playlistCapabilities.canDelete {
+                if session.remoteLibraryEditingEnabled && page.playlistCapabilities.canDelete {
                     Button("Delete Playlist…", role: .destructive) { presentEditor(.deletePlaylist(playlist)) }
+                }
+                if session.libraryEditCapabilities.playlistDescription && page.playlistCapabilities.canEditDescription,
+                   let description = page.playlistDetails?.description {
+                    Button("Edit Description…") { presentEditor(.editDescription(playlist, description: description)) }
+                }
+                if session.libraryEditCapabilities.playlistPrivacy && page.playlistCapabilities.canEditPrivacy,
+                   let privacy = page.playlistDetails?.privacy {
+                    Button("Edit Visibility…") { presentEditor(.editPrivacy(playlist, privacy: privacy)) }
                 }
             } label: {
                 Label("Playlist Actions", systemImage: "ellipsis.circle")
             }
             .labelStyle(.iconOnly).menuStyle(.borderlessButton).fixedSize()
             .disabled(session.isEditingLibrary).help("Playlist actions")
+        }
+    }
+
+    private var hasPlaylistMenuActions: Bool {
+        (session.remoteLibraryEditingEnabled && (page.playlistCapabilities.canRename || page.playlistCapabilities.canDelete)) ||
+        (session.libraryEditCapabilities.playlistDescription && page.playlistCapabilities.canEditDescription && page.playlistDetails?.description != nil) ||
+        (session.libraryEditCapabilities.playlistPrivacy && page.playlistCapabilities.canEditPrivacy && page.playlistDetails?.privacy != nil)
+    }
+
+    @ViewBuilder private func reorderActions(for ids: Set<Int>) -> some View {
+        if session.account.isSignedIn, session.libraryEditCapabilities.playlistReorder, page.playlistCapabilities.canReorder,
+           case let .collection(playlist) = session.destination, playlist.kind == .playlist,
+           ids.count == 1, let index = ids.first, page.playlistItems.count == allTracks.count {
+            let filtered = session.collectionDisplayOrder != .serviceOrder ||
+                !session.collectionFilter.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            if let action = PlaylistReorder.action(playlistID: playlist.id, index: index, direction: .up,
+                                                   items: page.playlistItems, hasMore: page.continuation != nil, isFiltered: filtered) {
+                Button("Move Up in Playlist") { session.submitLibraryEdit(action) }.disabled(session.isEditingLibrary)
+            }
+            if let action = PlaylistReorder.action(playlistID: playlist.id, index: index, direction: .down,
+                                                   items: page.playlistItems, hasMore: page.continuation != nil, isFiltered: filtered) {
+                Button("Move Down in Playlist") { session.submitLibraryEdit(action) }.disabled(session.isEditingLibrary)
+            }
         }
     }
 

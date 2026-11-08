@@ -242,6 +242,17 @@ final class AppSession {
         resumeState.position(for: queue, playerPosition: Double(player.clock.elapsedSeconds))
     }
     var remoteLibraryEditingEnabled: Bool { account.isSignedIn && client.libraryEditCapabilities.playlists }
+    var libraryEditCapabilities: MusicLibraryEditCapabilities { client.libraryEditCapabilities }
+    func canSubmitLibraryEdit(_ action: MusicLibraryEditAction) -> Bool {
+        account.isSignedIn && client.libraryEditCapabilities.allows(action)
+    }
+    func submitLibraryEdit(_ action: MusicLibraryEditAction) {
+        let scope = libraryEditingScope
+        Task { @MainActor [weak self] in
+            guard let self, self.libraryEditingScope == scope else { return }
+            _ = await self.performLibraryEdit(action)
+        }
+    }
     var hasRatingControls: Bool {
         account.isSignedIn && (client.libraryEditCapabilities.likes || client.libraryEditCapabilities.dislikes)
     }
@@ -515,7 +526,7 @@ final class AppSession {
         }
         do {
             let expectedScope = try await client.libraryEditScope()
-            if let target = LibraryEditPolicy.playlistID(for: action) {
+            if let target = LibraryEditPolicy.playlistID(for: action), !LibraryEditPolicy.usesClientPreflight(action) {
                 let targetPage = try await client.playlist(id: target)
                 guard LibraryEditPolicy.permits(action, capabilities: targetPage.playlistCapabilities) else {
                     throw MusicLibraryEditError.serviceRejected
@@ -555,6 +566,12 @@ final class AppSession {
             case let .itemsRemoved(playlistID, _):
                 libraryEditMessage = "Songs removed from the playlist."
                 if isCurrentPlaylist(playlistID) { reload() }
+            case let .playlistDescriptionChanged(playlistID), let .playlistPrivacyChanged(playlistID, _):
+                libraryEditMessage = "Playlist details updated. Reloading service details."
+                if isCurrentPlaylist(playlistID) { reload() }
+            case let .playlistItemMoved(playlistID, _, _):
+                libraryEditMessage = "Playlist order updated. Reloading service order."
+                if isCurrentPlaylist(playlistID) { reload() }
             }
             return true
         } catch {
@@ -562,6 +579,8 @@ final class AppSession {
             if error is CancellationError || error as? MusicLibraryEditError == .unconfirmedOutcome {
                 switch action {
                 case let .setLiked(videoID, _), let .setRating(videoID, _): songRatings.invalidate(videoID)
+                case .setPlaylistDescription, .setPlaylistPrivacy, .movePlaylistItem:
+                    if destination == startingDestination { reload() }
                 default: break
                 }
             }
