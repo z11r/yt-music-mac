@@ -111,6 +111,29 @@ struct VideoPresentationTests {
         #expect(presentation.message == nil)
     }
 
+    @Test func permanentOutputRevocationWaitsForCloseBeforeDetachingAndNeverRehostsTheRetiredView() {
+        let web = WKWebView(frame: .zero, configuration: configuration()), window = FixtureVideoWindow()
+        let presentation = VideoPresentationController(makeWindow: { _, _ in window })
+        let anchor = NSView(), replacementAnchor = NSView()
+        var mediaCloseRequests = 0
+        presentation.bind(view: { web }, hasSelection: { true }, execute: { _ in .unsupported },
+                          visibilityChanged: { _ in }, closeMedia: { mediaCloseRequests += 1 })
+        presentation.attachInline(anchor, visible: true); presentation.showWindow()
+        let host = presentation.host
+        #expect(host.superview === window.contentHost)
+        presentation.revokeOutputForRetirement()
+        presentation.close(); presentation.returnToMain(); presentation.showWindow()
+        presentation.detachInline(anchor); presentation.attachInline(replacementAnchor, visible: true)
+        #expect(host.superview === window.contentHost && web.superview === host && window.closed == 0)
+        #expect(mediaCloseRequests == 0 && !presentation.canRequestPictureInPicture)
+        // Inject the exact native media-close acknowledgment; no real presentation API is called.
+        presentation.completeOutputRetirement()
+        #expect(window.closed == 1 && !presentation.isWindowPresented && web.superview == nil)
+        presentation.accept(.init(hasVideo: true, supportsPictureInPicture: true))
+        presentation.webViewChanged(); presentation.attachInline(anchor, visible: true); presentation.showWindow()
+        #expect(host.superview == nil && web.superview == nil && !presentation.canRequestPictureInPicture)
+        #expect(mediaCloseRequests == 0 && window.shown == 1)
+    }
     @Test func optionalReplyCompletesOnceAndHasABoundedTimeout() async {
         let first = VideoPresentationReply()
         let result = await first.wait { finish in finish(.confirmed(active: true)); finish(.rejected) }

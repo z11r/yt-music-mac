@@ -24,6 +24,7 @@ final class VideoPresentationController {
     @ObservationIgnored var didReturnToMain: () -> Void = {}
     @ObservationIgnored private var observationID = UUID()
     @ObservationIgnored private var retirementID: UUID?
+    @ObservationIgnored private var outputRetired = false
     @ObservationIgnored private weak var inlineAnchor: NSView?
     @ObservationIgnored private var window: (any PlayerVideoWindow)?
     @ObservationIgnored private var viewProvider: () -> WKWebView? = { nil }
@@ -44,7 +45,7 @@ final class VideoPresentationController {
     }) { self.makeWindow = makeWindow }
 
     var canRequestPictureInPicture: Bool {
-        !isRequestPending && (capabilities.isPictureInPictureActive ||
+        !outputRetired && !isRequestPending && (capabilities.isPictureInPictureActive ||
             (capabilities.hasVideo && capabilities.supportsPictureInPicture))
     }
 
@@ -64,7 +65,7 @@ final class VideoPresentationController {
     func detachInline(_ anchor: NSView) {
         guard inlineAnchor === anchor else { return }
         inlineAnchor = nil
-        if !isWindowPresented { host.removeFromSuperview() }
+        if !outputRetired && !isWindowPresented { host.removeFromSuperview() }
         refreshVisibility()
     }
 
@@ -72,6 +73,7 @@ final class VideoPresentationController {
     func setStartingPlayback(_ value: Bool) { startingPlayback = value; refreshVisibility() }
 
     func webViewChanged() {
+        guard !outputRetired else { return }
         invalidate()
         if retirementID != nil { return }
         observationID = UUID()
@@ -113,6 +115,7 @@ final class VideoPresentationController {
     }
 
     func accept(_ snapshot: VideoPresentationSnapshot) {
+        guard !outputRetired else { return }
         if capabilities != snapshot { capabilities = snapshot }
         refreshVisibility()
     }
@@ -126,6 +129,7 @@ final class VideoPresentationController {
     }
 
     func showWindow(fullScreen: Bool = false) {
+        guard !outputRetired else { return }
         guard hasSelection(), viewProvider() != nil else { message = AppLocalization.text("Choose a song or video first."); return }
         guard !elementFullscreen else {
             message = AppLocalization.text("Exit the current full-screen presentation before moving the player.")
@@ -143,6 +147,7 @@ final class VideoPresentationController {
     }
 
     func returnToMain() {
+        guard !outputRetired else { return }
         // Element fullscreen belongs to WebKit until it restores its placeholder.
         guard !elementFullscreen else {
             message = AppLocalization.text("Exit the current full-screen presentation before moving the player.")
@@ -156,7 +161,23 @@ final class VideoPresentationController {
         placeHost(); refreshVisibility()
     }
 
+    /// Revoke controls now; keep WebKit's placeholder untouched until its exact close acknowledgment.
+    func revokeOutputForRetirement() {
+        outputRetired = true; observationID = UUID()
+        observation?.invalidate(); observation = nil
+        invalidate()
+    }
+    func completeOutputRetirement() {
+        guard outputRetired else { return }
+        retirementID = nil; elementFullscreen = false
+        let previous = window; window = nil; isWindowPresented = false
+        previous?.didClose = nil; previous?.close()
+        host.show(nil, hidden: true); host.removeFromSuperview()
+        visibilityChanged(false)
+    }
+
     func close() {
+        guard !outputRetired else { return }
         invalidate(); closeMedia()
         let previous = window
         window = nil; isWindowPresented = false
@@ -188,13 +209,14 @@ final class VideoPresentationController {
     }
 
     private func windowClosed() {
+        if outputRetired { window = nil; isWindowPresented = false; return }
         invalidate(); closeMedia()
         window = nil; isWindowPresented = false
         placeHost(); refreshVisibility()
     }
 
     private func placeHost() {
-        guard !elementFullscreen, retirementID == nil else { return }
+        guard !outputRetired, !elementFullscreen, retirementID == nil else { return }
         let destination = window?.contentHost ?? inlineAnchor
         if let destination, host.superview !== destination {
             host.removeFromSuperview(); host.frame = destination.bounds
@@ -203,6 +225,7 @@ final class VideoPresentationController {
     }
 
     private func refreshVisibility() {
+        guard !outputRetired else { visibilityChanged(false); return }
         let external = isWindowPresented || capabilities.isPictureInPictureActive || isRequestPending || elementFullscreen || retirementID != nil
         visibilityChanged(external)
         let hidden = !isWindowPresented && !inlineVisible && !startingPlayback && !capabilities.isPictureInPictureActive && !isRequestPending
