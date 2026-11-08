@@ -50,131 +50,132 @@ public final class URLSessionMusicTransport: NSObject, MusicHTTPTransport, @unch
         var request = request
         request.httpShouldHandleCookies = false
         request.cachePolicy = .reloadIgnoringLocalCacheData
-        let transfer = Transfer(maximumResponseBytes: transferDelegate.maximumResponseBytes)
-        return try await withTaskCancellationHandler {
-            try Task.checkCancellation()
-            let response: MusicHTTPResponse = try await withCheckedThrowingContinuation { continuation in
-                let task = session.dataTask(with: request)
-                transferDelegate.register(transfer, for: task)
-                if transfer.install(task: task, continuation: continuation) {
-                    task.resume()
-                } else {
-                    transferDelegate.remove(task)
-                    task.cancel()
-                }
-            }
-            try Task.checkCancellation()
-            return response
-        } onCancel: {
-            transfer.fail(CancellationError())
+        let transfer = MusicTransfer(maximumResponseBytes: transferDelegate.maximumResponseBytes)
+        let submitted = request
+        return try await transfer.response {
+            // This nonreentrant factory creates/registers a suspended task only.
+            // It cannot resume, cancel, perform I/O or call a transfer callback.
+            let task = self.session.dataTask(with: submitted)
+            self.transferDelegate.register(transfer, for: task)
+            return task
         }
     }
 
     deinit { session.invalidateAndCancel() }
 }
 
-/// URLSession delivers data in chunks. Locks protect registration/cancellation from delegate callbacks;
-/// neither continuations nor URLSession methods are invoked while a lock is held.
-private final class Transfer: @unchecked Sendable {
+/// Only suspended task creation/registration occurs inside the transfer lock.
+/// Resume, cancel, native completion and continuation callbacks occur outside it.
+protocol MusicTransportTask: AnyObject, Sendable {
+    var taskIdentifier: Int { get }
+    func resume()
+    func cancel()
+}
+extension URLSessionDataTask: MusicTransportTask {}
+
+final class MusicTransfer: @unchecked Sendable {
     private let lock = NSLock()
     private let maximumResponseBytes: Int
-    private var task: URLSessionDataTask?
+    private var task: (any MusicTransportTask)?
     private var continuation: CheckedContinuation<MusicHTTPResponse, any Error>?
     private var result: Result<MusicHTTPResponse, any Error>?
+    private var pendingFailure: (any Error)?
+    private var hasStarted = false
     private var response: HTTPURLResponse?
     private var data = Data()
+    var hasPendingTask: Bool { lock.withLock { task != nil } }
 
-    init(maximumResponseBytes: Int) { self.maximumResponseBytes = maximumResponseBytes }
+    init(maximumResponseBytes: Int) { precondition(maximumResponseBytes > 0); self.maximumResponseBytes = maximumResponseBytes }
 
-    func install(task: URLSessionDataTask, continuation: CheckedContinuation<MusicHTTPResponse, any Error>) -> Bool {
+    /// The injected factory is tiny and nonreentrant: creation/registration only,
+    /// with no task start, cancellation, native I/O or transfer callback.
+    func response(createTask: @escaping @Sendable () -> any MusicTransportTask) async throws -> MusicHTTPResponse {
+        return try await withTaskCancellationHandler {
+            try Task.checkCancellation()
+            let value: MusicHTTPResponse = try await withCheckedThrowingContinuation { continuation in
+                self.start(continuation: continuation, createTask: createTask)
+            }
+            try Task.checkCancellation()
+            return value
+        } onCancel: { self.fail(CancellationError()) }
+    }
+    private func start(continuation: CheckedContinuation<MusicHTTPResponse, any Error>, createTask: () -> any MusicTransportTask) {
         lock.lock()
-        if let result {
-            lock.unlock()
-            continuation.resume(with: result)
-            return false
+        guard !hasStarted else {
+            lock.unlock(); continuation.resume(throwing: MusicServiceError.invalidResponse); return
         }
-        self.task = task
-        self.continuation = continuation
+        hasStarted = true
+        if let pendingFailure {
+            result = .failure(pendingFailure)
+            lock.unlock(); continuation.resume(throwing: pendingFailure); return
+        }
+        // Creation is atomic with cancellation admission. The task remains
+        // suspended until registration and this lock have both been released.
+        let task = createTask()
+        self.task = task; self.continuation = continuation
         lock.unlock()
-        return true
+        task.resume()
     }
 
     func receive(_ response: URLResponse) -> Bool {
         guard let response = response as? HTTPURLResponse,
               response.expectedContentLength <= Int64(maximumResponseBytes) else {
-            fail(MusicServiceError.invalidResponse)
-            return false
+            fail(MusicServiceError.invalidResponse); return false
         }
         lock.lock()
-        guard result == nil else { lock.unlock(); return false }
+        guard result == nil, pendingFailure == nil else { lock.unlock(); return false }
         self.response = response
-        if response.expectedContentLength > 0 {
-            data.reserveCapacity(min(Int(response.expectedContentLength), 256 * 1024))
-        }
-        lock.unlock()
-        return true
+        if response.expectedContentLength > 0 { data.reserveCapacity(min(Int(response.expectedContentLength), 256 * 1024)) }
+        lock.unlock(); return true
     }
-
     func append(_ chunk: Data) {
         lock.lock()
-        guard result == nil else { lock.unlock(); return }
+        guard result == nil, pendingFailure == nil else { lock.unlock(); return }
         guard chunk.count <= maximumResponseBytes - data.count else {
-            lock.unlock()
-            fail(MusicServiceError.invalidResponse)
-            return
+            lock.unlock(); fail(MusicServiceError.invalidResponse); return
         }
-        data.append(chunk)
-        lock.unlock()
+        data.append(chunk); lock.unlock()
     }
 
-    func complete(error: (any Error)?) {
-        if let error { fail(error); return }
+    /// The delegate removes this exact task from its registry before calling here.
+    /// A timeout/cancel request is never a substitute for the native completion.
+    func complete(taskIdentifier: Int, error: (any Error)?) {
         lock.lock()
-        guard result == nil else { lock.unlock(); return }
-        guard let response else {
-            lock.unlock()
-            fail(MusicServiceError.invalidResponse)
-            return
-        }
-        var headers: [String: String] = [:]
-        for (key, value) in response.allHeaderFields {
-            if let key = key as? String, let value = value as? String { headers[key.lowercased()] = value }
-        }
-        let completed = MusicHTTPResponse(data: data, statusCode: response.statusCode, headers: headers)
+        guard result == nil, task?.taskIdentifier == taskIdentifier else { lock.unlock(); return }
+        let completed: Result<MusicHTTPResponse, any Error>
+        if let error = pendingFailure ?? error { completed = .failure(error) }
+        else if let response {
+            var headers: [String: String] = [:]
+            for (key, value) in response.allHeaderFields {
+                if let key = key as? String, let value = value as? String { headers[key.lowercased()] = value }
+            }
+            completed = .success(.init(data: data, statusCode: response.statusCode, headers: headers))
+        } else { completed = .failure(MusicServiceError.invalidResponse) }
         let continuation = self.continuation
-        result = .success(completed)
-        self.continuation = nil
-        task = nil
-        self.response = nil
-        data = Data()
-        lock.unlock()
-        continuation?.resume(returning: completed)
+        result = completed; self.continuation = nil; task = nil
+        pendingFailure = nil; self.response = nil; data = Data()
+        lock.unlock(); continuation?.resume(with: completed)
     }
-
     func fail(_ error: any Error) {
         lock.lock()
-        guard result == nil else { lock.unlock(); return }
-        result = .failure(error)
+        guard result == nil, pendingFailure == nil else { lock.unlock(); return }
+        pendingFailure = error
         let task = self.task
-        let continuation = self.continuation
-        self.task = nil
-        self.continuation = nil
-        response = nil
-        data = Data()
+        response = nil; data = Data()
         lock.unlock()
+        // Keep task, continuation and caller admission until exact didComplete.
         task?.cancel()
-        continuation?.resume(throwing: error)
     }
 }
 
 private final class TransferDelegate: NSObject, URLSessionDataDelegate, @unchecked Sendable {
     let maximumResponseBytes: Int
     private let lock = NSLock()
-    private var transfers: [Int: Transfer] = [:]
+    private var transfers: [Int: MusicTransfer] = [:]
 
     init(maximumResponseBytes: Int) { self.maximumResponseBytes = maximumResponseBytes }
 
-    func register(_ transfer: Transfer, for task: URLSessionTask) {
+    func register(_ transfer: MusicTransfer, for task: URLSessionTask) {
         lock.lock()
         transfers[task.taskIdentifier] = transfer
         lock.unlock()
@@ -186,7 +187,7 @@ private final class TransferDelegate: NSObject, URLSessionDataDelegate, @uncheck
         lock.unlock()
     }
 
-    private func transfer(for task: URLSessionTask) -> Transfer? {
+    private func transfer(for task: URLSessionTask) -> MusicTransfer? {
         lock.lock()
         defer { lock.unlock() }
         return transfers[task.taskIdentifier]
@@ -204,7 +205,7 @@ private final class TransferDelegate: NSObject, URLSessionDataDelegate, @uncheck
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: (any Error)?) {
         let transfer = transfer(for: task)
         remove(task)
-        transfer?.complete(error: error)
+        transfer?.complete(taskIdentifier: task.taskIdentifier, error: error)
     }
 
     func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
