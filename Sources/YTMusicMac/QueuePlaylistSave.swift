@@ -25,12 +25,12 @@ private enum QueuePlaylistSaveError: Error, LocalizedError {
     case unavailable, accountChanged, stopped, unknownCreate, uncertainBatch, changedPlaylist
     var errorDescription: String? {
         switch self {
-        case .unavailable: "Service playlist saving is not enabled in this build. Local saved queues remain available."
-        case .accountChanged: "The confirmed account or session changed. The pending save has been kept for its original account."
-        case .stopped: "Stopped after the current request. The playlist and pending save record have been kept."
-        case .unknownCreate: "A playlist creation may already have succeeded, but no target was confirmed. Review YouTube Music manually before forgetting this record. Another playlist will not be created automatically."
-        case .uncertainBatch: "The last song batch is not fully confirmed. Recheck later; it will not be resent while its outcome is uncertain."
-        case .changedPlaylist: "The playlist's details, permissions, order or occurrences differ from this save. No further songs were written. Review the existing playlist manually."
+        case .unavailable: AppLocalization.text("Service playlist saving is not enabled in this build. Local saved queues remain available.")
+        case .accountChanged: AppLocalization.text("The confirmed account or session changed. The pending save has been kept for its original account.")
+        case .stopped: AppLocalization.text("Stopped after the current request. The playlist and pending save record have been kept.")
+        case .unknownCreate: AppLocalization.text("A playlist creation may already have succeeded, but no target was confirmed. Review YouTube Music manually before forgetting this record. Another playlist will not be created automatically.")
+        case .uncertainBatch: AppLocalization.text("The last song batch is not fully confirmed. Recheck later; it will not be resent while its outcome is uncertain.")
+        case .changedPlaylist: AppLocalization.text("The playlist's details, permissions, order or occurrences differ from this save. No further songs were written. Review the existing playlist manually.")
         }
     }
 }
@@ -66,7 +66,7 @@ final class QueuePlaylistSave {
     }
     func cancel() {
         if isWorking || operationTask != nil {
-            stopRequested = true; readTask?.cancel(); statusMessage = "Stopping after the current request…"
+            stopRequested = true; readTask?.cancel(); statusMessage = AppLocalization.text("Stopping after the current request…")
         }
     }
 
@@ -121,7 +121,7 @@ final class QueuePlaylistSave {
             try await store.forget(id: operationID, revision: revision, lease: acquired)
             if scope == expectedScope {
                 pending = nil; review = nil; knownTargetID = nil; errorMessage = nil
-                statusMessage = "Local record removed. Any service playlist remains. Close this review before starting another."
+                statusMessage = AppLocalization.text("Local record removed. Any service playlist remains. Close this review before starting another.")
             }
         } catch { if scope == expectedScope { errorMessage = error.localizedDescription } }
         if let lease { await store.release(lease) }
@@ -131,7 +131,7 @@ final class QueuePlaylistSave {
     private func run(expectedScope: UUID, newPlan: QueuePlaylistPlan?, recheckOnly: Bool) async {
         guard scope == expectedScope, !isWorking else { return }
         guard canWrite, let store, let key = ownerKey else { errorMessage = QueuePlaylistSaveError.unavailable.localizedDescription; return }
-        isWorking = true; errorMessage = nil; statusMessage = "Checking the reviewed save…"
+        isWorking = true; errorMessage = nil; statusMessage = AppLocalization.text("Checking the reviewed save…")
         var fileLease: QueuePlaylistJournalLease?
         var serviceLease: UUID?
         do {
@@ -148,7 +148,7 @@ final class QueuePlaylistSave {
             }
             publish(record, expectedScope: expectedScope)
             if record.phase == .creating { throw QueuePlaylistSaveError.unknownCreate }
-            if record.phase == .completed { statusMessage = "This save was already confirmed complete." }
+            if record.phase == .completed { statusMessage = AppLocalization.text("This save was already confirmed complete.") }
             else {
                 try await fresh(key: key, nonce: session.scope, expectedScope: expectedScope)
                 let token = try await service.beginQueuePlaylistSave(expectedScope: session.scope); serviceLease = token
@@ -196,7 +196,7 @@ final class QueuePlaylistSave {
                         record = try await reconcile(record, key: key, nonce: session.scope, token: token, lease: acquired, expectedScope: expectedScope)
                     }
                 }
-                if scope == expectedScope { statusMessage = record.phase == .completed ? "All reviewed songs were confirmed in the private playlist." : "The exact saved prefix is confirmed. Continue only when ready to write the remaining songs." }
+                if scope == expectedScope { statusMessage = record.phase == .completed ? AppLocalization.text("All reviewed songs were confirmed in the private playlist.") : AppLocalization.text("The exact saved prefix is confirmed. Continue only when ready to write the remaining songs.") }
             }
         } catch { if scope == expectedScope { errorMessage = error.localizedDescription; statusMessage = nil } }
         if let serviceLease { await service.endQueuePlaylistSave(token: serviceLease) }
@@ -208,7 +208,7 @@ final class QueuePlaylistSave {
                            expectedScope: UUID) async throws -> QueuePlaylistPending {
         try await fresh(key: key, nonce: nonce, expectedScope: expectedScope)
         guard let target = record.targetID else { throw QueuePlaylistSaveError.unknownCreate }
-        if scope == expectedScope { statusMessage = "Reading back the exact playlist order…" }
+        if scope == expectedScope { statusMessage = AppLocalization.text("Reading back the exact playlist order…") }
         let task = Task { try await service.readQueuePlaylist(id: target, token: token, expectedScope: nonce) }
         readTask = task
         defer { readTask = nil }

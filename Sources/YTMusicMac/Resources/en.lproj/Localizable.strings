@@ -7,16 +7,21 @@
 "%@, %@" = "%@, %@";
 "%@, %@%@%@" = "%@, %@%@%@";
 "%@×" = "%@×";
+"%lld" = "%lld";
 "%lld Minutes" = "%lld Minutes";
 "%lld catalog collections" = "%lld catalog collections";
+"%lld entries" = "%lld entries";
 "%lld episodes" = "%lld episodes";
 "%lld episodes loaded" = "%lld episodes loaded";
 "%lld hours" = "%lld hours";
 "%lld matching captured songs" = "%lld matching captured songs";
 "%lld matching loaded library collections" = "%lld matching loaded library collections";
 "%lld of %lld" = "%lld of %lld";
+"%lld of %lld entries" = "%lld of %lld entries";
+"%lld of %lld song entries confirmed · Last recorded %@" = "%lld of %lld song entries confirmed · Last recorded %@";
 "%lld of %lld songs" = "%lld of %lld songs";
 "%lld percent" = "%lld percent";
+"%lld reviewed song entries · Requested privacy: Private" = "%lld reviewed song entries · Requested privacy: Private";
 "%lld seconds" = "%lld seconds";
 "%lld song entries from “%@” · %@" = "%lld song entries from “%@” · %@";
 "%lld songs" = "%lld songs";
@@ -34,6 +39,8 @@
 "48 MiB · 160 images" = "48 MiB · 160 images";
 "A newer playback or account action replaced this request." = "A newer playback or account action replaced this request.";
 "A newer playback, navigation, or account action replaced this request." = "A newer playback, navigation, or account action replaced this request.";
+"A playlist creation may already have succeeded, but no target was confirmed. Review YouTube Music manually before forgetting this record. Another playlist will not be created automatically." = "A playlist creation may already have succeeded, but no target was confirmed. Review YouTube Music manually before forgetting this record. Another playlist will not be created automatically.";
+"A playlist target was returned but could not be durably recorded. Keep this window available to review the existing playlist before forgetting the local record." = "A playlist target was returned but could not be durably recorded. Keep this window available to review the existing playlist before forgetting the local record.";
 "Account" = "Account";
 "Account Closed" = "Account Closed";
 "Account changes, sign-out and turning this off remove this app's indexed library metadata. Spotlight storage is managed separately from the app's artwork and metadata caches." = "Account changes, sign-out and turning this off remove this app's indexed library metadata. Spotlight storage is managed separately from the app's artwork and metadata caches.";
@@ -56,6 +63,8 @@
 "All" = "All";
 "All chosen criteria must match. Save edits before applying a filter. Results include only collection metadata already loaded from Library." = "All chosen criteria must match. Save edits before applying a filter. Results include only collection metadata already loaded from Library.";
 "All conditions" = "All conditions";
+"All reviewed song entries were confirmed. The playlist is kept when this local record is cleared." = "All reviewed song entries were confirmed. The playlist is kept when this local record is cleared.";
+"All reviewed songs were confirmed in the private playlist." = "All reviewed songs were confirmed in the private playlist.";
 "Allow duplicate songs" = "Allow duplicate songs";
 "Allow this login item in System Settings to finish enabling it." = "Allow this login item in System Settings to finish enabling it.";
 "An empty description removes the existing description." = "An empty description removes the existing description.";
@@ -90,6 +99,7 @@
 "Capture All Loaded Songs" = "Capture All Loaded Songs";
 "Captured while source loading was in progress" = "Captured while source loading was in progress";
 "Checking account" = "Checking account";
+"Checking the reviewed save…" = "Checking the reviewed save…";
 "Choose AirPlay speakers or another audio output." = "Choose AirPlay speakers or another audio output.";
 "Choose Audio Output" = "Choose Audio Output";
 "Choose Command or Control with a key. Standard Mac and app combinations stay reserved. Play/Pause can keep its default Space key." = "Choose Command or Control with a key. Standard Mac and app combinations stay reserved. Play/Pause can keep its default Space key.";
@@ -105,6 +115,7 @@
 "Clear Artwork Cache" = "Clear Artwork Cache";
 "Clear Cached Artwork…" = "Clear Cached Artwork…";
 "Clear Captured Songs" = "Clear Captured Songs";
+"Clear Completed Local Record…" = "Clear Completed Local Record…";
 "Clear Filter" = "Clear Filter";
 "Clear Library Metadata Cache…" = "Clear Library Metadata Cache…";
 "Clear Metadata Cache" = "Clear Metadata Cache";
@@ -121,6 +132,7 @@
 "Community Playlists" = "Community Playlists";
 "Complete sign-in on Google's page below." = "Complete sign-in on Google's page below.";
 "Condition" = "Condition";
+"Continue Reviewed Save" = "Continue Reviewed Save";
 "Control" = "Control";
 "Copy Link" = "Copy Link";
 "Could Not Open Music Link" = "Could Not Open Music Link";
@@ -134,7 +146,12 @@
 "Create" = "Create";
 "Create Filter" = "Create Filter";
 "Create Playlist" = "Create Playlist";
+"Create Private Playlist" = "Create Private Playlist";
+"Create Private Playlist…" = "Create Private Playlist…";
+"Create Reviewed Playlist…" = "Create Reviewed Playlist…";
 "Create Tag" = "Create Tag";
+"Create the reviewed private playlist?" = "Create the reviewed private playlist?";
+"Creation may have succeeded without returning a confirmed playlist ID. Review your service library manually. This save will not create another playlist automatically." = "Creation may have succeeded without returning a confirmed playlist ID. Review your service library manually. This save will not create another playlist automatically.";
 "Current lyric" = "Current lyric";
 "Current queue" = "Current queue";
 "Current song" = "Current song";
@@ -202,6 +219,9 @@
 "Finished" = "Finished";
 "Follow Artist" = "Follow Artist";
 "Follow Playback" = "Follow Playback";
+"Forget Local Record" = "Forget Local Record";
+"Forget Local Record…" = "Forget Local Record…";
+"Forget this local pending-save record?" = "Forget this local pending-save record?";
 "Forward" = "Forward";
 "Forward %lld seconds" = "Forward %lld seconds";
 "Full Screen Player" = "Full Screen Player";
@@ -215,6 +235,7 @@
 "Import Metadata…" = "Import Metadata…";
 "Import song information and links as a new local saved queue." = "Import song information and links as a new local saved queue.";
 "Keep Mini Player on Top" = "Keep Mini Player on Top";
+"Keep Record" = "Keep Record";
 "Keep the description within 5,000 characters." = "Keep the description within 5,000 characters.";
 "Key" = "Key";
 "Keyboard" = "Keyboard";
@@ -256,6 +277,7 @@
 "Local episode progress could not be loaded. Existing data has been retained." = "Local episode progress could not be loaded. Existing data has been retained.";
 "Local episode progress could not be saved." = "Local episode progress could not be saved.";
 "Local folder" = "Local folder";
+"Local record removed. Any service playlist remains. Close this review before starting another." = "Local record removed. Any service playlist remains. Close this review before starting another.";
 "Local saved queue storage is unavailable." = "Local saved queue storage is unavailable.";
 "Local song-rule name" = "Local song-rule name";
 "Local song-rule storage is unavailable." = "Local song-rule storage is unavailable.";
@@ -318,6 +340,8 @@
 "Open" = "Open";
 "Open %@" = "Open %@";
 "Open Account" = "Open Account";
+"Open Existing Playlist" = "Open Existing Playlist";
+"Open Library to Review" = "Open Library to Review";
 "Open Login Items Settings" = "Open Login Items Settings";
 "Open Main Window" = "Open Main Window";
 "Open Mini-Player" = "Open Mini-Player";
@@ -387,6 +411,7 @@
 "Podcasts" = "Podcasts";
 "Previous Song" = "Previous Song";
 "Private" = "Private";
+"Private playlist title" = "Private playlist title";
 "Provided by YouTube Music" = "Provided by YouTube Music";
 "Public" = "Public";
 "Queue" = "Queue";
@@ -396,8 +421,11 @@
 "Rating unknown" = "Rating unknown";
 "Read Saved Library Metadata" = "Read Saved Library Metadata";
 "Read-only names from the library collections loaded at that time. Listening requires a connection." = "Read-only names from the library collections loaded at that time. Listening requires a connection.";
+"Reading back the exact playlist order…" = "Reading back the exact playlist order…";
+"Reading the local pending record…" = "Reading the local pending record…";
 "Recent Searches" = "Recent Searches";
 "Recent searches from this app session" = "Recent searches from this app session";
+"Recheck Only" = "Recheck Only";
 "Refresh" = "Refresh";
 "Refresh Library" = "Refresh Library";
 "Refresh Usage" = "Refresh Usage";
@@ -436,6 +464,7 @@
 "Retry" = "Retry";
 "Retry Playback" = "Retry Playback";
 "Return to Main Window" = "Return to Main Window";
+"Review the entire captured queue in order, including repeated songs. The requested service playlist is private. Your playback queue stays available." = "Review the entire captured queue in order, including repeated songs. The requested service playlist is private. Your playback queue stays available.";
 "Right Arrow" = "Right Arrow";
 "Rules evaluate this account's captured song metadata on this Mac. Every rule uses the same dated snapshot of loaded songs." = "Rules evaluate this account's captured song metadata on this Mac. Every rule uses the same dated snapshot of loaded songs.";
 "Save" = "Save";
@@ -444,6 +473,8 @@
 "Save Description" = "Save Description";
 "Save Filter" = "Save Filter";
 "Save Name" = "Save Name";
+"Save Queue as Playlist" = "Save Queue as Playlist";
+"Save Queue as Playlist…" = "Save Queue as Playlist…";
 "Save Rule" = "Save Rule";
 "Save Tag" = "Save Tag";
 "Save Visibility" = "Save Visibility";
@@ -480,6 +511,8 @@
 "Select the next song in the current queue." = "Select the next song in the current queue.";
 "Selected Songs" = "Selected Songs";
 "Service Order" = "Service Order";
+"Service playlist saving is not enabled in this build. Local saved queues remain available." = "Service playlist saving is not enabled in this build. Local saved queues remain available.";
+"Service playlist writing is not enabled in this build. Local saved queues and metadata export remain available." = "Service playlist writing is not enabled in this build. Local saved queues and metadata export remain available.";
 "Set Music Volume" = "Set Music Volume";
 "Set Volume" = "Set Volume";
 "Set the app's volume from 0 to 100 percent without changing the Mac's system volume." = "Set the app's volume from 0 to 100 percent without changing the Mac's system volume.";
@@ -504,6 +537,7 @@
 "Shuffle All" = "Shuffle All";
 "Sign In" = "Sign In";
 "Sign In to Organize Collections" = "Sign In to Organize Collections";
+"Sign In to Review This Account's Queue" = "Sign In to Review This Account's Queue";
 "Sign In to Use Local Song Rules" = "Sign In to Use Local Song Rules";
 "Sign In to Use Saved Queues" = "Sign In to Use Saved Queues";
 "Sign Out" = "Sign Out";
@@ -537,6 +571,7 @@
 "Songs added to the playlist." = "Songs added to the playlist.";
 "Songs in %@" = "Songs in %@";
 "Songs removed from the playlist." = "Songs removed from the playlist.";
+"Songs will be added in batches of at most 100 and read back in the reviewed order. The captured queue is fixed for this save." = "Songs will be added in batches of at most 100 and read back in the reviewed order. The captured queue is fixed for this save.";
 "Sort Loaded Items" = "Sort Loaded Items";
 "Sort Loaded Songs" = "Sort Loaded Songs";
 "Sorts loaded library items. Load More adds additional items." = "Sorts loaded library items. Load More adds additional items.";
@@ -548,6 +583,11 @@
 "Start Radio" = "Start Radio";
 "Starting radio…" = "Starting radio…";
 "Startup" = "Startup";
+"Stop After Current Request" = "Stop After Current Request";
+"Stopped after the current request. The playlist and pending save record have been kept." = "Stopped after the current request. The playlist and pending save record have been kept.";
+"Stopping after the current request…" = "Stopping after the current request…";
+"Stopping keeps any created playlist. Uncertain batches are rechecked rather than resent; no partial playlist is deleted automatically." = "Stopping keeps any created playlist. Uncertain batches are rechecked rather than resent; no partial playlist is deleted automatically.";
+"Stopping…" = "Stopping…";
 "Storage" = "Storage";
 "Stored on this Mac for the signed-in account. Opening replaces the current queue without starting playback." = "Stored on this Mac for the signed-in account. Opening replaces the current queue without starting playback.";
 "Stored on this Mac for this account. Filters match library collections currently loaded; Load More includes more collections." = "Stored on this Mac for this account. Filters match library collections currently loaded; Load More includes more collections.";
@@ -562,7 +602,10 @@
 "The account changed. Open local collection organization again." = "The account changed. Open local collection organization again.";
 "The change was interrupted. Check your library before trying again." = "The change was interrupted. Check your library before trying again.";
 "The change was not confirmed. Check your library before trying again." = "The change was not confirmed. Check your library before trying again.";
+"The confirmed account or session changed. The pending save has been kept for its original account." = "The confirmed account or session changed. The pending save has been kept for its original account.";
 "The disposable playlist check could not complete. Check its cleanup status before trying again." = "The disposable playlist check could not complete. Check its cleanup status before trying again.";
+"The exact saved prefix is confirmed. Continue only when ready to write the remaining songs." = "The exact saved prefix is confirmed. Continue only when ready to write the remaining songs.";
+"The last song batch is not fully confirmed. Recheck later; it will not be resent while its outcome is uncertain." = "The last song batch is not fully confirmed. Recheck later; it will not be resent while its outcome is uncertain.";
 "The library check timed out." = "The library check timed out.";
 "The linked song could not be opened. Your existing queue has been kept." = "The linked song could not be opened. Your existing queue has been kept.";
 "The login item could not be changed. Check Login Items in System Settings." = "The login item could not be changed. Check Login Items in System Settings.";
@@ -571,6 +614,7 @@
 "The player could not load its playback controls. Reinstall the app and try again." = "The player could not load its playback controls. Reinstall the app and try again.";
 "The player is not ready. Wait for the app to finish opening." = "The player is not ready. Wait for the app to finish opening.";
 "The player stopped responding. Try loading the song again." = "The player stopped responding. Try loading the song again.";
+"The playlist's details, permissions, order or occurrences differ from this save. No further songs were written. Review the existing playlist manually." = "The playlist's details, permissions, order or occurrences differ from this save. No further songs were written. Review the existing playlist manually.";
 "The queue cannot be saved because application storage is unavailable." = "The queue cannot be saved because application storage is unavailable.";
 "The queue could not be saved. Playback can continue." = "The queue could not be saved. Playback can continue.";
 "The read-only library snapshot will be removed. Queue files, local organization and your sign-in session stay available." = "The read-only library snapshot will be removed. Queue files, local organization and your sign-in session stay available.";
@@ -579,6 +623,7 @@
 "The saved queue could not be removed. Try signing out again." = "The saved queue could not be removed. Try signing out again.";
 "The saved queue could not be restored. You can start a new queue." = "The saved queue could not be restored. You can start a new queue.";
 "The selected song no longer matches the playback request." = "The selected song no longer matches the playback request.";
+"The service playlist will remain. Review YouTube Music first: forgetting an uncertain create record permits a later save to create another playlist." = "The service playlist will remain. Review YouTube Music first: forgetting an uncertain create record permits a later save to create another playlist.";
 "The shared captured-song snapshot and your YouTube Music library stay available." = "The shared captured-song snapshot and your YouTube Music library stay available.";
 "The snapshot includes the first 2,000 loaded collections." = "The snapshot includes the first 2,000 loaded collections.";
 "The song lookup timed out." = "The song lookup timed out.";
@@ -598,6 +643,7 @@
 "This recording may be instrumental, or YouTube Music may not supply its lyrics." = "This recording may be instrumental, or YouTube Music may not supply its lyrics.";
 "This removes the tag from local collection bookmarks. Saved filters using it must be updated or deleted first." = "This removes the tag from local collection bookmarks. Saved filters using it must be updated or deleted first.";
 "This removes this app's library metadata from Spotlight. Saved queues, local organization, caches and your sign-in session stay available." = "This removes this app's library metadata from Spotlight. Saved queues, local organization, caches and your sign-in session stay available.";
+"This save was already confirmed complete." = "This save was already confirmed complete.";
 "This saved queue could not be opened. The current queue has been kept." = "This saved queue could not be opened. The current queue has been kept.";
 "This selection includes repeated songs. Allow duplicates to add every occurrence." = "This selection includes repeated songs. Allow duplicates to add every occurrence.";
 "This shortcut is already assigned to %@. Change or disable that binding first." = "This shortcut is already assigned to %@. Change or disable that binding first.";
@@ -623,6 +669,7 @@
 "Unmute" = "Unmute";
 "Unpin Locally" = "Unpin Locally";
 "Until %@" = "Until %@";
+"Untitled song" = "Untitled song";
 "Up Arrow" = "Up Arrow";
 "Updating Spotlight…" = "Updating Spotlight…";
 "Updating your library…" = "Updating your library…";

@@ -50,6 +50,22 @@
 			<string>%lld collections du catalogue</string>
 		</dict>
 	</dict>
+	<key>%lld entries</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@songs@</string>
+		<key>songs</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>%lld élément</string>
+			<key>other</key>
+			<string>%lld éléments</string>
+		</dict>
+	</dict>
 	<key>%lld episodes</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -130,6 +146,38 @@
 			<string>%lld collections chargées correspondantes</string>
 		</dict>
 	</dict>
+	<key>%lld of %lld entries</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%1$lld sur %2$#@songs@</string>
+		<key>songs</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>%lld élément</string>
+			<key>other</key>
+			<string>%lld éléments</string>
+		</dict>
+	</dict>
+	<key>%lld of %lld song entries confirmed · Last recorded %@</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%1$lld sur %2$#@songs@ · Dernier enregistrement : %3$@</string>
+		<key>songs</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>%lld entrée de titre confirmée</string>
+			<key>other</key>
+			<string>%lld entrées de titres confirmées</string>
+		</dict>
+	</dict>
 	<key>%lld of %lld songs</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -144,6 +192,22 @@
 			<string>%lld titre</string>
 			<key>other</key>
 			<string>%lld titres</string>
+		</dict>
+	</dict>
+	<key>%lld reviewed song entries · Requested privacy: Private</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@songs@</string>
+		<key>songs</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>%lld entrée de titre examinée · Confidentialité demandée : privée</string>
+			<key>other</key>
+			<string>%lld entrées de titres examinées · Confidentialité demandée : privée</string>
 		</dict>
 	</dict>
 	<key>%lld seconds</key>

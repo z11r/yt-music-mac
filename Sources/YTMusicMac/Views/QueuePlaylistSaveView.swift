@@ -63,8 +63,8 @@ struct QueuePlaylistSaveView: View {
                     HStack(alignment: .firstTextBaseline, spacing: 12) {
                         Text("\(index + 1)").monospacedDigit().foregroundStyle(.secondary).frame(width: 40, alignment: .trailing)
                         VStack(alignment: .leading, spacing: 3) {
-                            Text(song.title.isEmpty ? "Untitled song" : song.title).lineLimit(1)
-                            Text(song.artist.isEmpty ? "Unknown artist" : song.artist).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                            Text(song.title.isEmpty ? AppLocalization.text("Untitled song") : song.title).lineLimit(1)
+                            Text(song.artist.isEmpty ? AppLocalization.text("Unknown artist") : song.artist).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                         }
                     }
                 }

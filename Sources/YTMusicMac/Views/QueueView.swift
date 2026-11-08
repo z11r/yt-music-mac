@@ -31,7 +31,7 @@ struct QueueView: View {
             HStack(alignment: .firstTextBaseline) {
                 Text("Queue").font(.title2.bold()).accessibilityAddTraits(.isHeader)
                 Spacer()
-                Text(isFiltering ? "\(rows.count) of \(session.queue.entries.count) songs" : "\(session.queue.entries.count) songs")
+                Text(isFiltering ? "\(rows.count) of \(session.queue.entries.count) entries" : "\(session.queue.entries.count) entries")
                     .font(.subheadline).foregroundStyle(.secondary)
             }
             .padding(16)

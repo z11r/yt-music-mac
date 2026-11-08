@@ -7,16 +7,21 @@
 "%@, %@" = "%@, %@";
 "%@, %@%@%@" = "%@, %@%@%@";
 "%@×" = "%@×";
+"%lld" = "%lld";
 "%lld Minutes" = "%lld minutes";
 "%lld catalog collections" = "%lld collections du catalogue";
+"%lld entries" = "%lld éléments";
 "%lld episodes" = "%lld épisodes";
 "%lld episodes loaded" = "%lld épisodes chargés";
 "%lld hours" = "%lld heures";
 "%lld matching captured songs" = "%lld titres capturés correspondants";
 "%lld matching loaded library collections" = "%lld collections chargées correspondantes";
 "%lld of %lld" = "%lld sur %lld";
+"%lld of %lld entries" = "%lld sur %lld éléments";
+"%lld of %lld song entries confirmed · Last recorded %@" = "%lld sur %lld entrées de titres confirmées · Dernier enregistrement : %@";
 "%lld of %lld songs" = "%lld sur %lld titres";
 "%lld percent" = "%lld pour cent";
+"%lld reviewed song entries · Requested privacy: Private" = "%lld entrées de titres examinées · Confidentialité demandée : privée";
 "%lld seconds" = "%lld secondes";
 "%lld song entries from “%@” · %@" = "%lld entrées de titres de « %@ » · %@";
 "%lld songs" = "%lld titres";
@@ -34,6 +39,8 @@
 "48 MiB · 160 images" = "48 Mio · 160 images";
 "A newer playback or account action replaced this request." = "Une nouvelle action de lecture ou de compte a remplacé cette demande.";
 "A newer playback, navigation, or account action replaced this request." = "Une nouvelle action de lecture, de navigation ou de compte a remplacé cette demande.";
+"A playlist creation may already have succeeded, but no target was confirmed. Review YouTube Music manually before forgetting this record. Another playlist will not be created automatically." = "La création d’une playlist a peut-être déjà abouti, mais aucune destination n’a été confirmée. Vérifiez vous-même YouTube Music avant d’oublier cet enregistrement. Aucune autre playlist ne sera créée automatiquement.";
+"A playlist target was returned but could not be durably recorded. Keep this window available to review the existing playlist before forgetting the local record." = "Une playlist a été renvoyée, mais sa référence n’a pas pu être enregistrée durablement. Gardez cette fenêtre ouverte pour examiner la playlist existante avant d’oublier l’enregistrement local.";
 "Account" = "Compte";
 "Account Closed" = "Compte fermé";
 "Account changes, sign-out and turning this off remove this app's indexed library metadata. Spotlight storage is managed separately from the app's artwork and metadata caches." = "Changer de compte, se déconnecter ou désactiver cette option supprime les métadonnées de bibliothèque indexées par cette app. Le stockage Spotlight est géré séparément des caches d’illustrations et de métadonnées de l’app.";
@@ -56,6 +63,8 @@
 "All" = "Tout";
 "All chosen criteria must match. Save edits before applying a filter. Results include only collection metadata already loaded from Library." = "Tous les critères choisis doivent correspondre. Enregistrez les modifications avant d’appliquer un filtre. Les résultats incluent uniquement les métadonnées de collections déjà chargées depuis la bibliothèque.";
 "All conditions" = "Toutes les conditions";
+"All reviewed song entries were confirmed. The playlist is kept when this local record is cleared." = "Toutes les entrées de titres examinées ont été confirmées. La playlist est conservée lorsque cet enregistrement local est effacé.";
+"All reviewed songs were confirmed in the private playlist." = "Tous les titres examinés ont été confirmés dans la playlist privée.";
 "Allow duplicate songs" = "Autoriser les doublons";
 "Allow this login item in System Settings to finish enabling it." = "Autorisez cet élément d’ouverture dans Réglages Système pour terminer son activation.";
 "An empty description removes the existing description." = "Une description vide supprime la description existante.";
@@ -90,6 +99,7 @@
 "Capture All Loaded Songs" = "Capturer tous les titres chargés";
 "Captured while source loading was in progress" = "Capture effectuée pendant le chargement de la source";
 "Checking account" = "Vérification du compte";
+"Checking the reviewed save…" = "Vérification de l’enregistrement examiné…";
 "Choose AirPlay speakers or another audio output." = "Choisissez des haut-parleurs AirPlay ou une autre sortie audio.";
 "Choose Audio Output" = "Choisir la sortie audio";
 "Choose Command or Control with a key. Standard Mac and app combinations stay reserved. Play/Pause can keep its default Space key." = "Choisissez Commande ou Contrôle avec une touche. Les combinaisons standard du Mac et de l’app restent réservées. Lecture/Pause peut conserver sa touche Espace par défaut.";
@@ -105,6 +115,7 @@
 "Clear Artwork Cache" = "Effacer le cache des illustrations";
 "Clear Cached Artwork…" = "Effacer les illustrations en cache…";
 "Clear Captured Songs" = "Effacer les titres capturés";
+"Clear Completed Local Record…" = "Effacer l’enregistrement local terminé…";
 "Clear Filter" = "Effacer le filtre";
 "Clear Library Metadata Cache…" = "Effacer le cache des métadonnées de la bibliothèque…";
 "Clear Metadata Cache" = "Effacer le cache des métadonnées";
@@ -121,6 +132,7 @@
 "Community Playlists" = "Playlists de la communauté";
 "Complete sign-in on Google's page below." = "Terminez la connexion sur la page Google ci-dessous.";
 "Condition" = "Condition";
+"Continue Reviewed Save" = "Continuer l’enregistrement examiné";
 "Control" = "Contrôle";
 "Copy Link" = "Copier le lien";
 "Could Not Open Music Link" = "Impossible d’ouvrir le lien musical";
@@ -134,7 +146,12 @@
 "Create" = "Créer";
 "Create Filter" = "Créer un filtre";
 "Create Playlist" = "Créer une playlist";
+"Create Private Playlist" = "Créer une playlist privée";
+"Create Private Playlist…" = "Créer une playlist privée…";
+"Create Reviewed Playlist…" = "Créer la playlist examinée…";
 "Create Tag" = "Créer une étiquette";
+"Create the reviewed private playlist?" = "Créer la playlist privée examinée ?";
+"Creation may have succeeded without returning a confirmed playlist ID. Review your service library manually. This save will not create another playlist automatically." = "La création a pu aboutir sans renvoyer d’identifiant de playlist confirmé. Vérifiez vous-même votre bibliothèque sur le service. Cet enregistrement ne créera pas automatiquement une autre playlist.";
 "Current lyric" = "Parole actuelle";
 "Current queue" = "File d’attente actuelle";
 "Current song" = "Titre actuel";
@@ -202,6 +219,9 @@
 "Finished" = "Terminé";
 "Follow Artist" = "Suivre l’artiste";
 "Follow Playback" = "Suivre la lecture";
+"Forget Local Record" = "Oublier l’enregistrement local";
+"Forget Local Record…" = "Oublier l’enregistrement local…";
+"Forget this local pending-save record?" = "Oublier cet enregistrement local en attente ?";
 "Forward" = "Suivant";
 "Forward %lld seconds" = "Avancer de %lld secondes";
 "Full Screen Player" = "Lecteur en plein écran";
@@ -215,6 +235,7 @@
 "Import Metadata…" = "Importer les métadonnées…";
 "Import song information and links as a new local saved queue." = "Importez les informations et les liens des titres dans une nouvelle file d’attente locale enregistrée.";
 "Keep Mini Player on Top" = "Garder le mini-lecteur au premier plan";
+"Keep Record" = "Conserver l’enregistrement";
 "Keep the description within 5,000 characters." = "Limitez la description à 5 000 caractères.";
 "Key" = "Touche";
 "Keyboard" = "Clavier";
@@ -256,6 +277,7 @@
 "Local episode progress could not be loaded. Existing data has been retained." = "Impossible de charger la progression locale des épisodes. Les données existantes ont été conservées.";
 "Local episode progress could not be saved." = "Impossible d’enregistrer la progression locale des épisodes.";
 "Local folder" = "Dossier local";
+"Local record removed. Any service playlist remains. Close this review before starting another." = "Enregistrement local supprimé. Toute playlist du service est conservée. Fermez cet examen avant d’en commencer un autre.";
 "Local saved queue storage is unavailable." = "Le stockage local des files d’attente est indisponible.";
 "Local song-rule name" = "Nom de la règle locale de titres";
 "Local song-rule storage is unavailable." = "Le stockage des règles locales de titres est indisponible.";
@@ -318,6 +340,8 @@
 "Open" = "Ouvrir";
 "Open %@" = "Ouvrir %@";
 "Open Account" = "Ouvrir le compte";
+"Open Existing Playlist" = "Ouvrir la playlist existante";
+"Open Library to Review" = "Ouvrir la bibliothèque pour vérifier";
 "Open Login Items Settings" = "Ouvrir les réglages des éléments d’ouverture";
 "Open Main Window" = "Ouvrir la fenêtre principale";
 "Open Mini-Player" = "Ouvrir le mini-lecteur";
@@ -387,6 +411,7 @@
 "Podcasts" = "Podcasts";
 "Previous Song" = "Titre précédent";
 "Private" = "Privée";
+"Private playlist title" = "Nom de la playlist privée";
 "Provided by YouTube Music" = "Fourni par YouTube Music";
 "Public" = "Publique";
 "Queue" = "File d’attente";
@@ -396,8 +421,11 @@
 "Rating unknown" = "Évaluation inconnue";
 "Read Saved Library Metadata" = "Lire les métadonnées enregistrées de la bibliothèque";
 "Read-only names from the library collections loaded at that time. Listening requires a connection." = "Noms en lecture seule des collections chargées à ce moment-là. L’écoute nécessite une connexion.";
+"Reading back the exact playlist order…" = "Relecture de l’ordre exact de la playlist…";
+"Reading the local pending record…" = "Lecture de l’enregistrement local en attente…";
 "Recent Searches" = "Recherches récentes";
 "Recent searches from this app session" = "Recherches récentes de cette session de l’app";
+"Recheck Only" = "Vérifier à nouveau uniquement";
 "Refresh" = "Actualiser";
 "Refresh Library" = "Actualiser la bibliothèque";
 "Refresh Usage" = "Actualiser l’utilisation";
@@ -436,6 +464,7 @@
 "Retry" = "Réessayer";
 "Retry Playback" = "Réessayer la lecture";
 "Return to Main Window" = "Revenir à la fenêtre principale";
+"Review the entire captured queue in order, including repeated songs. The requested service playlist is private. Your playback queue stays available." = "Examinez toute la file d’attente capturée dans l’ordre, y compris les titres répétés. La playlist demandée au service est privée. Votre file d’attente de lecture reste disponible.";
 "Right Arrow" = "Flèche droite";
 "Rules evaluate this account's captured song metadata on this Mac. Every rule uses the same dated snapshot of loaded songs." = "Les règles évaluent sur ce Mac les métadonnées de titres capturées pour ce compte. Chaque règle utilise le même instantané daté des titres chargés.";
 "Save" = "Enregistrer";
@@ -444,6 +473,8 @@
 "Save Description" = "Enregistrer la description";
 "Save Filter" = "Enregistrer le filtre";
 "Save Name" = "Enregistrer le nom";
+"Save Queue as Playlist" = "Enregistrer la file d’attente comme playlist";
+"Save Queue as Playlist…" = "Enregistrer la file d’attente comme playlist…";
 "Save Rule" = "Enregistrer la règle";
 "Save Tag" = "Enregistrer l’étiquette";
 "Save Visibility" = "Enregistrer la visibilité";
@@ -480,6 +511,8 @@
 "Select the next song in the current queue." = "Sélectionnez le titre suivant dans la file d’attente actuelle.";
 "Selected Songs" = "Titres sélectionnés";
 "Service Order" = "Ordre du service";
+"Service playlist saving is not enabled in this build. Local saved queues remain available." = "L’enregistrement de playlists sur le service n’est pas activé dans cette version. Les files d’attente locales restent disponibles.";
+"Service playlist writing is not enabled in this build. Local saved queues and metadata export remain available." = "L’écriture de playlists sur le service n’est pas activée dans cette version. Les files d’attente locales et l’exportation des métadonnées restent disponibles.";
 "Set Music Volume" = "Régler le volume de la musique";
 "Set Volume" = "Régler le volume";
 "Set the app's volume from 0 to 100 percent without changing the Mac's system volume." = "Réglez le volume de l’app de 0 à 100 pour cent sans modifier le volume système du Mac.";
@@ -504,6 +537,7 @@
 "Shuffle All" = "Tout mélanger";
 "Sign In" = "Se connecter";
 "Sign In to Organize Collections" = "Connectez-vous pour organiser les collections";
+"Sign In to Review This Account's Queue" = "Connectez-vous pour examiner la file d’attente de ce compte";
 "Sign In to Use Local Song Rules" = "Connectez-vous pour utiliser les règles locales de titres";
 "Sign In to Use Saved Queues" = "Connectez-vous pour utiliser les files d’attente enregistrées";
 "Sign Out" = "Se déconnecter";
@@ -537,6 +571,7 @@
 "Songs added to the playlist." = "Titres ajoutés à la playlist.";
 "Songs in %@" = "Titres de %@";
 "Songs removed from the playlist." = "Titres retirés de la playlist.";
+"Songs will be added in batches of at most 100 and read back in the reviewed order. The captured queue is fixed for this save." = "Les titres seront ajoutés par lots de 100 au maximum, puis relus dans l’ordre examiné. La file d’attente capturée reste fixe pour cet enregistrement.";
 "Sort Loaded Items" = "Trier les éléments chargés";
 "Sort Loaded Songs" = "Trier les titres chargés";
 "Sorts loaded library items. Load More adds additional items." = "Trie les éléments chargés de la bibliothèque. Charger la suite ajoute des éléments.";
@@ -548,6 +583,11 @@
 "Start Radio" = "Lancer une radio";
 "Starting radio…" = "Démarrage de la radio…";
 "Startup" = "Démarrage";
+"Stop After Current Request" = "Arrêter après la demande en cours";
+"Stopped after the current request. The playlist and pending save record have been kept." = "Arrêt après la demande en cours. La playlist et l’enregistrement en attente ont été conservés.";
+"Stopping after the current request…" = "Arrêt après la demande en cours…";
+"Stopping keeps any created playlist. Uncertain batches are rechecked rather than resent; no partial playlist is deleted automatically." = "L’arrêt conserve toute playlist créée. Les lots incertains sont vérifiés à nouveau sans être renvoyés ; aucune playlist partielle n’est supprimée automatiquement.";
+"Stopping…" = "Arrêt…";
 "Storage" = "Stockage";
 "Stored on this Mac for the signed-in account. Opening replaces the current queue without starting playback." = "Stockées sur ce Mac pour le compte connecté. L’ouverture remplace la file d’attente actuelle sans lancer la lecture.";
 "Stored on this Mac for this account. Filters match library collections currently loaded; Load More includes more collections." = "Stockés sur ce Mac pour ce compte. Les filtres s’appliquent aux collections déjà chargées ; Charger la suite inclut davantage de collections.";
@@ -562,7 +602,10 @@
 "The account changed. Open local collection organization again." = "Le compte a changé. Rouvrez l’organisation locale des collections.";
 "The change was interrupted. Check your library before trying again." = "La modification a été interrompue. Vérifiez votre bibliothèque avant de réessayer.";
 "The change was not confirmed. Check your library before trying again." = "La modification n’a pas été confirmée. Vérifiez votre bibliothèque avant de réessayer.";
+"The confirmed account or session changed. The pending save has been kept for its original account." = "Le compte ou la session confirmé a changé. L’enregistrement en attente a été conservé pour son compte d’origine.";
 "The disposable playlist check could not complete. Check its cleanup status before trying again." = "La vérification de la playlist temporaire n’a pas abouti. Vérifiez son état de nettoyage avant de réessayer.";
+"The exact saved prefix is confirmed. Continue only when ready to write the remaining songs." = "Le début exact de la playlist enregistrée est confirmé. Continuez uniquement lorsque vous êtes prêt à écrire les titres restants.";
+"The last song batch is not fully confirmed. Recheck later; it will not be resent while its outcome is uncertain." = "Le dernier lot de titres n’est pas entièrement confirmé. Vérifiez à nouveau plus tard ; il ne sera pas renvoyé tant que son résultat reste incertain.";
 "The library check timed out." = "Le délai de vérification de la bibliothèque a expiré.";
 "The linked song could not be opened. Your existing queue has been kept." = "Impossible d’ouvrir le titre du lien. Votre file d’attente existante a été conservée.";
 "The login item could not be changed. Check Login Items in System Settings." = "Impossible de modifier l’élément d’ouverture. Vérifiez les éléments d’ouverture dans Réglages Système.";
@@ -571,6 +614,7 @@
 "The player could not load its playback controls. Reinstall the app and try again." = "Le lecteur n’a pas pu charger ses commandes. Réinstallez l’app et réessayez.";
 "The player is not ready. Wait for the app to finish opening." = "Le lecteur n’est pas prêt. Attendez la fin de l’ouverture de l’app.";
 "The player stopped responding. Try loading the song again." = "Le lecteur ne répond plus. Essayez de recharger le titre.";
+"The playlist's details, permissions, order or occurrences differ from this save. No further songs were written. Review the existing playlist manually." = "Les détails, autorisations, l’ordre ou les occurrences de la playlist diffèrent de cet enregistrement. Aucun autre titre n’a été écrit. Vérifiez vous-même la playlist existante.";
 "The queue cannot be saved because application storage is unavailable." = "Impossible d’enregistrer la file d’attente car le stockage de l’app est indisponible.";
 "The queue could not be saved. Playback can continue." = "Impossible d’enregistrer la file d’attente. La lecture peut continuer.";
 "The read-only library snapshot will be removed. Queue files, local organization and your sign-in session stay available." = "L’instantané de la bibliothèque en lecture seule sera supprimé. Les fichiers des files d’attente, l’organisation locale et votre session de connexion restent disponibles.";
@@ -579,6 +623,7 @@
 "The saved queue could not be removed. Try signing out again." = "Impossible de supprimer la file d’attente enregistrée. Réessayez de vous déconnecter.";
 "The saved queue could not be restored. You can start a new queue." = "Impossible de restaurer la file d’attente enregistrée. Vous pouvez créer une nouvelle file d’attente.";
 "The selected song no longer matches the playback request." = "Le titre sélectionné ne correspond plus à la demande de lecture.";
+"The service playlist will remain. Review YouTube Music first: forgetting an uncertain create record permits a later save to create another playlist." = "La playlist du service sera conservée. Vérifiez d’abord YouTube Music : oublier un enregistrement de création incertain permet à un enregistrement ultérieur de créer une autre playlist.";
 "The shared captured-song snapshot and your YouTube Music library stay available." = "L’instantané partagé des titres capturés et votre bibliothèque YouTube Music restent disponibles.";
 "The snapshot includes the first 2,000 loaded collections." = "L’instantané inclut les 2 000 premières collections chargées.";
 "The song lookup timed out." = "Le délai de recherche du titre a expiré.";
@@ -598,6 +643,7 @@
 "This recording may be instrumental, or YouTube Music may not supply its lyrics." = "Cet enregistrement peut être instrumental, ou YouTube Music peut ne pas fournir ses paroles.";
 "This removes the tag from local collection bookmarks. Saved filters using it must be updated or deleted first." = "Cela retire l’étiquette des collections locales en favoris. Les filtres enregistrés qui l’utilisent doivent d’abord être modifiés ou supprimés.";
 "This removes this app's library metadata from Spotlight. Saved queues, local organization, caches and your sign-in session stay available." = "Cela supprime de Spotlight les métadonnées de bibliothèque de cette app. Les files d’attente enregistrées, l’organisation locale, les caches et votre session de connexion restent disponibles.";
+"This save was already confirmed complete." = "Cet enregistrement a déjà été confirmé comme terminé.";
 "This saved queue could not be opened. The current queue has been kept." = "Impossible d’ouvrir cette file d’attente enregistrée. La file d’attente actuelle a été conservée.";
 "This selection includes repeated songs. Allow duplicates to add every occurrence." = "Cette sélection contient des titres répétés. Autorisez les doublons pour ajouter chaque occurrence.";
 "This shortcut is already assigned to %@. Change or disable that binding first." = "Ce raccourci est déjà attribué à %@. Modifiez ou désactivez d’abord cette attribution.";
@@ -623,6 +669,7 @@
 "Unmute" = "Rétablir le son";
 "Unpin Locally" = "Désépingler localement";
 "Until %@" = "Jusqu’à %@";
+"Untitled song" = "Titre sans nom";
 "Up Arrow" = "Flèche haut";
 "Updating Spotlight…" = "Mise à jour de Spotlight…";
 "Updating your library…" = "Mise à jour de votre bibliothèque…";

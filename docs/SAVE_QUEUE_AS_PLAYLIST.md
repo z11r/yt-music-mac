@@ -48,3 +48,9 @@ Unsupported or corrupt records are preserved rather than replaced.
 The service offers no transaction lock across different clients. Detected
 changes to playlist details, permissions, order, or recorded occurrences stop
 the save for manual review. Partial playlists are never deleted automatically.
+
+The review, progress, and recovery messages follow the app's language. Counted
+entries use singular and plural rules, including progress messages with a date.
+Captured titles, artist names, playlist titles, and durable journal identifiers
+remain unchanged. The queue counts entries so repeated recordings and podcast
+episodes are represented without labeling every queued item as a song.

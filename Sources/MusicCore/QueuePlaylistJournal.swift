@@ -6,17 +6,17 @@ public enum QueuePlaylistJournalError: Error, Equatable, LocalizedError, Sendabl
     case unsupportedVersion(Int)
     public var errorDescription: String? {
         switch self {
-        case .invalidQueue: "Review a queue of 1–10,000 songs with valid, distinct queue entries."
-        case .uploadedMusicUnsupported: "Saving uploaded music to a service playlist is not verified. Save this queue locally instead."
-        case .podcastUnsupported: "Saving podcast episodes to a music playlist is not verified. Save this queue locally instead."
-        case .invalidTitle: "Use a playlist title of 1–150 characters without angle brackets or control characters."
-        case .invalidJournal: "The pending playlist-save record could not be read. Its file has been kept."
-        case .tooLarge: "The pending playlist-save record exceeds its storage limit."
-        case .pendingExists: "Review the pending playlist save before starting another."
-        case .busy: "Another playlist-save operation is using this account's pending record."
-        case .stale: "The pending playlist-save record changed. Reload it before continuing."
-        case .noPending: "There is no pending playlist save for this account."
-        case let .unsupportedVersion(value): "Pending playlist-save version \(value) is unsupported. Its file has been kept."
+        case .invalidQueue: CoreLocalization.text("Review a queue of 1–10,000 songs with valid, distinct queue entries.")
+        case .uploadedMusicUnsupported: CoreLocalization.text("Saving uploaded music to a service playlist is not verified. Save this queue locally instead.")
+        case .podcastUnsupported: CoreLocalization.text("Saving podcast episodes to a music playlist is not verified. Save this queue locally instead.")
+        case .invalidTitle: CoreLocalization.text("Use a playlist title of 1–150 characters without angle brackets or control characters.")
+        case .invalidJournal: CoreLocalization.text("The pending playlist-save record could not be read. Its file has been kept.")
+        case .tooLarge: CoreLocalization.text("The pending playlist-save record exceeds its storage limit.")
+        case .pendingExists: CoreLocalization.text("Review the pending playlist save before starting another.")
+        case .busy: CoreLocalization.text("Another playlist-save operation is using this account's pending record.")
+        case .stale: CoreLocalization.text("The pending playlist-save record changed. Reload it before continuing.")
+        case .noPending: CoreLocalization.text("There is no pending playlist save for this account.")
+        case let .unsupportedVersion(value): CoreLocalization.format("Pending playlist-save version %lld is unsupported. Its file has been kept.", value)
         }
     }
 }
