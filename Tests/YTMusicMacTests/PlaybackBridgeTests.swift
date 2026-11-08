@@ -43,6 +43,17 @@ struct PlaybackEventValidationTests {
         #expect(components.queryItems == [URLQueryItem(name: "v", value: "song&other=value")])
     }
 
+    @Test func publicOutputSurvivesPlayingStateUpdatesButClearsForUnavailableContent() throws {
+        let valid = payload(loadID: UUID(), occurrence: occurrence(), documentID: UUID())
+        #expect(!(try #require(PlaybackBridgeMessage.decode(valid))).interruptsPlaybackOutput)
+        for (field, value) in [("isAd", true), ("isPlaying", false), ("isBuffering", true), ("mediaReady", false)] {
+            var interrupted = valid; interrupted[field] = value
+            #expect((try #require(PlaybackBridgeMessage.decode(interrupted))).interruptsPlaybackOutput)
+        }
+        var loading = valid; loading["position"] = 0
+        #expect((try #require(PlaybackBridgeMessage.decode(loading))).interruptsPlaybackOutput)
+    }
+
     @Test func eventsNeedMatchingLoadDocumentAndQueueOccurrence() throws {
         let loadID = UUID(), documentID = UUID(), request = occurrence()
         var gate = PlaybackEventGate()

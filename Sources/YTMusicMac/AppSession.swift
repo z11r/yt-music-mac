@@ -264,6 +264,9 @@ final class AppSession {
             guard let self, self.queue.accepts(occurrence) else { return }
             self.listenBrainz.interrupt()
             self.lastFM.interrupt()
+        }
+        player.onPlaybackOutputInterrupted = { [weak self] occurrence in
+            guard let self, self.queue.accepts(occurrence) else { return }
             self.streamingExport?.interrupt()
         }
         player.onRecoveryRequested = { [weak self] occurrence, position in
@@ -1282,6 +1285,7 @@ final class AppSession {
         player.onVerifiedContentProgress = nil
         player.onEpisodeRates = nil
         player.onListeningInterrupted = nil
+        player.onPlaybackOutputInterrupted = nil
         player.stop()
         systemMedia?.refresh()
     }

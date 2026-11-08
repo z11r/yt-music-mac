@@ -81,6 +81,7 @@ final class WebPlayer: NSObject {
     @ObservationIgnored var onVerifiedContentProgress: ((PlaybackOccurrence, TimeInterval, TimeInterval, Bool) -> Void)?
     @ObservationIgnored var onEpisodeRates: ((PlaybackOccurrence, EpisodeRateSnapshot?) -> Void)?
     @ObservationIgnored var onListeningInterrupted: ((PlaybackOccurrence) -> Void)?
+    @ObservationIgnored var onPlaybackOutputInterrupted: ((PlaybackOccurrence) -> Void)?
     @ObservationIgnored var onRecoveryRequested: ((PlaybackOccurrence, TimeInterval) -> TimeInterval?)?
     @ObservationIgnored var onSessionRestoreFailed: (() -> Void)?
 
@@ -470,6 +471,7 @@ final class WebPlayer: NSObject {
 
     private func receive(_ message: PlaybackBridgeMessage) {
         guard self.gate.accept(message), !self.failureReported else { return }
+        if let occurrence, message.interruptsPlaybackOutput { self.onPlaybackOutputInterrupted?(occurrence) }
         if let occurrence, !message.confirmsEpisodeProgress || (message.kind != .progress && message.kind != .ended) {
             self.onListeningInterrupted?(occurrence)
         }

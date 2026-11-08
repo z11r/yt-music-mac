@@ -66,6 +66,10 @@ struct PlaybackBridgeMessage: Decodable {
             (confirmsContentPlayback || kind == .ended)
     }
 
+    /// Valid playing state updates (such as volume) keep public metadata active.
+    /// Missing content, ads, pause and buffering must clear it immediately.
+    var interruptsPlaybackOutput: Bool { !confirmsEpisodeProgress }
+
     func acceptsPagePause(latestCommandRevision: Int) -> Bool {
         (self.kind == .state || self.kind == .progress) && self.intentSource == .page
             && !self.playbackIntent && !self.isPlaying && self.mediaReady && !self.isAd
