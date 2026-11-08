@@ -1,7 +1,7 @@
 import Foundation
 
 public struct LocalCollectionReference: Identifiable, Codable, Hashable, Sendable {
-    public enum Kind: String, Codable, Sendable { case playlist, album, artist }
+    public enum Kind: String, Codable, Hashable, Sendable { case playlist, album, artist }
     public let serviceID: String
     public let kind: Kind
     public let title: String
@@ -26,36 +26,73 @@ public struct LocalCollectionBookmark: Identifiable, Codable, Equatable, Sendabl
     public var reference: LocalCollectionReference
     public var isPinned: Bool
     public var folderID: UUID?
+    public var tagIDs: Set<UUID>
     public var id: String { reference.id }
-    public init(reference: LocalCollectionReference, isPinned: Bool = false, folderID: UUID? = nil) {
+    public init(reference: LocalCollectionReference, isPinned: Bool = false, folderID: UUID? = nil, tagIDs: Set<UUID> = []) {
         self.reference = reference
         self.isPinned = isPinned
         self.folderID = folderID
+        self.tagIDs = tagIDs
+    }
+
+    private enum CodingKeys: String, CodingKey { case reference, isPinned, folderID, tagIDs }
+    public init(from decoder: any Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        reference = try values.decode(LocalCollectionReference.self, forKey: .reference)
+        isPinned = try values.decode(Bool.self, forKey: .isPinned)
+        folderID = try values.decodeIfPresent(UUID.self, forKey: .folderID)
+        let tags = try values.decodeIfPresent([UUID].self, forKey: .tagIDs) ?? []
+        tagIDs = Set(tags)
+        guard tagIDs.count == tags.count else { throw LocalCollectionError.invalidArchive }
     }
 }
 
 public struct LocalCollectionOrganization: Codable, Equatable, Sendable {
-    public static let currentVersion = 1
+    public static let currentVersion = 2
     public let version: Int
     public var folders: [LocalCollectionFolder]
     public var bookmarks: [LocalCollectionBookmark]
+    public var tags: [LocalCollectionTag]
+    public var savedFilters: [LocalSavedCollectionFilter]
     public var pinned: [LocalCollectionBookmark] { bookmarks.filter(\.isPinned) }
     public func members(of folderID: UUID) -> [LocalCollectionBookmark] { bookmarks.filter { $0.folderID == folderID } }
-    public init(version: Int = currentVersion, folders: [LocalCollectionFolder] = [], bookmarks: [LocalCollectionBookmark] = []) {
+    public init(version: Int = currentVersion, folders: [LocalCollectionFolder] = [], bookmarks: [LocalCollectionBookmark] = [],
+                tags: [LocalCollectionTag] = [], savedFilters: [LocalSavedCollectionFilter] = []) {
         self.version = version
         self.folders = folders
         self.bookmarks = bookmarks
+        self.tags = tags
+        self.savedFilters = savedFilters
+    }
+
+    private enum CodingKeys: String, CodingKey, CaseIterable { case version, folders, bookmarks, tags, savedFilters }
+    public init(from decoder: any Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        let storedVersion = try values.decode(Int.self, forKey: .version)
+        guard (1...Self.currentVersion).contains(storedVersion) else { throw LocalCollectionError.unsupportedVersion(storedVersion) }
+        let raw = try decoder.container(keyedBy: LocalCollectionArchiveKey.self)
+        guard Set(raw.allKeys.map(\.stringValue)).isSubset(of: Set(CodingKeys.allCases.map(\.rawValue))) else { throw LocalCollectionError.invalidArchive }
+        version = Self.currentVersion
+        folders = try values.decode([LocalCollectionFolder].self, forKey: .folders)
+        bookmarks = try values.decode([LocalCollectionBookmark].self, forKey: .bookmarks)
+        tags = storedVersion == 1 ? [] : try values.decode([LocalCollectionTag].self, forKey: .tags)
+        savedFilters = storedVersion == 1 ? [] : try values.decode([LocalSavedCollectionFilter].self, forKey: .savedFilters)
     }
 }
 
 public enum LocalCollectionError: Error, Equatable, LocalizedError, Sendable {
-    case invalidName, duplicateName, missingFolder, invalidCollection, invalidArchive, fileTooLarge, capacityReached
+    case invalidName, duplicateName, missingFolder, missingTag, missingFilter, referencedByFilter
+    case invalidFilter, invalidCollection, invalidArchive, fileTooLarge, capacityReached
     case unsupportedVersion(Int)
     public var errorDescription: String? {
         switch self {
-        case .invalidName: "Use a local folder name of 1–100 characters without control characters."
-        case .duplicateName: "A local folder already has this name."
+        case .invalidName: "Use a name of 1–100 characters without control characters."
+        case .duplicateName: "An item of this type already has this name."
         case .missingFolder: "This local folder no longer exists. Refresh the list."
+        case .missingTag: "This local tag no longer exists. Refresh the list."
+        case .missingFilter: "This saved filter no longer exists. Refresh the list."
+        case .referencedByFilter: "Update or delete the saved filters using this folder or tag first."
+        case .invalidFilter: "The filter contains unsupported criteria or a title longer than 200 characters."
         case .invalidCollection: "This collection could not be saved as a local bookmark."
         case .invalidArchive: "The local collection organization could not be read. The file has been kept."
         case .fileTooLarge: "The local collection organization exceeds its storage limit."
@@ -71,13 +108,18 @@ public actor LocalCollectionStore {
     private let maximumBytes: Int
     private let maximumFolders: Int
     private let maximumBookmarks: Int
+    private let maximumTags: Int
+    private let maximumFilters: Int
 
     public init(directoryURL: URL, maximumBytes: Int = 1024 * 1024,
-                maximumFolders: Int = 50, maximumBookmarks: Int = 1_000) {
+                maximumFolders: Int = 50, maximumBookmarks: Int = 1_000,
+                maximumTags: Int = 50, maximumFilters: Int = 50) {
         self.directoryURL = directoryURL
         self.maximumBytes = max(1, maximumBytes)
         self.maximumFolders = max(1, maximumFolders)
         self.maximumBookmarks = max(1, maximumBookmarks)
+        self.maximumTags = max(1, maximumTags)
+        self.maximumFilters = max(1, maximumFilters)
     }
 
     public func load(accountKey: String) throws -> LocalCollectionOrganization {
@@ -103,6 +145,7 @@ public actor LocalCollectionStore {
             }
             let organization: LocalCollectionOrganization
             do { organization = try JSONDecoder().decode(LocalCollectionOrganization.self, from: data) }
+            catch let error as LocalCollectionError { throw error }
             catch { throw LocalCollectionError.invalidArchive }
             try validate(organization)
             return organization
@@ -137,11 +180,12 @@ public actor LocalCollectionStore {
     @discardableResult public func removeFolder(id: UUID, accountKey: String) throws -> LocalCollectionOrganization {
         var organization = try load(accountKey: accountKey)
         guard organization.folders.contains(where: { $0.id == id }) else { throw LocalCollectionError.missingFolder }
+        guard !organization.savedFilters.contains(where: { $0.criteria.folderID == id }) else { throw LocalCollectionError.referencedByFilter }
         organization.folders.removeAll { $0.id == id }
         for index in organization.bookmarks.indices where organization.bookmarks[index].folderID == id {
             organization.bookmarks[index].folderID = nil
         }
-        organization.bookmarks.removeAll { !$0.isPinned && $0.folderID == nil }
+        organization.bookmarks.removeAll { !$0.isPinned && $0.folderID == nil && $0.tagIDs.isEmpty }
         return try write(organization, accountKey: accountKey)
     }
 
@@ -154,7 +198,7 @@ public actor LocalCollectionStore {
         } else if pinned {
             organization.bookmarks.append(LocalCollectionBookmark(reference: reference, isPinned: true))
         }
-        organization.bookmarks.removeAll { !$0.isPinned && $0.folderID == nil }
+        organization.bookmarks.removeAll { !$0.isPinned && $0.folderID == nil && $0.tagIDs.isEmpty }
         return try write(organization, accountKey: accountKey)
     }
 
@@ -168,7 +212,70 @@ public actor LocalCollectionStore {
         } else if folderID != nil {
             organization.bookmarks.append(LocalCollectionBookmark(reference: reference, folderID: folderID))
         }
-        organization.bookmarks.removeAll { !$0.isPinned && $0.folderID == nil }
+        organization.bookmarks.removeAll { !$0.isPinned && $0.folderID == nil && $0.tagIDs.isEmpty }
+        return try write(organization, accountKey: accountKey)
+    }
+
+    @discardableResult public func saveTag(id: UUID? = nil, name: String, accountKey: String) throws -> LocalCollectionOrganization {
+        var organization = try load(accountKey: accountKey)
+        let name = try folderName(name)
+        guard !organization.tags.contains(where: { $0.id != id && $0.name.localizedCaseInsensitiveCompare(name) == .orderedSame }) else { throw LocalCollectionError.duplicateName }
+        let tag = LocalCollectionTag(id: id ?? UUID(), name: name)
+        if let id {
+            guard let index = organization.tags.firstIndex(where: { $0.id == id }) else { throw LocalCollectionError.missingTag }
+            organization.tags[index] = tag
+        } else {
+            guard organization.tags.count < maximumTags else { throw LocalCollectionError.capacityReached }
+            organization.tags.append(tag)
+        }
+        return try write(organization, accountKey: accountKey)
+    }
+
+    @discardableResult public func removeTag(id: UUID, accountKey: String) throws -> LocalCollectionOrganization {
+        var organization = try load(accountKey: accountKey)
+        guard organization.tags.contains(where: { $0.id == id }) else { throw LocalCollectionError.missingTag }
+        guard !organization.savedFilters.contains(where: { $0.criteria.tagID == id }) else { throw LocalCollectionError.referencedByFilter }
+        organization.tags.removeAll { $0.id == id }
+        for index in organization.bookmarks.indices { organization.bookmarks[index].tagIDs.remove(id) }
+        organization.bookmarks.removeAll { !$0.isPinned && $0.folderID == nil && $0.tagIDs.isEmpty }
+        return try write(organization, accountKey: accountKey)
+    }
+
+    @discardableResult public func setTag(_ tagID: UUID, present: Bool, reference: LocalCollectionReference,
+                                        accountKey: String) throws -> LocalCollectionOrganization {
+        var organization = try load(accountKey: accountKey)
+        guard organization.tags.contains(where: { $0.id == tagID }) else { throw LocalCollectionError.missingTag }
+        if let index = organization.bookmarks.firstIndex(where: { $0.id == reference.id }) {
+            organization.bookmarks[index].reference = reference
+            if present { organization.bookmarks[index].tagIDs.insert(tagID) }
+            else { organization.bookmarks[index].tagIDs.remove(tagID) }
+        } else if present {
+            organization.bookmarks.append(LocalCollectionBookmark(reference: reference, tagIDs: [tagID]))
+        }
+        organization.bookmarks.removeAll { !$0.isPinned && $0.folderID == nil && $0.tagIDs.isEmpty }
+        return try write(organization, accountKey: accountKey)
+    }
+
+    @discardableResult public func saveFilter(id: UUID? = nil, name: String, criteria: LocalCollectionFilterCriteria,
+                                            accountKey: String) throws -> LocalCollectionOrganization {
+        var organization = try load(accountKey: accountKey)
+        let name = try folderName(name)
+        guard !organization.savedFilters.contains(where: { $0.id != id && $0.name.localizedCaseInsensitiveCompare(name) == .orderedSame }) else { throw LocalCollectionError.duplicateName }
+        let filter = LocalSavedCollectionFilter(id: id ?? UUID(), name: name, criteria: criteria)
+        if let id {
+            guard let index = organization.savedFilters.firstIndex(where: { $0.id == id }) else { throw LocalCollectionError.missingFilter }
+            organization.savedFilters[index] = filter
+        } else {
+            guard organization.savedFilters.count < maximumFilters else { throw LocalCollectionError.capacityReached }
+            organization.savedFilters.append(filter)
+        }
+        return try write(organization, accountKey: accountKey)
+    }
+
+    @discardableResult public func removeFilter(id: UUID, accountKey: String) throws -> LocalCollectionOrganization {
+        var organization = try load(accountKey: accountKey)
+        guard organization.savedFilters.contains(where: { $0.id == id }) else { throw LocalCollectionError.missingFilter }
+        organization.savedFilters.removeAll { $0.id == id }
         return try write(organization, accountKey: accountKey)
     }
 
@@ -187,13 +294,26 @@ public actor LocalCollectionStore {
 
     private func validate(_ organization: LocalCollectionOrganization) throws {
         guard organization.version == LocalCollectionOrganization.currentVersion else { throw LocalCollectionError.unsupportedVersion(organization.version) }
-        guard organization.folders.count <= maximumFolders, organization.bookmarks.count <= maximumBookmarks else { throw LocalCollectionError.capacityReached }
+        guard organization.folders.count <= maximumFolders, organization.bookmarks.count <= maximumBookmarks,
+              organization.tags.count <= maximumTags, organization.savedFilters.count <= maximumFilters else { throw LocalCollectionError.capacityReached }
         let folderIDs = Set(organization.folders.map(\.id))
+        let tagIDs = Set(organization.tags.map(\.id))
         guard folderIDs.count == organization.folders.count,
+              tagIDs.count == organization.tags.count,
+              Set(organization.savedFilters.map(\.id)).count == organization.savedFilters.count,
               Set(organization.bookmarks.map(\.id)).count == organization.bookmarks.count else { throw LocalCollectionError.invalidArchive }
-        var names = Set<String>()
-        for folder in organization.folders {
-            guard try folderName(folder.name) == folder.name, names.insert(folder.name.lowercased()).inserted else { throw LocalCollectionError.invalidArchive }
+        for values in [organization.folders.map(\.name), organization.tags.map(\.name), organization.savedFilters.map(\.name)] {
+            var names = Set<String>()
+            for name in values {
+                guard try folderName(name) == name, names.insert(name.lowercased()).inserted else { throw LocalCollectionError.invalidArchive }
+            }
+        }
+        for filter in organization.savedFilters {
+            let criteria = filter.criteria
+            guard criteria.titleContains.count <= 200, criteria.titleContains.utf8.count <= 2_048,
+                  !criteria.titleContains.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains),
+                  criteria.folderID.map(folderIDs.contains) ?? true,
+                  criteria.tagID.map(tagIDs.contains) ?? true else { throw LocalCollectionError.invalidFilter }
         }
         for bookmark in organization.bookmarks {
             let reference = bookmark.reference
@@ -202,7 +322,8 @@ public actor LocalCollectionStore {
                   !reference.title.isEmpty, reference.title.utf8.count <= 4_096,
                   !reference.title.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains),
                   bookmark.folderID.map(folderIDs.contains) ?? true,
-                  bookmark.isPinned || bookmark.folderID != nil else { throw LocalCollectionError.invalidCollection }
+                  bookmark.tagIDs.count <= 20, bookmark.tagIDs.isSubset(of: tagIDs),
+                  bookmark.isPinned || bookmark.folderID != nil || !bookmark.tagIDs.isEmpty else { throw LocalCollectionError.invalidCollection }
         }
     }
 

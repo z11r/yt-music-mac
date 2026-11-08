@@ -15,6 +15,20 @@ struct LocalCollectionActions: View {
                 Task { await session.localCollections.setPinned(bookmark?.isPinned != true, collection: collection, expectedScope: scope) }
             }
             .disabled(session.localCollections.isWorking)
+            Menu("Local Tags") {
+                ForEach(session.localCollections.organization.tags) { tag in
+                    let assigned = bookmark?.tagIDs.contains(tag.id) == true
+                    Button {
+                        Task { await session.localCollections.setTag(tag.id, present: !assigned, collection: collection, expectedScope: scope) }
+                    } label: {
+                        if assigned { Label(tag.name, systemImage: "checkmark") }
+                        else { Text(tag.name) }
+                    }
+                }
+                Divider()
+                Button("Manage Local Organization…") { session.showsLocalFolders = true }
+            }
+            .disabled(session.localCollections.isWorking)
             Menu("Local Folder") {
                 Button("No Local Folder") {
                     Task { await session.localCollections.move(collection, to: nil, expectedScope: scope) }
@@ -56,6 +70,17 @@ struct LocalCollectionsSidebar: View {
                 Button("Manage Local Folders…") { session.showsLocalFolders = true }
                     .disabled(session.localCollections.isWorking)
             }
+            Section("Saved Local Filters") {
+                ForEach(session.localCollections.organization.savedFilters) { filter in
+                    let scope = session.localCollections.scope
+                    Button {
+                        if session.localCollections.activateFilter(id: filter.id, expectedScope: scope) {
+                            if session.destination != .library { session.navigate(to: .library) }
+                        }
+                    } label: { Label(filter.name, systemImage: "line.3.horizontal.decrease.circle") }
+                    .help("Filter library collections currently loaded")
+                }
+            }
         }
     }
 }
@@ -69,6 +94,7 @@ struct LocalFoldersView: View {
     @State private var renamePresented = false
     @State private var deletePresented = false
     @State private var displayedScope: UUID
+    @State private var showsTagsAndFilters = false
 
     init(session: AppSession) {
         self.session = session
@@ -132,6 +158,7 @@ struct LocalFoldersView: View {
                     Button("Refresh") { Task { await session.localCollections.refresh(expectedScope: displayedScope) } }
                         .disabled(session.localCollections.isWorking)
                 }
+                Button("Tags and Saved Filters…") { showsTagsAndFilters = true }
                 Text("Use a collection's context menu to pin it locally or move it to a local folder.")
                     .font(.caption).foregroundStyle(.secondary)
             } else {
@@ -143,6 +170,7 @@ struct LocalFoldersView: View {
         .frame(minWidth: 600, idealWidth: 650, minHeight: 430, idealHeight: 480)
         .task { await session.localCollections.refresh(expectedScope: displayedScope) }
         .onChange(of: session.localCollections.scope) { dismiss() }
+        .sheet(isPresented: $showsTagsAndFilters) { LocalTagsAndFiltersView(session: session, onApply: { dismiss() }) }
         .alert("Rename Local Folder", isPresented: $renamePresented) {
             TextField("Name", text: $renamedName)
             Button("Save") {

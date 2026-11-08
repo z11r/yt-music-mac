@@ -33,7 +33,9 @@ struct MusicContentView: View {
                 ProgressView("Loading \(session.destination.title.lowercased())…")
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if let page = session.page {
-                if usesTrackList {
+                if session.destination == .library, let filter = session.localCollections.activeFilter {
+                    LocalLibraryFilterResultsView(session: session, page: page, filter: filter)
+                } else if usesTrackList {
                     CollectionTracksView(session: session, page: page, presentEditor: presentEditor)
                 } else {
                     shelves(page)

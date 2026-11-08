@@ -38,6 +38,8 @@ final class LocalCollectionsLibrary {
     private(set) var isWorking = false
     private(set) var errorMessage: String?
     private(set) var scope = UUID()
+    private(set) var activeFilterID: UUID?
+    var activeFilter: LocalSavedCollectionFilter? { organization.savedFilters.first { $0.id == activeFilterID } }
     @ObservationIgnored private let store: LocalCollectionStore?
     @ObservationIgnored private let sessions: any MusicSessionProviding
 
@@ -51,6 +53,7 @@ final class LocalCollectionsLibrary {
         organization = LocalCollectionOrganization()
         isWorking = false
         errorMessage = nil
+        activeFilterID = nil
     }
 
     func refresh(expectedScope: UUID? = nil) async {
@@ -79,6 +82,44 @@ final class LocalCollectionsLibrary {
         await update(expectedScope: expectedScope) { try await $0.removeFolder(id: id, accountKey: $1) }
     }
 
+    func saveTag(id: UUID? = nil, name: String, expectedScope: UUID) async {
+        await update(expectedScope: expectedScope) { try await $0.saveTag(id: id, name: name, accountKey: $1) }
+    }
+
+    func removeTag(id: UUID, expectedScope: UUID) async {
+        await update(expectedScope: expectedScope) { try await $0.removeTag(id: id, accountKey: $1) }
+    }
+
+    func setTag(_ id: UUID, present: Bool, collection: MusicCollection, expectedScope: UUID) async {
+        let reference = collection.localReference
+        await update(expectedScope: expectedScope) { try await $0.setTag(id, present: present, reference: reference, accountKey: $1) }
+    }
+
+    func saveFilter(id: UUID? = nil, name: String, criteria: LocalCollectionFilterCriteria, expectedScope: UUID) async {
+        await update(expectedScope: expectedScope) { try await $0.saveFilter(id: id, name: name, criteria: criteria, accountKey: $1) }
+    }
+
+    func removeFilter(id: UUID, expectedScope: UUID) async {
+        await update(expectedScope: expectedScope) { try await $0.removeFilter(id: id, accountKey: $1) }
+    }
+
+    @discardableResult func activateFilter(id: UUID?, expectedScope: UUID) -> Bool {
+        guard scope == expectedScope,
+              id == nil || organization.savedFilters.contains(where: { $0.id == id }) else { return false }
+        activeFilterID = id
+        return true
+    }
+
+    func filteredCollections(in page: MusicPage) -> [MusicCollection] {
+        guard let filter = activeFilter else { return [] }
+        let loaded = (page.items + page.sections.flatMap(\.items)).compactMap { item -> MusicCollection? in
+            if case let .collection(collection) = item { collection } else { nil }
+        }
+        let matches = Set(filter.criteria.apply(to: loaded.map(\.localReference), in: organization).map(\.id))
+        var seen = Set<String>()
+        return loaded.filter { seen.insert($0.localReference.id).inserted && matches.contains($0.localReference.id) }
+    }
+
     func bookmark(for collection: MusicCollection) -> LocalCollectionBookmark? {
         organization.bookmarks.first { $0.id == collection.localReference.id }
     }
@@ -103,9 +144,10 @@ final class LocalCollectionsLibrary {
             guard scope == request, current.scope == session.scope, current.accountID == key,
                   current.isAuthenticated else { throw AccessError.accountChanged }
             organization = result
+            if activeFilterID != nil && activeFilter == nil { activeFilterID = nil }
         } catch {
             guard scope == request, !(error is CancellationError) else { return }
-            if error is AccessError { organization = LocalCollectionOrganization() }
+            if error is AccessError { organization = LocalCollectionOrganization(); activeFilterID = nil }
             switch error {
             case let error as LocalCollectionError: errorMessage = error.localizedDescription
             case let error as AccessError: errorMessage = error.localizedDescription
@@ -118,7 +160,7 @@ final class LocalCollectionsLibrary {
         case signInRequired, accountChanged
         var errorDescription: String? {
             switch self {
-            case .signInRequired: "Sign in to a confirmed account to use local pins and folders."
+            case .signInRequired: "Sign in to a confirmed account to use local collection organization."
             case .accountChanged: "The account changed. Open local collection organization again."
             }
         }
