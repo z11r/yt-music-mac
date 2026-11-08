@@ -186,6 +186,7 @@ extension AppSession {
             playTracks(tracks, origin: .radio)
             radio.state.didReplaceQueue(queue, continuation: continuation)
         case let .stop(reason):
+            episodePlayback.clearPlayback()
             wantsPlayback = false
             player.stop()
             saveQueue()

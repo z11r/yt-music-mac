@@ -71,6 +71,7 @@ final class WebPlayer: NSObject {
     @ObservationIgnored var onFailure: (() -> Void)?
     @ObservationIgnored var onPageReady: ((WKWebView) -> Void)?
     @ObservationIgnored var onStateChanged: (() -> Void)?
+    @ObservationIgnored var onVerifiedContentProgress: ((PlaybackOccurrence, TimeInterval, TimeInterval, Bool) -> Void)?
     @ObservationIgnored var onRecoveryRequested: ((PlaybackOccurrence, TimeInterval) -> TimeInterval?)?
     @ObservationIgnored var onSessionRestoreFailed: (() -> Void)?
 
@@ -470,6 +471,9 @@ final class WebPlayer: NSObject {
         if !message.isAd, message.mediaReady {
             self.clock.update(position: message.position, duration: message.duration)
             if !self.hasConfirmedPosition { self.hasConfirmedPosition = true }
+        }
+        if let occurrence = self.occurrence, message.confirmsEpisodeProgress {
+            self.onVerifiedContentProgress?(occurrence, message.position, message.duration, message.kind == .ended)
         }
         if message.kind == .ended, let occurrence = self.occurrence {
             self.isPlaying = false

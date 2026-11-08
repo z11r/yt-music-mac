@@ -59,6 +59,11 @@ struct PlaybackBridgeMessage: Decodable {
             && self.mediaReady && !self.isAd
     }
 
+    var confirmsEpisodeProgress: Bool {
+        !isAd && mediaReady && !isBuffering && position > 0 && duration > 0 &&
+            (confirmsContentPlayback || kind == .ended)
+    }
+
     func acceptsPagePause(latestCommandRevision: Int) -> Bool {
         (self.kind == .state || self.kind == .progress) && self.intentSource == .page
             && !self.playbackIntent && !self.isPlaying && self.mediaReady && !self.isAd

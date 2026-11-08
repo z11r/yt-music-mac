@@ -124,6 +124,7 @@ final class AppSession {
     var queue = PlaybackQueue()
     let collectionPlayback: CollectionPlayback
     let songRatings = SongRatings()
+    let episodePlayback: EpisodePlaybackSession
     private(set) var destination: MusicDestination = .home
     private(set) var page: MusicPage?
     private(set) var isLoading = false
@@ -180,8 +181,12 @@ final class AppSession {
     @ObservationIgnored private var spotlightPageSource: SpotlightLibrarySource?
     @ObservationIgnored private var pendingSpotlightResult: String?
 
+    @ObservationIgnored private var episodeStartTask: Task<Void, Never>?
+    @ObservationIgnored private var pendingEpisodeOccurrence: PlaybackOccurrence?
+
     init(configuration: AppSessionConfiguration = .live()) {
         preferences = configuration.preferences
+        episodePlayback = EpisodePlaybackSession(store: configuration.episodeProgressStore)
         radio = RadioSession(preferences: configuration.preferences)
         savedQueues = NamedQueueLibrary(store: configuration.namedQueueStore, sessions: configuration.credentials)
         localCollections = LocalCollectionsLibrary(store: configuration.localCollectionStore, sessions: configuration.credentials)
@@ -210,6 +215,10 @@ final class AppSession {
             self?.cancelRadio()
             self?.pause()
         }
+        player.onVerifiedContentProgress = { [weak self] occurrence, position, duration, ended in
+            guard let self, self.queue.accepts(occurrence), self.account.isSignedIn else { return }
+            self.episodePlayback.record(occurrence: occurrence, position: position, duration: duration, confirmedContent: true, ended: ended)
+        }
         player.onRecoveryRequested = { [weak self] occurrence, position in
             guard let self else { return nil }
             return self.resumeState.recover(occurrence, queue: self.queue, playerPosition: position)
@@ -233,6 +242,7 @@ final class AppSession {
         }
         player.onSessionRestoreFailed = { [weak account] in account?.sessionRestoreFailed() }
         account.onAccountChanged = { [weak self] changed in self?.accountChanged(replacedAccount: changed) }
+        account.onAccountConfirmed = { [weak self] hash in self?.episodePlayback.bindAccount(hash) }
         account.onSignInCompleted = { [weak self] in
             guard let self, self.showsAccount else { return }
             self.closeAccount()
@@ -688,6 +698,10 @@ final class AppSession {
         cancelPendingCollectionRadio()
         sleepTimer.allowPlayback()
         wantsPlayback = true
+        if let pendingEpisodeOccurrence, queue.accepts(pendingEpisodeOccurrence) {
+            request(pendingEpisodeOccurrence)
+            return
+        }
         if queue.currentOccurrence == nil {
             let position = resumeState.position(for: queue, playerPosition: player.clock.position)
             request(queue.beginPlayback(), resumingAt: position)
@@ -698,6 +712,7 @@ final class AppSession {
     }
 
     func pause() {
+        episodeStartTask?.cancel(); episodeStartTask = nil
         collectionPlayback.cancel()
         scriptingPlayGeneration = UUID()
         cancelPendingCollectionRadio()
@@ -726,9 +741,31 @@ final class AppSession {
         collectionPlayback.cancel()
         guard value.isFinite, value >= 0 else { return }
         cancelPendingCollectionRadio()
+        episodePlayback.allowExplicitSeek()
         resumeState.clear()
         player.seek(to: value)
         saveQueue()
+    }
+    func skipEpisode(forward: Bool) {
+        guard let track = currentTrack, let target = EpisodeSkip.target(track: track, position: player.clock.position,
+            duration: player.clock.duration, offset: forward ? episodePlayback.settings.skipForward : -episodePlayback.settings.skipBackward,
+            positionConfirmed: player.hasConfirmedPosition && !player.isBuffering && player.errorMessage == nil) else { return }
+        seek(to: target)
+    }
+    func resumeEpisode() {
+        guard let track = currentTrack, track.contentKind == .podcastEpisode, account.isSignedIn else { return }
+        let position = episodePlayback.resumePosition(for: track)
+        guard position > 0 else { return }
+        collectionPlayback.cancel(); scriptingPlayGeneration = UUID()
+        cancelPendingCollectionRadio(); sleepTimer.allowPlayback(); wantsPlayback = true
+        request(queue.beginPlayback(), resumingAt: position)
+    }
+    func startEpisodeOver() {
+        guard let track = currentTrack, track.contentKind == .podcastEpisode, account.isSignedIn else { return }
+        episodePlayback.startOver(track)
+        collectionPlayback.cancel(); scriptingPlayGeneration = UUID()
+        cancelPendingCollectionRadio(); sleepTimer.allowPlayback(); wantsPlayback = true
+        request(queue.beginPlayback())
     }
     func setVolume(_ value: Double) {
         guard value.isFinite else { return }
@@ -846,8 +883,28 @@ final class AppSession {
 
     func request(_ occurrence: PlaybackOccurrence?, resumingAt position: TimeInterval = 0) {
         guard !isSceneCheck else { return }
-        guard let occurrence, let track = queue.currentTrack else { return }
+        episodeStartTask?.cancel(); episodeStartTask = nil; pendingEpisodeOccurrence = nil
+        guard let occurrence, let track = queue.currentTrack else { episodePlayback.clearPlayback(); return }
         sleepTimer.bind(to: occurrence)
+        if position > 0 { resumeState.begin(occurrence, recovering: position) }
+        if track.contentKind == .podcastEpisode, episodePlayback.isLoading {
+            let generation = accountGeneration
+            let intent = wantsPlayback
+            pendingEpisodeOccurrence = occurrence
+            episodePlayback.clearPlayback()
+            player.stop(); wantsPlayback = intent
+            episodeStartTask = Task { [weak self] in
+                guard let self else { return }
+                await self.episodePlayback.waitUntilLoaded()
+                guard !Task.isCancelled, self.accountGeneration == generation,
+                      self.queue.accepts(occurrence), self.wantsPlayback == intent else { return }
+                self.episodeStartTask = nil
+                self.request(occurrence, resumingAt: position)
+            }
+            return
+        }
+        episodePlayback.begin(track: track, occurrence: occurrence)
+        let position = position > 0 ? position : episodePlayback.resumePosition(for: track)
         resumeState.begin(occurrence, recovering: position)
         player.load(track: track, occurrence: occurrence, autoplay: wantsPlayback)
         if position > 0 { player.seek(to: position) }
@@ -925,6 +982,8 @@ final class AppSession {
 
     func signOut() async {
         cancelMusicLink()
+        episodeStartTask?.cancel(); episodeStartTask = nil; pendingEpisodeOccurrence = nil
+        let progressFlush = episodePlayback.detachAccount()
         collectionPlayback.cancel()
         accountGeneration = UUID()
         lyrics.clear()
@@ -950,6 +1009,7 @@ final class AppSession {
         saveTask?.cancel()
         await saveTask?.value
         await spotlight.waitForIdle()
+        _ = await progressFlush?.value
         await account.signOut()
         do { try await queueStore?.clear() }
         catch { queueError = "The saved queue could not be removed. Try signing out again." }
@@ -976,6 +1036,8 @@ final class AppSession {
             Task { await library.refresh(expectedScope: scope) }
         }
         sleepTimer.cancel()
+        episodeStartTask?.cancel(); episodeStartTask = nil; pendingEpisodeOccurrence = nil
+        _ = episodePlayback.detachAccount()
         collectionPlayback.cancel()
         accountGeneration = UUID()
         lyrics.clear()
@@ -1026,6 +1088,7 @@ final class AppSession {
     func shutdown() async {
         isShuttingDown = true
         cancelMusicLink()
+        episodeStartTask?.cancel(); episodeStartTask = nil; pendingEpisodeOccurrence = nil
         collectionPlayback.cancel()
         lyrics.clear()
         scriptingPlayGeneration = UUID()
@@ -1033,10 +1096,12 @@ final class AppSession {
         cancelRadio()
         wantsPlayback = false
         player.pause()
+        _ = await episodePlayback.flush()
         saveQueue()
         await saveTask?.value
         await spotlight.waitForIdle()
         player.onStateChanged = nil
+        player.onVerifiedContentProgress = nil
         player.stop()
         systemMedia?.refresh()
     }

@@ -32,6 +32,7 @@ final class WebSession: NSObject {
     private(set) var loginWebView: WKWebView?
     var onAccountChanged: ((_ replacedAccount: Bool) -> Void)?
     var onSignInCompleted: (() -> Void)?
+    var onAccountConfirmed: ((String) -> Void)?
 
     @ObservationIgnored private let preferences: UserDefaults
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
@@ -181,6 +182,7 @@ final class WebSession: NSObject {
             preferences.set(false, forKey: "sessionRestoreBlocked")
             isWorking = false
             errorMessage = nil
+            onAccountConfirmed?(key)
             if !wasSignedIn { onSignInCompleted?() }
         }
         return isSignedIn

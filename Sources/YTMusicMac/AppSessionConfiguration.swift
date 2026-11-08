@@ -20,6 +20,8 @@ struct AppSessionConfiguration {
     var storageInventory: ProtectedStorageInventory? = nil
     var spotlightIndex: (any LibrarySpotlightIndex)? = nil
 
+    var episodeProgressStore: EpisodeProgressStore? = nil
+
     static func live() -> Self {
         let credentials = MusicSessionStore()
         let directory = try? AppIdentity.applicationSupportDirectory()
@@ -36,7 +38,8 @@ struct AppSessionConfiguration {
                     localCollectionStore: directory.map { LocalCollectionStore(directoryURL: $0.appendingPathComponent("LocalCollections", isDirectory: true)) },
                     metadataCache: directory.map { LibraryMetadataCache(directoryURL: $0.appendingPathComponent("MetadataCache", isDirectory: true)) },
                     storageInventory: directory.map { ProtectedStorageInventory(directoryURL: $0) },
-                    spotlightIndex: CoreSpotlightLibraryIndex(namespace: AppIdentity.identifier))
+                    spotlightIndex: CoreSpotlightLibraryIndex(namespace: AppIdentity.identifier),
+                    episodeProgressStore: directory.map { EpisodeProgressStore(directory: $0.appendingPathComponent("episode-progress", isDirectory: true)) })
     }
 
     static func sceneCheck(preferences: UserDefaults, transport: SceneCheckTransport) -> Self {
