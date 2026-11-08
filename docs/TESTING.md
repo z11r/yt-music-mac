@@ -243,7 +243,11 @@ They do not establish login approval, system restoration or foreground focus.
 [Episode details](EPISODE_DETAILS.md) use bounded service text and exact current
 queue, occurrence, profile and account targets. Fixtures hold credential and
 fetch work across cancellation and owner changes. Timestamp references retain
-their numeric source position; they do not seek playback.
+their numeric source position. Explicit actions use fresh native content proof,
+actual duration and exact document/media/command guards; they never queue a seek
+through an advertisement. Synthetic bridge checks cover clock and identity
+changes, refusal, bounded receipts and real-call admission across cancellation.
+Actual WebKit playback, advertisement timing and sleep behavior remain pending.
 
 [Paired recording checks](VIDEO_PRESENTATION.md) verify the service's exact
 primary/counterpart relationship, bounded metadata, actual credential scope,

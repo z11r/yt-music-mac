@@ -10,7 +10,7 @@ Checks name the exact source checkpoint; later feature work can follow it.
 
 | Check | Status |
 | --- | --- |
-| Local automated suite on Apple silicon, macOS 26.6, Xcode 27.2 | Checkpoint `fc10ef6` passed 1,469 deterministic checks; four opt-in live checks skipped. The later documentation checkpoint `1c4e39e` passed full compiler-key localization coverage. An earlier intermittent TXT-export error remains under investigation; see [export verification](STREAMING_METADATA_EXPORT.md#verification). |
+| Local automated suite on Apple silicon, macOS 26.6, Xcode 27.2 | Checkpoint `7e2a7fc` passed 1,497 deterministic checks; four opt-in live checks skipped. The later documentation checkpoint `1c4e39e` passed full compiler-key localization coverage. An earlier intermittent TXT-export error remains under investigation; see [export verification](STREAMING_METADATA_EXPORT.md#verification). |
 | Anonymous home, explore, search, album, artist, and playlist requests through the native service client | Passed locally |
 | Local release universal bundle | Checkpoint `1c4e39e` built locally; arm64 and x86_64 slices declare macOS 14 |
 | Relocated release bundle diagnostics on Apple silicon/macOS 26.6 | Checkpoint `1c4e39e` passed identity, resources, runtime paths, shortcut metadata and ad-hoc signature checks |
