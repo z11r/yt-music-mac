@@ -30,6 +30,7 @@ struct AppSessionConfiguration {
     var discordPresenceClient: (any DiscordPresenceProviding)? = nil
     var commandInterpreter: (any CommandInterpreting)? = nil
     var commandGenerationGate: CommandGenerationGate? = nil
+    var sponsorBlockClient: (any SponsorBlockProviding)? = nil
 
     static func withoutSystemMedia(_ source: Self) -> Self {
         var result = source; result.installsSystemMedia = false; return result
@@ -69,7 +70,8 @@ struct AppSessionConfiguration {
                         store: LastFMStore(directory: $0.appendingPathComponent("lastfm", isDirectory: true)),
                         secrets: KeychainLastFMCredentials(service: namespace + ".lastfm"),
                         api: LastFMAPI(transport: LastFMHTTPTransport())) },
-                    streamingMetadataWriter: StreamingExportFile(), discordPresenceClient: DiscordPresenceClient())
+                    streamingMetadataWriter: StreamingExportFile(), discordPresenceClient: DiscordPresenceClient(),
+                    sponsorBlockClient: SponsorBlockClient())
     }
 
     static func sceneCheck(preferences: UserDefaults, transport: SceneCheckTransport) -> Self {

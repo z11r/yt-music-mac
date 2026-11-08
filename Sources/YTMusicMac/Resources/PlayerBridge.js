@@ -167,6 +167,25 @@
         return !!context && videoID() === context.identity.trackID;
     }
 
+    function acceptsSectionSeek(value) {
+        const scope = value.sectionGuard;
+        const identity = scope && scope.identity;
+        const expected = context && context.identity;
+        if (!scope || !identity || !expected || value.name !== "seek" || !matchesTarget()
+            || typeof scope.documentID !== "string" || scope.documentID.toLowerCase() !== documentID
+            || scope.mediaGeneration !== mediaGeneration || scope.expectedRevision !== commandRevision
+            || value.revision !== commandRevision + 1 || !video || !wantsPlaying || video.paused || video.ended
+            || !contentReady || !hasPlayedCurrentMedia || video.readyState < 2 || buffering || video.seeking
+            || adShowing() || adInThisMedia || pendingSeek !== null
+            || typeof identity.sessionID !== "string" || identity.sessionID.toLowerCase() !== expected.sessionID.toLowerCase()
+            || typeof identity.entryID !== "string" || identity.entryID.toLowerCase() !== expected.entryID.toLowerCase()
+            || identity.trackID !== expected.trackID || identity.generation !== expected.generation) return false;
+        return Number.isFinite(scope.start) && Number.isFinite(scope.end) && scope.start >= 0 && scope.start < scope.end
+            && Number.isFinite(video.duration) && video.duration === scope.duration && scope.end < video.duration
+            && value.value === scope.end && Number.isFinite(video.currentTime)
+            && video.currentTime >= scope.start && video.currentTime < scope.end;
+    }
+
     function applyIntent() {
         if (!video || !context) return;
         video.volume = desiredVolume;
@@ -376,6 +395,12 @@
         command(value) {
             if (!context || value.loadID !== context.loadID
                 || !Number.isInteger(value.revision) || value.revision <= commandRevision) return false;
+            if (value.sectionGuard !== undefined && !acceptsSectionSeek(value)) {
+                // Acknowledge this intent revision without queuing a seek or changing playback.
+                commandRevision = value.revision;
+                report("state");
+                return false;
+            }
             commandRevision = value.revision;
             if (value.name === "play" || value.name === "pause") {
                 wantsPlaying = value.name === "play";

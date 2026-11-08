@@ -58,6 +58,7 @@ struct PlayerBar: View {
             .padding(.horizontal, 20)
             .padding(.vertical, 13)
             EpisodeControlsView(session: session)
+            SponsorBlockPlayerAction(session: session)
         }
         .background {
             if reduceTransparency { Color(nsColor: .windowBackgroundColor) }

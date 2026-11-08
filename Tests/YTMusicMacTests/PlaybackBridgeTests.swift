@@ -570,3 +570,72 @@ struct VideoPresentationBridgeTests {
         #expect(fixture.run("presentationCalls.length").toInt32() == 1)
     }
 }
+
+@MainActor @Suite("Immediate guarded section seeking")
+struct SponsorBlockSeekBridgeTests {
+    private func fixture() throws -> BridgeFixture {
+        let fixture = try BridgeFixture()
+        fixture.run("""
+        media.readyState = 4; media.currentTime = 15;
+        YTMusicNativePlayer.bind(binding);
+        media.emit('loadedmetadata'); media.emit('playing');
+        function sectionRequest() {
+            const state = messages[messages.length - 1];
+            return {loadID: binding.loadID, revision: state.commandRevision + 1, name: 'seek', value: 20,
+                sectionGuard: {documentID: state.documentID.toUpperCase(), mediaGeneration: state.mediaGeneration,
+                    expectedRevision: state.commandRevision, duration: state.duration, start: 10, end: 20,
+                    identity: {...binding.identity, sessionID: binding.identity.sessionID.toLowerCase(),
+                        entryID: binding.identity.entryID.toLowerCase()}}};
+        }
+        """)
+        return fixture
+    }
+    @Test func acceptedExplicitSectionSeekMovesOnlyTheCurrentRecordingAndRejectsReplay() throws {
+        let fixture = try fixture()
+        fixture.run("const request = sectionRequest(); globalThis.accepted = YTMusicNativePlayer.command(request)")
+        #expect(fixture.run("accepted && media.currentTime === 20 && !media.paused").toBool())
+        #expect(fixture.run("messages[messages.length - 1].commandRevision === 1").toBool())
+        fixture.run("media.currentTime = 16; globalThis.replayed = YTMusicNativePlayer.command(request)")
+        #expect(fixture.run("!replayed && media.currentTime === 16").toBool())
+        #expect(fixture.run("messages.every(value => value.errorCode === null && value.kind !== 'ended')").toBool())
+    }
+    @Test func staleLoadDocumentOccurrenceMediaIntentDurationAndRangesNeverQueueOrSeek() throws {
+        for change in ["request.loadID = 'old-load'", "request.sectionGuard.documentID = 'old-document'",
+                       "request.sectionGuard.identity.entryID = 'other-occurrence'", "request.sectionGuard.mediaGeneration += 1",
+                       "request.sectionGuard.expectedRevision += 1", "request.sectionGuard.duration += 1",
+                       "request.sectionGuard.start = 16", "request.sectionGuard.end = 15", "request.value = 21"] {
+            let fixture = try fixture()
+            fixture.run("const request = sectionRequest(); " + change + "; globalThis.accepted = YTMusicNativePlayer.command(request)")
+            #expect(fixture.run("!accepted && media.currentTime === 15 && !media.paused").toBool())
+            fixture.run("media.emit('canplay')")
+            #expect(fixture.run("media.currentTime === 15 && messages.every(value => value.errorCode === null && value.kind !== 'ended')").toBool())
+        }
+    }
+    @Test func adBeginningAfterNativePreviewCannotLeaveAPendingSeekForAfterTheAd() throws {
+        for change in ["ad = true", "ad = true; media.emit('loadedmetadata'); ad = false"] {
+            let fixture = try fixture()
+            fixture.run("const request = sectionRequest(); " + change + "; globalThis.accepted = YTMusicNativePlayer.command(request)")
+            #expect(fixture.run("!accepted && media.currentTime === 15").toBool())
+            fixture.run("ad = false; media.emit('loadedmetadata'); media.emit('playing'); media.emit('canplay')")
+            #expect(fixture.run("media.currentTime === 15 && !media.paused && messages.every(value => value.errorCode === null && value.kind !== 'ended')").toBool())
+        }
+    }
+    @Test func loadingBufferingPausedSeekingAndPassedSectionsCannotBecomeDelayedActions() throws {
+        for change in ["media.readyState = 1; media.emit('loadstart')", "media.readyState = 2; media.emit('waiting')",
+                       "media.paused = true; media.emit('pause')", "media.seeking = true", "media.currentTime = 21"] {
+            let fixture = try fixture()
+            fixture.run("const request = sectionRequest(); " + change + "; const before = media.currentTime; globalThis.accepted = YTMusicNativePlayer.command(request)")
+            #expect(fixture.run("!accepted && media.currentTime === before").toBool())
+            fixture.run("media.readyState = 4; media.seeking = false; media.emit('loadedmetadata'); media.emit('canplay')")
+            #expect(fixture.run("media.currentTime === before && messages.every(value => value.errorCode === null && value.kind !== 'ended')").toBool())
+        }
+    }
+    @Test func laterTransportIntentAndUnexpectedVideoRefuseOnlyTheOptionalAction() throws {
+        let paused = try fixture()
+        paused.run("const request = sectionRequest(); YTMusicNativePlayer.command({loadID: binding.loadID, revision: 1, name: 'pause'}); globalThis.accepted = YTMusicNativePlayer.command(request)")
+        #expect(paused.run("!accepted && media.currentTime === 15 && media.paused").toBool())
+        let changed = try fixture()
+        changed.run("const request = sectionRequest(); location.href = 'https://music.youtube.com/watch?v=other'; globalThis.accepted = YTMusicNativePlayer.command(request)")
+        #expect(changed.run("!accepted && media.currentTime === 15 && messages.every(value => value.errorCode === null && value.kind !== 'ended')").toBool())
+    }
+}

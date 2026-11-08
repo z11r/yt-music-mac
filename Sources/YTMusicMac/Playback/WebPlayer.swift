@@ -62,6 +62,8 @@ final class WebPlayer: NSObject {
     @ObservationIgnored private var presentationRevision = 0
     @ObservationIgnored private var externalPresentation = false
     @ObservationIgnored private var acceptedPresentationContent = false
+    @ObservationIgnored private var segmentIdentity: SponsorBlockPlaybackIdentity?
+    @ObservationIgnored private var segmentConfirmedAt = -Double.infinity
     private(set) var isPlaying = false
     private(set) var isBuffering = false
     private(set) var errorMessage: String?
@@ -73,6 +75,17 @@ final class WebPlayer: NSObject {
     private(set) var isStartingPlayback = false
 
     var playbackIntent: Bool { self.wantsPlaying }
+
+    /// A recent accepted native content message, bound to this exact page, media and intent.
+    var confirmedSegmentIdentity: SponsorBlockPlaybackIdentity? {
+        guard let identity = segmentIdentity, !sessionMediaSuspended, !failureReported, wantsPlaying,
+              isPlaying, !isBuffering, hasConfirmedPosition, acceptedPresentationContent,
+              gate.loadID == identity.loadID, gate.documentID == identity.documentID,
+              gate.mediaGeneration == identity.mediaGeneration, gate.identity == PlaybackBridgeIdentity(identity.occurrence),
+              commandRevision == identity.commandRevision, clock.duration == identity.duration else { return nil }
+        let age = PlaybackOutputTime.monotonic() - segmentConfirmedAt
+        return age.isFinite && (0...3).contains(age) ? identity : nil
+    }
 
     @ObservationIgnored var onEnded: ((PlaybackOccurrence) -> Void)?
     @ObservationIgnored var onFailure: (() -> Void)?
@@ -290,6 +303,12 @@ final class WebPlayer: NSObject {
             self.pendingSeek = nil
         }
     }
+    func seekSection(_ value: SponsorBlockSeek, completion: @escaping @MainActor (Bool) -> Void) {
+        guard confirmedSegmentIdentity == value.playback, clock.position >= value.start, clock.position < value.end else {
+            completion(false); return
+        }
+        sendCommand("seek", value: value.end, sectionGuard: value, completion: completion)
+    }
 
     func setVolume(_ volume: Double) {
         guard volume.isFinite else { return }
@@ -439,19 +458,26 @@ final class WebPlayer: NSObject {
         }
     }
 
-    private func sendCommand(_ name: String, value: Double? = nil) {
-        guard let loadID = self.gate.loadID, self.gate.documentID != nil else { return }
+    private func sendCommand(_ name: String, value: Double? = nil, sectionGuard: SponsorBlockSeek? = nil,
+                             completion: (@MainActor (Bool) -> Void)? = nil) {
+        guard let loadID = self.gate.loadID, self.gate.documentID != nil else { completion?(false); return }
         self.commandRevision += 1
         let revision = self.commandRevision
         var command: [String: Any] = ["loadID": loadID.uuidString, "revision": revision, "name": name]
         if let value { command["value"] = value }
+        if let sectionGuard { command["sectionGuard"] = sectionGuard.payload }
         self.webView.callAsyncJavaScript(
             "return globalThis.YTMusicNativePlayer?.command(command) ?? false;",
             arguments: ["command": command],
             in: nil,
             in: .defaultClient
         ) { [weak self] result in
-            guard let self, self.gate.loadID == loadID, self.commandRevision == revision else { return }
+            guard let self, self.gate.loadID == loadID, self.commandRevision == revision else { completion?(false); return }
+            if sectionGuard != nil {
+                if case let .success(value) = result { completion?(value as? Bool == true) }
+                else { completion?(false) }
+                return
+            }
             if case .failure = result, !self.failureReported {
                 self.fail(AppLocalization.text("The player stopped responding. Try loading the song again."))
             }
@@ -471,6 +497,7 @@ final class WebPlayer: NSObject {
 
     private func receive(_ message: PlaybackBridgeMessage) {
         guard self.gate.accept(message), !self.failureReported else { return }
+        if message.interruptsPlaybackOutput { self.segmentIdentity = nil }
         if let occurrence, message.interruptsPlaybackOutput { self.onPlaybackOutputInterrupted?(occurrence) }
         if let occurrence, !message.confirmsEpisodeProgress || (message.kind != .progress && message.kind != .ended) {
             self.onListeningInterrupted?(occurrence)
@@ -519,6 +546,11 @@ final class WebPlayer: NSObject {
             if !self.hasConfirmedPosition { self.hasConfirmedPosition = true }
         }
         if let occurrence = self.occurrence, message.confirmsEpisodeProgress {
+            if self.isPlaying, !self.isBuffering,
+               let identity = SponsorBlockPlaybackIdentity.verified(message, occurrence: occurrence, commandRevision: self.commandRevision) {
+                self.segmentIdentity = identity
+                self.segmentConfirmedAt = PlaybackOutputTime.monotonic()
+            } else { self.segmentIdentity = nil }
             self.onVerifiedContentProgress?(occurrence, message.position, message.duration, message.kind == .ended)
             self.verifiedRateOccurrence = occurrence
         }

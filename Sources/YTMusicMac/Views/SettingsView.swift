@@ -84,6 +84,7 @@ struct SettingsView: View {
             LastFMSettings(session: session)
             StreamingExportSettingsView(session: session)
             DiscordPresenceSettingsView(session: session)
+            SponsorBlockSettingsView(session: session)
         }
         .formStyle(.grouped)
         .padding(10)

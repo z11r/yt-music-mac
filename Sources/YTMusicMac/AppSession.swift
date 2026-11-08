@@ -141,6 +141,7 @@ final class AppSession {
     let commandReview: CommandReviewSession
     @ObservationIgnored var quickCommandProfile: String?
     let discordPresence: DiscordPresenceSession?
+    let sponsorBlock: SponsorBlockSession?
     private(set) var destination: MusicDestination = .home
     private(set) var page: MusicPage?
     private(set) var chartCountries: [MusicChartCountry] = []
@@ -245,6 +246,9 @@ final class AppSession {
             DiscordPresenceSession(preferences: configuration.preferences, profileNamespace: configuration.profileNamespace,
                 sessions: configuration.credentials, service: $0)
         }
+        sponsorBlock = configuration.sponsorBlockClient.map {
+            SponsorBlockSession(sessions: configuration.credentials, profileNamespace: configuration.profileNamespace, service: $0)
+        }
         isSceneCheck = configuration.isSceneCheck
         account = WebSession(dataStore: configuration.dataStore, credentials: configuration.credentials,
                              preferences: configuration.preferences)
@@ -266,6 +270,12 @@ final class AppSession {
         player = WebPlayer(dataStore: configuration.dataStore)
         queueStore = configuration.queueStore
         queueError = configuration.queueStorageError
+        sponsorBlock?.currentContext = { [weak self] in self?.sponsorBlockContext }
+        sponsorBlock?.currentPosition = { [weak self] in self?.player.clock.position ?? .nan }
+        sponsorBlock?.performSeek = { [weak self] context, section in
+            guard let self, self.sponsorBlockContext == context else { return false }
+            return await self.seekSponsorBlockSection(section, context: context)
+        }
         episodePlayback.rateController = player
         player.onEpisodeRates = { [weak self] occurrence, snapshot in
             guard let self, self.acceptsProfileActions, self.queue.accepts(occurrence), self.account.isSignedIn else { return }
@@ -290,6 +300,7 @@ final class AppSession {
             self.episodePlayback.record(occurrence: occurrence, position: position, duration: duration, confirmedContent: true, ended: ended)
             self.listenBrainz.sample(occurrence: occurrence, position: position, duration: duration, ended: ended)
             self.lastFM.sample(occurrence: occurrence, position: position, duration: duration, ended: ended)
+            self.sponsorBlock?.playbackChanged()
             if !ended, self.wantsPlayback, self.player.isPlaying, !self.player.isBuffering,
                self.player.hasConfirmedPosition, self.player.errorMessage == nil, let track = self.currentTrack {
                 self.streamingExport?.sample(track: track, occurrence: occurrence, ended: false)
@@ -305,6 +316,7 @@ final class AppSession {
             guard let self, self.acceptsProfileActions, self.queue.accepts(occurrence) else { return }
             self.streamingExport?.interrupt()
             self.discordPresence?.interrupt()
+            self.sponsorBlock?.interrupt()
         }
         player.onRecoveryRequested = { [weak self] occurrence, position in
             guard let self, self.acceptsProfileActions else { return nil }
@@ -321,7 +333,7 @@ final class AppSession {
             }
             self.wantsPlayback = self.player.playbackIntent
             if !self.player.isPlaying || self.player.isBuffering {
-                self.listenBrainz.interrupt(); self.lastFM.interrupt(); self.streamingExport?.interrupt(); self.discordPresence?.interrupt()
+                self.listenBrainz.interrupt(); self.lastFM.interrupt(); self.streamingExport?.interrupt(); self.discordPresence?.interrupt(); self.sponsorBlock?.interrupt()
             }
             self.systemMedia?.refresh()
             self.saveQueue()
@@ -341,6 +353,7 @@ final class AppSession {
             self.bindEpisodeAccount(hash)
             self.streamingExport?.bindAccount(hash)
             self.discordPresence?.bindAccount(hash)
+            self.sponsorBlock?.bindAccount(hash)
             let generation = self.accountGeneration
             self.listenBrainz.bindAccount(hash, currentPlayback: { [weak self] in
                 guard let self, self.accountGeneration == generation, self.account.isSignedIn,
@@ -883,6 +896,7 @@ final class AppSession {
     func pause() {
         streamingExport?.interrupt()
         discordPresence?.interrupt()
+        sponsorBlock?.interrupt()
         listenBrainz.interrupt()
         lastFM.interrupt()
         episodeStartTask?.cancel(); episodeStartTask = nil
@@ -913,19 +927,32 @@ final class AppSession {
     }
 
     func seek(to value: TimeInterval) {
-        guard acceptsProfileActions else { return }
+        guard prepareSeek(to: value, preservingSectionAction: false) else { return }
+        player.seek(to: value)
+        saveQueue()
+    }
+    func seek(to value: TimeInterval, sectionGuard: SponsorBlockSeek, completion: @escaping @MainActor (Bool) -> Void) {
+        guard player.confirmedSegmentIdentity == sectionGuard.playback,
+              player.clock.position >= sectionGuard.start, player.clock.position < sectionGuard.end,
+              value == sectionGuard.end, value < sectionGuard.playback.duration,
+              prepareSeek(to: value, preservingSectionAction: true) else { completion(false); return }
+        player.seekSection(sectionGuard, completion: completion)
+        saveQueue()
+    }
+    private func prepareSeek(to value: TimeInterval, preservingSectionAction: Bool) -> Bool {
+        guard acceptsProfileActions else { return false }
         collectionPlayback.cancel()
-        guard value.isFinite, value >= 0 else { return }
+        guard value.isFinite, value >= 0 else { return false }
         recommendations.cancel()
         streamingExport?.interrupt()
         cancelPendingCollectionRadio()
         discordPresence?.interrupt()
+        if !preservingSectionAction { sponsorBlock?.interrupt() }
         listenBrainz.interrupt()
         lastFM.interrupt()
         episodePlayback.allowExplicitSeek()
         resumeState.clear()
-        player.seek(to: value)
-        saveQueue()
+        return true
     }
     func skipEpisode(forward: Bool) {
         guard acceptsProfileActions else { return }
@@ -1082,6 +1109,7 @@ final class AppSession {
         streamingExport?.interrupt()
         episodeStartTask?.cancel(); episodeStartTask = nil; pendingEpisodeOccurrence = nil
         discordPresence?.interrupt()
+        sponsorBlock?.interrupt()
         guard let occurrence, let track = queue.currentTrack else { episodePlayback.clearPlayback(); return }
         sleepTimer.bind(to: occurrence)
         if position > 0 { resumeState.begin(occurrence, recovering: position) }
@@ -1236,6 +1264,7 @@ final class AppSession {
         player.invalidateEpisodeRateControl()
         streamingExport?.bindAccount(nil)
         discordPresence?.bindAccount(nil)
+        sponsorBlock?.bindAccount(nil)
         episodeContinuation = nil
         cancelMusicLink()
         listenBrainz.bindAccount(nil)
@@ -1275,6 +1304,7 @@ final class AppSession {
         await queuePlaylistSave.waitForIdle()
         await streamingExport?.waitForIdle()
         await discordPresence?.waitForIdle()
+        await sponsorBlock?.waitForIdle()
         await account.signOut()
         do { try await queueStore?.clear() }
         catch { queueError = AppLocalization.text("The saved queue could not be removed. Try signing out again.") }
@@ -1309,6 +1339,7 @@ final class AppSession {
         player.invalidateEpisodeRateControl()
         streamingExport?.bindAccount(nil)
         discordPresence?.bindAccount(nil)
+        sponsorBlock?.bindAccount(nil)
         episodeContinuation = replacedAccount ? nil : episodePlayback.continuationForRebind()
         cancelMusicLink(keepingPending: !links.isReady && !replacedAccount)
         spotlightPageSource = nil
@@ -1410,7 +1441,7 @@ final class AppSession {
         commandReview.invalidate()
         credits.clear()
         quickCommands.invalidate(); quickCommandProfile = nil
-        streamingExport?.quiesce(); discordPresence?.quiesce()
+        streamingExport?.quiesce(); discordPresence?.quiesce(); sponsorBlock?.quiesce()
         player.invalidateEpisodeRateControl()
         chartCountries = []; chartCountryLabel = nil
         sessionOperations.quiesce()
@@ -1438,7 +1469,7 @@ final class AppSession {
         await pageTask?.value
         if isEditingLibrary { await withCheckedContinuation { libraryEditWaiters.append($0) } }
         await listenBrainz.stop(); await lastFM.stop()
-        await streamingExport?.stop(); await discordPresence?.stop()
+        await streamingExport?.stop(); await discordPresence?.stop(); await sponsorBlock?.stop()
         await episodePlayback.waitUntilLoaded()
         _ = await episodePlayback.flush()
         await saveTask?.value

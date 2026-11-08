@@ -1,5 +1,19 @@
 # Third-party notices
 
+## SponsorBlock data
+
+The optional native non-music section preview uses SponsorBlock contributor
+data from [SponsorBlock](https://sponsor.ajay.app/), maintained by Ajay Ramachandran.
+Its [API and database license](https://github.com/ajayyy/SponsorBlock/wiki/Database-and-API-License)
+is [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/) unless
+separate permission applies. This includes attribution, noncommercial, and
+share-alike conditions for the provider data. The app filters eligible ranges
+and displays their original endpoints; it does not bundle a response dataset.
+Native controls link to the provider, data license, privacy policy, and terms.
+
+The app's code retains its own MIT license. No SponsorBlock extension/server
+source, binaries, or artwork are imported. See [integration behavior](docs/SPONSORBLOCK.md).
+
 ## Kaset
 
 Parts of the YouTube Music request handling and response parsing are adapted
