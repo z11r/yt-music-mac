@@ -14,6 +14,10 @@ struct MusicContentView: View {
         }
     }
 
+    private var showsSearchGrid: Bool {
+        if case .search = session.destination { session.searchFilter != .all } else { false }
+    }
+
     var body: some View {
         Group {
             if session.isLoading && session.page == nil {
@@ -27,6 +31,18 @@ struct MusicContentView: View {
                 }
             } else {
                 unavailable
+            }
+        }
+        // Outside the page content, so the filters stay in place (and keep focus) while results load.
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if case .search = session.destination {
+                VStack(spacing: 0) {
+                    SearchFilterBar(session: session)
+                        .padding(.horizontal, 28)
+                        .padding(.vertical, 8)
+                    Divider()
+                }
+                .background(.bar)
             }
         }
         .background(Color(nsColor: .windowBackgroundColor))
@@ -54,11 +70,17 @@ struct MusicContentView: View {
                         .labelStyle(.iconOnly).buttonStyle(.borderless).help("Refresh this page")
                 }
                 if page.sections.isEmpty && page.items.isEmpty {
-                    ContentUnavailableView("Nothing Here Yet", systemImage: "music.note.list",
-                                           description: Text("Try another page or search for something to play."))
-                        .frame(maxWidth: .infinity, minHeight: 240)
+                    if case let .search(query) = session.destination {
+                        ContentUnavailableView.search(text: query)
+                            .frame(maxWidth: .infinity, minHeight: 240)
+                    } else {
+                        ContentUnavailableView("Nothing Here Yet", systemImage: "music.note.list",
+                                               description: Text("Try another page or search for something to play."))
+                            .frame(maxWidth: .infinity, minHeight: 240)
+                    }
                 }
-                ForEach(Array(page.sections.enumerated()), id: \.offset) { _, section in
+                // A filtered search is one list that grows page by page, so show it as one grid.
+                ForEach(Array((showsSearchGrid ? [] : page.sections).enumerated()), id: \.offset) { _, section in
                     VStack(alignment: .leading, spacing: 14) {
                         if !section.title.isEmpty {
                             Text(section.title).font(.title2.bold()).accessibilityAddTraits(.isHeader)
@@ -74,7 +96,7 @@ struct MusicContentView: View {
                         .scrollIndicators(.automatic)
                     }
                 }
-                if page.sections.isEmpty && !page.items.isEmpty {
+                if (showsSearchGrid || page.sections.isEmpty) && !page.items.isEmpty {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 176, maximum: 220), spacing: 20)],
                               alignment: .leading, spacing: 26) {
                         ForEach(Array(page.items.enumerated()), id: \.offset) { _, item in

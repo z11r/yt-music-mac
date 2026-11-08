@@ -38,7 +38,8 @@ struct RootView: View {
             .searchable(text: $session.searchText, isPresented: $isSearchPresented,
                         placement: .toolbar, prompt: Text("Search music"))
             .modifier(CatalogSearchFocus(focus: $isSearchFocused))
-            .onSubmit(of: .search) { session.search() }
+            .onSubmit(of: .search) { session.submitSearch() }
+            .onChange(of: session.searchText) { session.searchTextChanged() }
             .toolbar {
                 ToolbarItemGroup(placement: .navigation) {
                     Button("Back", systemImage: "chevron.left", action: session.goBack)
@@ -66,6 +67,7 @@ struct RootView: View {
         }
         .frame(minWidth: 860, minHeight: 600)
         .background(SearchWindowAnchor(reference: searchWindow).frame(width: 0, height: 0))
+        .background(SearchSuggestionsAttachment(session: session))
         .focusedSceneValue(\.focusMusicSearch, searchAction)
         .sheet(isPresented: $session.showsAccount, onDismiss: session.closeAccount) {
             AccountView(session: session)

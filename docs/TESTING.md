@@ -86,6 +86,18 @@ pages. The native client passed these checks locally on November 6, 2026.
 Service responses vary over time and by region, so a failure needs inspection.
 No response bodies, configuration keys, or account data should be saved in logs.
 
+A separate opt-in test checks search filters and suggestions:
+
+```sh
+YTM_RUN_NETWORK_TESTS=1 Scripts/with-xcode.sh swift test --filter MusicSearchLiveTests --jobs 2
+```
+
+It searches for “Mozart” with each filter and checks that every result has the
+expected kind: songs and videos are playable tracks, albums are albums, artists
+are artists, and both playlist filters return playlists. It also loads a second
+page of songs, checks that the videos differ from the songs, and requests
+suggestions for partly typed text. It passed locally on November 7, 2026.
+
 On November 6, 2026, a Premium account check completed a liked-song collection
 larger than one page, but library and playlist paging failed. On November 7, a
 release build of commit `fdc2b32` loaded the library and liked songs across two
@@ -108,6 +120,12 @@ Pagination tests now cover cursor selection with synthetic responses:
 
 These rules match the library and playlist parsers in Kaset at the pinned
 revision and in ytmusicapi.
+
+Search tests read trimmed anonymous responses for each filter, for a second page
+of songs, and for suggestions. Names, identifiers, artwork addresses, and
+continuation tokens in these files are synthetic. Other tests hold a response
+until a newer search, filter, page, or suggestion request has finished, then
+check that the older response changes nothing.
 
 ## Manual playback
 
