@@ -33,6 +33,24 @@ enum StartupWindowID: String, Sendable { case main, mini = "mini-player" }
 enum StartupSceneLaunch: Equatable, Sendable { case automatic, presented, suppressed }
 enum StartupPreferenceValue { case absent, text(String), unsupported }
 
+/// A launch snapshot, installed before AppKit asks to restore older window state.
+/// An unconfigured launch and macOS 14 retain native restoration.
+struct StartupWindowRestorationGate {
+    private(set) var policy: StartupWindowPolicy?
+    var permitsRestoration: Bool { policy == nil || policy == .system }
+
+    @discardableResult mutating func install(_ policy: StartupWindowPolicy, supportsSelection: Bool) -> Bool {
+        guard self.policy == nil else { return false }
+        self.policy = policy.effective(supportsSelection: supportsSelection)
+        return true
+    }
+
+    func resolveRestoration(native: () -> Bool, decline: () -> Void) -> Bool {
+        guard permitsRestoration else { decline(); return true }
+        return native()
+    }
+}
+
 @MainActor struct StartupWindowPreferenceAccess {
     let read: () -> StartupPreferenceValue
     let write: (String) -> Void

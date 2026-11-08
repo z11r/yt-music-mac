@@ -49,6 +49,7 @@ music_link_scheme="ytmusicmac"
 [[ "$configuration" != debug ]] || music_link_scheme="ytmusicmac-debug"
 [[ "$(read_plist CFBundleIdentifier)" == "$identifier" ]] || { echo "Bundle identifier does not match the build configuration." >&2; exit 1; }
 [[ "$(read_plist CFBundleExecutable)" == YTMusicMac ]] || { echo "Bundle executable does not match." >&2; exit 1; }
+[[ "$(read_plist NSPrincipalClass)" == StartupWindowApplication ]] || { echo "Application class does not match." >&2; exit 1; }
 [[ "$(read_plist CFBundlePackageType)" == APPL ]] || { echo "Bundle type is not APPL." >&2; exit 1; }
 [[ "$(read_plist CFBundleURLTypes:0:CFBundleURLSchemes:0)" == "$music_link_scheme" ]] || {
   echo "Music link registration does not match the build configuration." >&2; exit 1;

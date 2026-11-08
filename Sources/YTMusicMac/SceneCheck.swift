@@ -205,13 +205,24 @@ final class SceneCheckDriver {
                     completion.finish(success: false, reason: "startup-status-presenter")
                 }
                 completion.record("startupStatusPresenter")
+                if let window {
+                    completion.record(window.isVisible ? "startupMainVisible" : "startupMainHidden")
+                    if window.isMiniaturized { completion.record("startupMainMiniaturized") }
+                }
+                if let miniWindow {
+                    completion.record(miniWindow.isVisible ? "startupMiniVisible" : "startupMiniHidden")
+                    if miniWindow.isMiniaturized { completion.record("startupMiniMiniaturized") }
+                }
                 if policy == .none {
                     guard window == nil, miniWindow == nil else { completion.finish(success: false, reason: "startup-unexpected-window") }
                     completion.record("startupNoWindows")
                 }
                 if policy == .mini {
-                    guard window == nil, miniWindow != nil else { completion.finish(success: false, reason: "startup-mini-window") }
+                    guard window == nil, miniWindow?.isVisible == true else { completion.finish(success: false, reason: "startup-mini-window") }
                     completion.record("startupMiniOnly")
+                }
+                if policy == .main {
+                    guard window?.isVisible == true else { completion.finish(success: false, reason: "startup-main-window") }
                 }
                 let accepted = policy == .none ? reopenMain?() == true : startup.requestWindow(.main, expectedActivation: startup.readyActivation)
                 guard accepted else {

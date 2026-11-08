@@ -4,7 +4,7 @@ import Darwin
 import SwiftUI
 import YouTubeMusic
 
-@main @MainActor
+@MainActor
 struct YTMusicMacApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @State private var profiles: AppProfileOwner<NativeAppProfileRuntime>
@@ -41,10 +41,14 @@ struct YTMusicMacApp: App {
         }
         let sceneCheck = SceneCheckLaunch.isRequested ? SceneCheckDriver() : nil
         self.sceneCheck = sceneCheck
+        sceneCheck?.record(NSApplication.shared is StartupWindowApplication
+            ? "nativeApplicationSubclassInstalled" : "nativeApplicationSubclassMissing")
         let supportsWindowSelection: Bool
         if #available(macOS 15, *) { supportsWindowSelection = true } else { supportsWindowSelection = false }
         startupPreferences = StartupWindowPreferences(access: .defaults(sceneCheck == nil ? AppIdentity.preferences : SceneCheckPreferences.current.defaults),
             supportsSelection: supportsWindowSelection, launchOverride: sceneCheck == nil ? nil : (SceneCheckLaunch.startupPolicy ?? .main))
+        sceneCheck?.record("effectiveStartupPolicy_" + startupPreferences.launchPolicy.rawValue)
+        (NSApplication.shared as? StartupWindowApplication)?.installStartupPolicy(startupPreferences.launchPolicy)
         let directory = sceneCheck == nil ? try? AppIdentity.applicationSupportDirectory() : nil
         let registry: any AppProfileRegistry = directory.map {
             AppProfileRegistryStore(io: FileAppProfileRegistryIO(file: $0.appendingPathComponent("app-profiles.json")))
@@ -323,6 +327,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApplication.shared.setActivationPolicy(.regular)
         SceneCheckDriver.current?.record("didFinishLaunching")
+        if let isDefault = notification.userInfo?[NSApplication.launchIsDefaultUserInfoKey] as? Bool {
+            SceneCheckDriver.current?.record(isDefault ? "delegateDefaultLaunch" : "delegateNondefaultLaunch")
+        }
         launchCoordinator?.start()
     }
 
@@ -339,6 +346,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        SceneCheckDriver.current?.record(flag ? "delegateReopenVisible" : "delegateReopenNoVisible")
         guard !flag, let launchCoordinator else { return true }
         guard launchCoordinator.requestWindow(.main) else { return false }
         sender.activate(ignoringOtherApps: true)
@@ -346,6 +354,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func application(_ application: NSApplication, open urls: [URL]) {
+        SceneCheckDriver.current?.record("delegateOpenURLs")
         guard urls.count <= 16, let last = urls.last else { return }
         _ = launchCoordinator?.openURL(last)
     }

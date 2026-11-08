@@ -5,6 +5,84 @@ import Testing
 
 @Suite("Startup window ownership", .serialized) @MainActor
 struct StartupWindowTests {
+    @Test func restorationGatePreservesSystemAndOlderMacOSBeforeAndAfterConfiguration() {
+        var unconfigured = StartupWindowRestorationGate()
+        #expect(unconfigured.permitsRestoration)
+        let installed = unconfigured.install(.system, supportsSelection: true)
+        #expect(installed)
+        #expect(unconfigured.permitsRestoration)
+        for policy in StartupWindowPolicy.allCases {
+            var legacy = StartupWindowRestorationGate()
+            let installed = legacy.install(policy, supportsSelection: false)
+            #expect(installed)
+            #expect(legacy.policy == .system && legacy.permitsRestoration)
+        }
+    }
+
+    @Test func explicitRestorationDecisionIsFrozenForTheWholeLaunch() {
+        for policy in [StartupWindowPolicy.main, .mini, .none] {
+            var gate = StartupWindowRestorationGate()
+            let installed = gate.install(policy, supportsSelection: true)
+            #expect(installed)
+            #expect(!gate.permitsRestoration)
+            let reinstalled = gate.install(.system, supportsSelection: true)
+            #expect(!reinstalled)
+            #expect(gate.policy == policy && !gate.permitsRestoration)
+        }
+        var system = StartupWindowRestorationGate()
+        let installed = system.install(.system, supportsSelection: true)
+        let reinstalled = system.install(.none, supportsSelection: true)
+        #expect(installed && !reinstalled)
+        #expect(system.permitsRestoration)
+    }
+
+    @Test func modernExplicitFunnelCompletesOnceWithoutCallingNativeRestoration() {
+        for policy in [StartupWindowPolicy.main, .mini, .none] {
+            var gate = StartupWindowRestorationGate()
+            gate.install(policy, supportsSelection: true)
+            var nativeCalls = 0, completions = 0
+            let recognized = gate.resolveRestoration(native: { nativeCalls += 1; return false },
+                decline: { completions += 1 })
+            #expect(recognized && nativeCalls == 0 && completions == 1)
+        }
+    }
+
+    @Test func nativeFunnelRetainsItsReturnValueAndCompletionForSystemLegacyAndUnknownSettings() {
+        var cases = [StartupWindowRestorationGate()]
+        for policy in StartupWindowPolicy.allCases {
+            var gate = StartupWindowRestorationGate()
+            gate.install(policy, supportsSelection: false)
+            cases.append(gate)
+        }
+        for value in [StartupPreferenceValue.text("system"), .text("future"), .unsupported] {
+            let memory = StartupPreferenceMemory(value)
+            let preferences = StartupWindowPreferences(access: memory.access, supportsSelection: true)
+            var gate = StartupWindowRestorationGate()
+            gate.install(preferences.launchPolicy, supportsSelection: true)
+            cases.append(gate)
+            #expect(memory.writes.isEmpty)
+        }
+        for gate in cases {
+            for nativeResult in [false, true] {
+                var nativeCalls = 0, declines = 0
+                let recognized = gate.resolveRestoration(native: { nativeCalls += 1; return nativeResult },
+                    decline: { declines += 1 })
+                #expect(recognized == nativeResult && nativeCalls == 1 && declines == 0)
+            }
+        }
+    }
+
+    @Test func nextLaunchPreferenceDoesNotRebindTheCurrentNativeRestorationGate() {
+        let memory = StartupPreferenceMemory(.text("mini"))
+        let preferences = StartupWindowPreferences(access: memory.access, supportsSelection: true)
+        var gate = StartupWindowRestorationGate()
+        gate.install(preferences.launchPolicy, supportsSelection: true)
+        preferences.select(.system)
+        let reinstalled = gate.install(preferences.selection, supportsSelection: true)
+        #expect(!reinstalled && gate.policy == .mini && !gate.permitsRestoration)
+        #expect(StartupWindowPreferences(access: memory.access, supportsSelection: true).launchPolicy == .system)
+    }
+
     @Test func noWindowBootstrapsWithoutAnyViewAndNeverPresentsRecoveryAutomatically() async {
         let f = StartupFixture(policy: .none)
         f.coordinator.start(); f.coordinator.start()

@@ -130,7 +130,7 @@ cat > "$bundle/Contents/Info.plist" <<PLIST
   <key>CFBundleVersion</key><string>1</string>
   <key>LSMinimumSystemVersion</key><string>14.0</string>
   <key>LSApplicationCategoryType</key><string>public.app-category.music</string>
-  <key>NSPrincipalClass</key><string>NSApplication</string>
+  <key>NSPrincipalClass</key><string>StartupWindowApplication</string>
   <key>NSHighResolutionCapable</key><true/>
   <key>NSAppleScriptEnabled</key><true/>
   <key>OSAScriptingDefinition</key><string>YTMusicMac.sdef</string>

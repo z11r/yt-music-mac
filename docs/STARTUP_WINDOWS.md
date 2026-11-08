@@ -14,6 +14,13 @@ Apple's [default launch behavior](https://developer.apple.com/documentation/swif
 alone applies when no saved scenes restore; the app also uses the separate
 [scene restoration control](https://developer.apple.com/documentation/swiftui/scene/restorationbehavior(_:)).
 
+Window state saved by older versions can also arrive through AppKit's
+[native window-restoration boundary](https://developer.apple.com/documentation/appkit/nsapplication/restorewindow(withidentifier:state:completionhandler:)).
+The app installs its native application object before SwiftUI starts and freezes
+the effective startup choice before these requests. Explicit choices complete
+the requests without restoring a window. System behavior and macOS 14 continue
+through AppKit unchanged. The app does not decode saved window state.
+
 Window preferences apply to all local profiles at the next launch. They do not
 close current windows, change the selected profile or start playback. The Dock
 and menu bar remain available, including with No Startup Window. This option
@@ -63,6 +70,13 @@ both No Startup Window and Mini Player passed 100 rendered revisions. The owner
 started before the main window or popover opened, the status-label presenter was
 available, and an explicit request attached the main window. These isolated
 checks used no authenticated session, network requests or playback output.
+
+An optimized release check reproduced an older native window restoring despite
+No Startup Window. The guarded release run observed the restoration request,
+declined it and reached startup with no main or mini window. AppKit then advanced
+its restoration bookkeeping: later checks, including the old build, no longer
+reproduced that older-state case. Later startup smoke checks must be reported
+separately from that first restoration regression check.
 
 Actual login/approval behavior, restoration across quit or logout, hidden or
 removed menu icons, VoiceOver, and playback with the main window never mounted
