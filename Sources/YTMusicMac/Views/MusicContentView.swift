@@ -190,8 +190,11 @@ private struct MusicCard: View {
             if case let .track(track) = item {
                 Button("Play Next") { session.playNext([track]) }
                 Button("Add to Queue") { session.addToQueue([track]) }
+                Button("Start Radio") { session.startRadio(from: track) }
                 LibraryTrackActions(session: session, tracks: [track], presentEditor: presentEditor,
                                     showsSeparator: false)
+            } else if case let .collection(collection) = item, collection.radioPlaylistID != nil {
+                Button("Start Radio") { session.startRadio(from: collection) }
             }
         }
         .contextMenu {
@@ -203,7 +206,10 @@ private struct MusicCard: View {
             if case let .track(track) = item {
                 Button("Play Next") { session.playNext([track]) }
                 Button("Add to Queue") { session.addToQueue([track]) }
+                Button("Start Radio") { session.startRadio(from: track) }
                 LibraryTrackActions(session: session, tracks: [track], presentEditor: presentEditor)
+            } else if case let .collection(collection) = item, collection.radioPlaylistID != nil {
+                Button("Start Radio") { session.startRadio(from: collection) }
             }
         }
     }
@@ -264,6 +270,11 @@ private struct CollectionTracksView: View {
                     Button("Add to Queue", systemImage: "text.badge.plus") {
                         session.addToQueue(session.visibleTracks)
                     }.disabled(rows.isEmpty)
+                    if case let .collection(collection) = session.destination, collection.radioPlaylistID != nil {
+                        Button("Start Radio", systemImage: "dot.radiowaves.left.and.right") {
+                            session.startRadio(from: collection)
+                        }
+                    }
                     playlistActions
                 }
                 HStack {
@@ -302,6 +313,7 @@ private struct CollectionTracksView: View {
                         Button("Play") { session.play(row.track) }
                         Button("Play Next") { session.playNext([row.track]) }
                         Button("Add to Queue") { session.addToQueue([row.track]) }
+                        Button("Start Radio") { session.startRadio(from: row.track) }
                     }
                 }.width(min: 190, ideal: 380)
                 TableColumn("Time") { row in
@@ -317,6 +329,9 @@ private struct CollectionTracksView: View {
                     Button("Play Next") { session.playNext(tracks) }
                     Button("Add to Queue") { session.addToQueue(tracks) }
                     if tracks.count == 1, let track = tracks.first { MusicLinkActions(link: .track(track.id)) }
+                    if tracks.count == 1, let track = tracks.first {
+                        Button("Start Radio") { session.startRadio(from: track) }
+                    }
                     LibraryTrackActions(session: session, tracks: tracks, presentEditor: presentEditor)
                     removalAction(for: ids)
                 }

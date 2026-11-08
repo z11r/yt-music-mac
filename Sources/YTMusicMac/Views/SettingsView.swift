@@ -20,6 +20,10 @@ struct SettingsView: View {
             }
             Section("Playback") {
                 LabeledContent("Volume") { VolumeView(session: session).frame(width: 190) }
+                Toggle(isOn: Binding(get: { session.radio.autoplayEnabled }, set: { session.setAutoplayEnabled($0) })) {
+                    Text("Autoplay")
+                    Text("When the queue ends with repeat off, keep playing related songs.")
+                }
                 Button("Open Mini-Player", systemImage: "pip") { openWindow(id: "mini-player") }
                 KeepMiniPlayerOnTopToggle()
             }
@@ -50,6 +54,6 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         .padding(10)
-        .frame(width: 470, height: 520)
+        .frame(width: 470, height: 580)
     }
 }

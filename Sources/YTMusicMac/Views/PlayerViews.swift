@@ -19,6 +19,7 @@ struct PlayerBar: View {
             if let message = session.player.errorMessage {
                 InlineMessage(message: message, actionTitle: "Retry", action: session.retryPlayback)
             }
+            RadioStatusView(session: session)
             HStack(spacing: 20) {
                 TrackIdentityView(session: session, artworkSize: 50)
                     .frame(width: 215, alignment: .leading)

@@ -16,6 +16,7 @@ from [Kaset](https://github.com/sozercan/kaset) at commit
 - `Sources/Kaset/Services/API/Parsers/ParsingHelpers+Playlist.swift`
 - `Sources/Kaset/Services/API/Parsers/PlaylistEditability.swift`
 - `Sources/Kaset/Services/API/Parsers/SongMetadataParser.swift`
+- `Sources/Kaset/Services/API/Parsers/RadioQueueParser.swift`
 
 Synthetic editability and like-state tests also use response shapes documented in
 `Tests/KasetTests/PlaylistParserTests.swift` and

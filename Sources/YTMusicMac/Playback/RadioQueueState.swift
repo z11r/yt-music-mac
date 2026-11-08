@@ -30,13 +30,16 @@ struct RadioQueueState<Continuation: Sendable> {
         case collectionRadio
     }
 
-    struct Request: Sendable {
+    /// Requests are equal when they are the same request.
+    struct Request: Equatable, Sendable {
         let id = UUID()
         let source: Source
         fileprivate(set) var purpose: Purpose
         let revision: QueueRevision
         let seedEntryID: UUID?
         let account: UUID
+
+        static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id }
     }
 
     struct Batch: Sendable {

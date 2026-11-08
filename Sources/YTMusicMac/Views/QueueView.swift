@@ -48,6 +48,9 @@ struct QueueView: View {
             .contextMenu(forSelectionType: UUID.self) { ids in
                 if !ids.isEmpty {
                     Button("Play") { playSelection(ids) }
+                    if ids.count == 1, let entry = session.queue.entries.first(where: { ids.contains($0.id) }) {
+                        Button("Start Radio") { session.startRadio(from: entry.track) }
+                    }
                     Button("Remove from Queue") { session.removeQueueEntries(ids) }
                 }
             } primaryAction: { ids in playSelection(ids) }
@@ -89,6 +92,7 @@ struct QueueView: View {
         .help("\(entry.track.title) — \(entry.track.artist)")
         .accessibilityActions {
             Button("Play") { session.selectQueueEntry(entry.id) }
+            Button("Start Radio") { session.startRadio(from: entry.track) }
             if index > 0 {
                 Button("Move Up") { moveEntry(entry.id, up: true) }
             }
