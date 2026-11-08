@@ -101,7 +101,6 @@ struct RootView: View {
             if !session.remoteLibraryEditingEnabled { libraryEditor = nil }
         }
         .onChange(of: session.libraryEditingScope) { libraryEditor = nil }
-        .task { await session.start() }
     }
 
     private var quickCommandsAction: (() -> Void)? {

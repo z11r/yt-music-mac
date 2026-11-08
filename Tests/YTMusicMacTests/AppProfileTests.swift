@@ -100,6 +100,17 @@ struct AppProfileRegistryTests {
 
 @MainActor @Suite("Local app profile ownership")
 struct AppProfileOwnerTests {
+    @Test func startupWaitsForSavedSelectionAndNeverStartsTheFallbackProfileFirst() async throws {
+        let f = try ProfileOwnerFixture(selectedAdditional: true)
+        #expect(f.owner.isLoading && !f.owner.accepts(f.owner.activationID))
+        #expect(f.events.values.isEmpty)
+        await f.owner.start()
+        #expect(f.owner.current.profile.id == f.additional.id)
+        #expect(!f.events.values.contains("default.startPaused"))
+        #expect(f.events.values.last == "A.startPaused")
+        #expect(!f.owner.isLoading && f.owner.accepts(f.owner.activationID))
+    }
+
     @Test func switchPersistsSelectionBeforeShutdownAndStartsOnePausedReplacement() async throws {
         let f = try ProfileOwnerFixture()
         await f.owner.start()

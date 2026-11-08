@@ -24,7 +24,7 @@ final class AppProfileOwner<Runtime: AppProfileRuntime> {
     private(set) var activationID = UUID()
     private(set) var profiles: [AppProfile] = [.original]
     private(set) var savedSelectionID = AppProfile.defaultID
-    private(set) var isLoading = false
+    private(set) var isLoading = true
     private(set) var isSwitching = false
     private(set) var canEdit = false
     private(set) var errorMessage: String?
@@ -53,8 +53,11 @@ final class AppProfileOwner<Runtime: AppProfileRuntime> {
             guard !quitting else { isLoading = false; return }
             install(loaded)
             if loaded.archive.selectedID != current.profile.id {
+                guard let selected = loaded.archive.profiles.first(where: { $0.id == loaded.archive.selectedID }) else {
+                    throw AppProfileError.invalidRegistry
+                }
+                await begin(profile: selected, staged: loaded.archive, persistPending: false, automatic: true)
                 isLoading = false
-                await switchTo(loaded.archive.selectedID, automatic: true)
             } else {
                 bind(current, activationID)
                 await current.startPaused()
@@ -122,7 +125,7 @@ final class AppProfileOwner<Runtime: AppProfileRuntime> {
         await current.shutdown()
     }
 
-    func accepts(_ id: UUID) -> Bool { id == activationID && !isSwitching && !quitting }
+    func accepts(_ id: UUID) -> Bool { id == activationID && !isLoading && !isSwitching && !quitting }
 
     private func begin(profile: AppProfile, staged: AppProfileArchive, persistPending: Bool, automatic: Bool) async {
         guard transition == nil, !quitting else { return }
