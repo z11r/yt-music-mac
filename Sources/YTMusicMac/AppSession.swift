@@ -178,7 +178,8 @@ final class AppSession {
         radio = RadioSession(preferences: configuration.preferences)
         savedQueues = NamedQueueLibrary(store: configuration.namedQueueStore, sessions: configuration.credentials)
         localCollections = LocalCollectionsLibrary(store: configuration.localCollectionStore, sessions: configuration.credentials)
-        storage = StorageController(inventory: configuration.storageInventory, sessions: configuration.credentials)
+        storage = StorageController(cache: configuration.metadataCache, inventory: configuration.storageInventory,
+                                    sessions: configuration.credentials, preferences: configuration.preferences)
         isSceneCheck = configuration.isSceneCheck
         account = WebSession(dataStore: configuration.dataStore, credentials: configuration.credentials,
                              preferences: configuration.preferences)
@@ -331,6 +332,9 @@ final class AppSession {
         let ratingsRead = songRatings.beginRead()
         pageTask = Task { [weak self, client] in
             do {
+                let metadataContext: LibraryMetadataCaptureContext?
+                if target == .library { metadataContext = await self?.storage.beginCapture() }
+                else { metadataContext = nil }
                 let result: MusicPage
                 switch target {
                 case .home: result = try await client.home()
@@ -355,6 +359,7 @@ final class AppSession {
                 self.page = result
                 self.songRatings.observe(result.ratings, from: ratingsRead)
                 self.isLoading = false
+                if let metadataContext { await self.storage.capture(result, context: metadataContext) }
             } catch {
                 guard let self, !Task.isCancelled, self.pageGeneration == generation else { return }
                 self.pageError = error.localizedDescription
@@ -425,11 +430,15 @@ final class AppSession {
         pageError = nil
         let generation = pageGeneration
         let ratingsRead = songRatings.beginRead()
+        let cachesLibrary = destination == .library
         pageTask = Task { [weak self, client] in
             do {
+                let metadataContext: LibraryMetadataCaptureContext?
+                if cachesLibrary { metadataContext = await self?.storage.beginCapture() }
+                else { metadataContext = nil }
                 let next = try await client.nextPage(continuation)
                 guard let self, !Task.isCancelled, self.pageGeneration == generation else { return }
-                self.page = MusicPage(title: initial.title, sections: initial.sections + next.sections,
+                let combined = MusicPage(title: initial.title, sections: initial.sections + next.sections,
                     items: initial.items + next.items, continuation: next.continuation,
                     playlistItems: initial.playlistItems + next.playlistItems,
                     playlistCapabilities: initial.playlistCapabilities,
@@ -440,7 +449,9 @@ final class AppSession {
                     playlistDetails: initial.playlistDetails, albumLibraryState: initial.albumLibraryState,
                     artistSubscription: initial.artistSubscription)
                 self.songRatings.observe(next.ratings, from: ratingsRead)
+                self.page = combined
                 self.isLoadingMore = false
+                if let metadataContext { await self.storage.capture(combined, context: metadataContext) }
             } catch {
                 guard let self, !Task.isCancelled, self.pageGeneration == generation else { return }
                 self.pageError = error.localizedDescription

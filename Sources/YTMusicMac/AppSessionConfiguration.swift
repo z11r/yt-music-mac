@@ -16,6 +16,7 @@ struct AppSessionConfiguration {
     var namedQueueStore: NamedQueueStore? = nil
     var playlistVerificationClient: YouTubeMusicClient? = nil
     var localCollectionStore: LocalCollectionStore? = nil
+    var metadataCache: LibraryMetadataCache? = nil
     var storageInventory: ProtectedStorageInventory? = nil
 
     static func live() -> Self {
@@ -32,6 +33,7 @@ struct AppSessionConfiguration {
                     installsSystemMedia: true, isSceneCheck: false,
                     namedQueueStore: directory.map { NamedQueueStore(directoryURL: $0.appendingPathComponent("SavedQueues", isDirectory: true)) },
                     localCollectionStore: directory.map { LocalCollectionStore(directoryURL: $0.appendingPathComponent("LocalCollections", isDirectory: true)) },
+                    metadataCache: directory.map { LibraryMetadataCache(directoryURL: $0.appendingPathComponent("MetadataCache", isDirectory: true)) },
                     storageInventory: directory.map { ProtectedStorageInventory(directoryURL: $0) })
     }
 

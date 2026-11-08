@@ -38,7 +38,7 @@ struct SettingsView: View {
             }
             Section("Storage") {
                 Button("Manage Storage…") { showsStorage = true }
-                Text("View saved-data usage and clear artwork kept in memory.")
+                Text("View cache usage, clear cached artwork and library metadata, and read your last library snapshot.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section("Account") {
