@@ -6,12 +6,17 @@
 "%@ — %@" = "%@ — %@";
 "%@, %@" = "%@, %@";
 "%@, %@%@%@" = "%@, %@%@%@";
+"%@×" = "%@×";
 "%lld Minutes" = "%lld Minutes";
+"%lld catalog collections" = "%lld catalog collections";
+"%lld episodes" = "%lld episodes";
+"%lld episodes loaded" = "%lld episodes loaded";
 "%lld hours" = "%lld hours";
 "%lld matching loaded library collections" = "%lld matching loaded library collections";
 "%lld of %lld" = "%lld of %lld";
 "%lld of %lld songs" = "%lld of %lld songs";
 "%lld percent" = "%lld percent";
+"%lld seconds" = "%lld seconds";
 "%lld songs" = "%lld songs";
 "%lld songs loaded" = "%lld songs loaded";
 "%lld songs selected" = "%lld songs selected";
@@ -27,6 +32,7 @@
 "A newer playback, navigation, or account action replaced this request." = "A newer playback, navigation, or account action replaced this request.";
 "Account" = "Account";
 "Account Closed" = "Account Closed";
+"Account changes, sign-out and turning this off remove this app's indexed library metadata. Spotlight storage is managed separately from the app's artwork and metadata caches." = "Account changes, sign-out and turning this off remove this app's indexed library metadata. Spotlight storage is managed separately from the app's artwork and metadata caches.";
 "Actions for selected songs" = "Actions for selected songs";
 "Add All to Queue" = "Add All to Queue";
 "Add Loaded Matches to Queue" = "Add Loaded Matches to Queue";
@@ -63,6 +69,7 @@
 "Autoplay could not load related songs. %@" = "Autoplay could not load related songs. %@";
 "Autoplay found no new related songs, so playback stopped." = "Autoplay found no new related songs, so playback stopped.";
 "Back" = "Back";
+"Back %lld seconds" = "Back %lld seconds";
 "Browse" = "Browse";
 "Browse Uploads" = "Browse Uploads";
 "Browse music, bring your library, and keep listening on your Mac." = "Browse music, bring your library, and keep listening on your Mac.";
@@ -148,6 +155,8 @@
 "Edit…" = "Edit…";
 "End of Current Song" = "End of Current Song";
 "Enter a search of up to 500 characters without control characters." = "Enter a search of up to 500 characters without control characters.";
+"Episode" = "Episode";
+"Episode Options" = "Episode Options";
 "Explicit content" = "Explicit content";
 "Explore" = "Explore";
 "Export Metadata…" = "Export Metadata…";
@@ -163,11 +172,13 @@
 "Filter queue" = "Filter queue";
 "Filter queue by song, artist, or album" = "Filter queue by song, artist, or album";
 "Filtering searches the %lld loaded songs. Play All, Shuffle All, and Add All to Queue include the remaining pages." = "Filtering searches the %lld loaded songs. Play All, Shuffle All, and Add All to Queue include the remaining pages.";
+"Find loaded library collections in Spotlight" = "Find loaded library collections in Spotlight";
 "Finding related songs…" = "Finding related songs…";
 "Finished" = "Finished";
 "Follow Artist" = "Follow Artist";
 "Follow Playback" = "Follow Playback";
 "Forward" = "Forward";
+"Forward %lld seconds" = "Forward %lld seconds";
 "Go to Album: %@" = "Go to Album: %@";
 "Go to Artist: %@" = "Go to Artist: %@";
 "Hidden" = "Hidden";
@@ -181,6 +192,7 @@
 "Keep the description within 5,000 characters." = "Keep the description within 5,000 characters.";
 "Key" = "Key";
 "Keyboard" = "Keyboard";
+"Last submitted" = "Last submitted";
 "Launch at Login" = "Launch at Login";
 "Left Arrow" = "Left Arrow";
 "Library" = "Library";
@@ -201,6 +213,7 @@
 "Loaded Matches" = "Loaded Matches";
 "Loading %@…" = "Loading %@…";
 "Loading all songs… %lld loaded" = "Loading all songs… %lld loaded";
+"Loading local episode progress" = "Loading local episode progress";
 "Loading lyrics…" = "Loading lyrics…";
 "Loading more…" = "Loading more…";
 "Loading playlists…" = "Loading playlists…";
@@ -211,6 +224,8 @@
 "Local Tags and Saved Filters" = "Local Tags and Saved Filters";
 "Local collection organization" = "Local collection organization";
 "Local collection storage is unavailable." = "Local collection storage is unavailable.";
+"Local episode progress could not be loaded. Existing data has been retained." = "Local episode progress could not be loaded. Existing data has been retained.";
+"Local episode progress could not be saved." = "Local episode progress could not be saved.";
 "Local folder" = "Local folder";
 "Local saved queue storage is unavailable." = "Local saved queue storage is unavailable.";
 "Local tag" = "Local tag";
@@ -284,6 +299,7 @@
 "Open a YouTube Music song, album, artist, or playlist link." = "Open a YouTube Music song, album, artist, or playlist link.";
 "Open album or artist" = "Open album or artist";
 "Open collection" = "Open collection";
+"Open or refresh Library to add its loaded catalog collections. Unknown and upload routes are excluded." = "Open or refresh Library to add its loaded catalog collections. Unknown and upload routes are excluded.";
 "Open your account again to sign in." = "Open your account again to sign in.";
 "Open your account to check the YouTube Music session." = "Open your account to check the YouTube Music session.";
 "Open your library or search for music." = "Open your library or search for music.";
@@ -310,6 +326,7 @@
 "Play/Pause" = "Play/Pause";
 "Playback" = "Playback";
 "Playback Shortcuts" = "Playback Shortcuts";
+"Playback Speed (%@×)" = "Playback Speed (%@×)";
 "Playback position" = "Playback position";
 "Playback queue" = "Playback queue";
 "Playback stalled. Check your connection or retry this song." = "Playback stalled. Check your connection or retry this song.";
@@ -325,6 +342,8 @@
 "Playlist order updated. Reloading service order." = "Playlist order updated. Reloading service order.";
 "Playlist renamed." = "Playlist renamed.";
 "Playlists" = "Playlists";
+"Podcast" = "Podcast";
+"Podcasts" = "Podcasts";
 "Previous Song" = "Previous Song";
 "Private" = "Private";
 "Provided by YouTube Music" = "Provided by YouTube Music";
@@ -343,15 +362,19 @@
 "Refresh Usage" = "Refresh Usage";
 "Refresh this page" = "Refresh this page";
 "Remaining duration unknown" = "Remaining duration unknown";
+"Removal needs to be retried." = "Removal needs to be retried.";
 "Remove Album from Library" = "Remove Album from Library";
 "Remove Dislike" = "Remove Dislike";
+"Remove Entries and Turn Off" = "Remove Entries and Turn Off";
 "Remove Like" = "Remove Like";
 "Remove Selected" = "Remove Selected";
 "Remove Songs" = "Remove Songs";
 "Remove Songs?" = "Remove Songs?";
+"Remove Spotlight Entries and Turn Off…" = "Remove Spotlight Entries and Turn Off…";
 "Remove from Playlist…" = "Remove from Playlist…";
 "Remove from Queue" = "Remove from Queue";
 "Remove the selected songs from “%@”? Other copies in the playlist stay in place." = "Remove the selected songs from “%@”? Other copies in the playlist stay in place.";
+"Remove this app's indexed library collections?" = "Remove this app's indexed library collections?";
 "Rename Local Folder" = "Rename Local Folder";
 "Rename Playlist" = "Rename Playlist";
 "Rename Playlist…" = "Rename Playlist…";
@@ -364,6 +387,7 @@
 "Restart the current song, or select the previous song near the beginning." = "Restart the current song, or select the previous song near the beginning.";
 "Results for “%@”" = "Results for “%@”";
 "Resume Music" = "Resume Music";
+"Resume at %@" = "Resume at %@";
 "Resume the selected song in YT Music for Mac. Sign in in the app first." = "Resume the selected song in YT Music for Mac. Sign in in the app first.";
 "Retry" = "Retry";
 "Retry Playback" = "Retry Playback";
@@ -380,6 +404,7 @@
 "Save the current queue to return to it later." = "Save the current queue to return to it later.";
 "Saved %@" = "Saved %@";
 "Saved Data" = "Saved Data";
+"Saved Episodes" = "Saved Episodes";
 "Saved Filters" = "Saved Filters";
 "Saved Library Metadata" = "Saved Library Metadata";
 "Saved Local Filters" = "Saved Local Filters";
@@ -441,10 +466,13 @@
 "Sign in to a confirmed account to view its metadata cache." = "Sign in to a confirmed account to view its metadata cache.";
 "Sign in to a confirmed account to view its saved-data usage." = "Sign in to a confirmed account to view its saved-data usage.";
 "Sign in, then open the song link again." = "Sign in, then open the song link again.";
+"Sign-out clears this app's session and current queue. Named saved queues and local collection organization stay on this Mac for their account until deleted." = "Sign-out clears this app's session and current queue. Named saved queues and local collection organization stay on this Mac for their account until deleted.";
 "Sign-out clears this app's session and current queue. Named saved queues stay on this Mac for their account until deleted." = "Sign-out clears this app's session and current queue. Named saved queues stay on this Mac for their account until deleted.";
 "Signed in" = "Signed in";
 "Signing out clears the current queue. Named saved queues stay on this Mac until you delete them." = "Signing out clears the current queue. Named saved queues stay on this Mac until you delete them.";
+"Skip Backward" = "Skip Backward";
 "Skip Backward 10 Seconds" = "Skip Backward 10 Seconds";
+"Skip Forward" = "Skip Forward";
 "Skip Forward 10 Seconds" = "Skip Forward 10 Seconds";
 "Sleep Timer" = "Sleep Timer";
 "Snapshot saved" = "Snapshot saved";
@@ -461,6 +489,9 @@
 "Sorts loaded library items. Load More adds additional items." = "Sorts loaded library items. Load More adds additional items.";
 "Sorts loaded songs. Play All uses service order." = "Sorts loaded songs. Play All uses service order.";
 "Space" = "Space";
+"Spotlight" = "Spotlight";
+"Spotlight could not finish updating this app's entries. Retry removing indexed collections before indexing again." = "Spotlight could not finish updating this app's entries. Retry removing indexed collections before indexing again.";
+"Start Episode Over" = "Start Episode Over";
 "Start Radio" = "Start Radio";
 "Starting radio…" = "Starting radio…";
 "Startup" = "Startup";
@@ -469,6 +500,7 @@
 "Stored on this Mac for this account. Filters match library collections currently loaded; Load More includes more collections." = "Stored on this Mac for this account. Filters match library collections currently loaded; Load More includes more collections.";
 "System" = "System";
 "Tags and Saved Filters…" = "Tags and Saved Filters…";
+"The Spotlight cleanup record is unsupported. Remove this app's indexed collections before indexing again." = "The Spotlight cleanup record is unsupported. Remove this app's indexed collections before indexing again.";
 "The YouTube Music page changed songs. Choose a song using the app's controls to continue." = "The YouTube Music page changed songs. Choose a song using the app's controls to continue.";
 "The account changed. Open Saved Queues again." = "The account changed. Open Saved Queues again.";
 "The account changed. Open Storage again." = "The account changed. Open Storage again.";
@@ -507,6 +539,7 @@
 "This radio could not start. %@" = "This radio could not start. %@";
 "This recording may be instrumental, or YouTube Music may not supply its lyrics." = "This recording may be instrumental, or YouTube Music may not supply its lyrics.";
 "This removes the tag from local collection bookmarks. Saved filters using it must be updated or deleted first." = "This removes the tag from local collection bookmarks. Saved filters using it must be updated or deleted first.";
+"This removes this app's library metadata from Spotlight. Saved queues, local organization, caches and your sign-in session stay available." = "This removes this app's library metadata from Spotlight. Saved queues, local organization, caches and your sign-in session stay available.";
 "This saved queue could not be opened. The current queue has been kept." = "This saved queue could not be opened. The current queue has been kept.";
 "This selection includes repeated songs. Allow duplicates to add every occurrence." = "This selection includes repeated songs. Allow duplicates to add every occurrence.";
 "This shortcut is already assigned to %@. Change or disable that binding first." = "This shortcut is already assigned to %@. Change or disable that binding first.";
@@ -530,6 +563,7 @@
 "Unpin Locally" = "Unpin Locally";
 "Until %@" = "Until %@";
 "Up Arrow" = "Up Arrow";
+"Updating Spotlight…" = "Updating Spotlight…";
 "Updating your library…" = "Updating your library…";
 "Uploaded" = "Uploaded";
 "Uploaded %@" = "Uploaded %@";
@@ -558,11 +592,13 @@
 "Volume Down" = "Volume Down";
 "Volume Up" = "Volume Up";
 "Wait for the saved queue operation to finish." = "Wait for the saved queue operation to finish.";
+"When enabled, macOS stores names, kinds and identifiers for up to 500 supported catalog collections loaded from Library. This metadata can appear in Spotlight outside the app and expires after seven days. Opening a result navigates to its collection." = "When enabled, macOS stores names, kinds and identifiers for up to 500 supported catalog collections loaded from Library. This metadata can appear in Spotlight outside the app and expires after seven days. Opening a result navigates to its collection.";
 "When the queue ends with repeat off, keep playing related songs." = "When the queue ends with repeat off, keep playing related songs.";
 "YT Music" = "YT Music";
 "YT Music for Mac" = "YT Music for Mac";
 "YT Music for Mac is still opening or checking its account. Try again when it is ready." = "YT Music for Mac is still opening or checking its account. Try again when it is ready.";
 "YouTube Music" = "YouTube Music";
+"YouTube Music %@" = "YouTube Music %@";
 "YouTube Music Player" = "YouTube Music Player";
 "YouTube Music could not complete the library check." = "YouTube Music could not complete the library check.";
 "YouTube Music could not load. Check your connection and try again." = "YouTube Music could not load. Check your connection and try again.";
@@ -574,6 +610,7 @@
 "YouTube Music offered no songs for this radio." = "YouTube Music offered no songs for this radio.";
 "YouTube Music's playback controls did not respond. Try again." = "YouTube Music's playback controls did not respond. Try again.";
 "Your Library" = "Your Library";
+"Your Podcasts" = "Your Podcasts";
 "Your Queue Is Empty" = "Your Queue Is Empty";
 "Your YouTube Music account" = "Your YouTube Music account";
 "Your account's uploaded music" = "Your account's uploaded music";

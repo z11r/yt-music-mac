@@ -23,8 +23,8 @@ actor CoreSpotlightLibraryIndex: LibrarySpotlightIndex {
             }
             let attributes = CSSearchableItemAttributeSet(contentType: .item)
             attributes.title = record.reference.title
-            attributes.contentDescription = "YouTube Music \(record.reference.kind.rawValue)"
-            attributes.keywords = ["YT Music", record.reference.kind.rawValue]
+            attributes.contentDescription = AppLocalization.format("YouTube Music %@", record.reference.kind.localizedTitle)
+            attributes.keywords = ["YT Music", record.reference.kind.rawValue, record.reference.kind.localizedTitle]
             let item = CSSearchableItem(uniqueIdentifier: record.identifier, domainIdentifier: record.domain, attributeSet: attributes)
             item.expirationDate = record.expiresAt
             items.append(item)

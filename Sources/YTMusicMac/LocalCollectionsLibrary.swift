@@ -169,3 +169,14 @@ final class LocalCollectionsLibrary {
         }
     }
 }
+
+extension LocalCollectionReference.Kind {
+    var localizedTitle: String {
+        switch self {
+        case .playlist: AppLocalization.text("Playlist")
+        case .album: AppLocalization.text("Album")
+        case .artist: AppLocalization.text("Artist")
+        case .podcast: AppLocalization.text("Podcast")
+        }
+    }
+}

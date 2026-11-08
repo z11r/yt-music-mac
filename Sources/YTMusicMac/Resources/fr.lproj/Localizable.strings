@@ -6,12 +6,17 @@
 "%@ — %@" = "%@ — %@";
 "%@, %@" = "%@, %@";
 "%@, %@%@%@" = "%@, %@%@%@";
+"%@×" = "%@×";
 "%lld Minutes" = "%lld minutes";
+"%lld catalog collections" = "%lld collections du catalogue";
+"%lld episodes" = "%lld épisodes";
+"%lld episodes loaded" = "%lld épisodes chargés";
 "%lld hours" = "%lld heures";
 "%lld matching loaded library collections" = "%lld collections chargées correspondantes";
 "%lld of %lld" = "%lld sur %lld";
 "%lld of %lld songs" = "%lld sur %lld titres";
 "%lld percent" = "%lld pour cent";
+"%lld seconds" = "%lld secondes";
 "%lld songs" = "%lld titres";
 "%lld songs loaded" = "%lld titres chargés";
 "%lld songs selected" = "%lld titres sélectionnés";
@@ -27,6 +32,7 @@
 "A newer playback, navigation, or account action replaced this request." = "Une nouvelle action de lecture, de navigation ou de compte a remplacé cette demande.";
 "Account" = "Compte";
 "Account Closed" = "Compte fermé";
+"Account changes, sign-out and turning this off remove this app's indexed library metadata. Spotlight storage is managed separately from the app's artwork and metadata caches." = "Changer de compte, se déconnecter ou désactiver cette option supprime les métadonnées de bibliothèque indexées par cette app. Le stockage Spotlight est géré séparément des caches d’illustrations et de métadonnées de l’app.";
 "Actions for selected songs" = "Actions pour les titres sélectionnés";
 "Add All to Queue" = "Tout ajouter à la file d’attente";
 "Add Loaded Matches to Queue" = "Ajouter les résultats chargés à la file d’attente";
@@ -63,6 +69,7 @@
 "Autoplay could not load related songs. %@" = "La lecture automatique n’a pas pu charger de titres similaires. %@";
 "Autoplay found no new related songs, so playback stopped." = "La lecture automatique n’a trouvé aucun nouveau titre similaire. La lecture s’est arrêtée.";
 "Back" = "Précédent";
+"Back %lld seconds" = "Reculer de %lld secondes";
 "Browse" = "Parcourir";
 "Browse Uploads" = "Parcourir les importations";
 "Browse music, bring your library, and keep listening on your Mac." = "Explorez la musique, retrouvez votre bibliothèque et écoutez sur votre Mac.";
@@ -148,6 +155,8 @@
 "Edit…" = "Modifier…";
 "End of Current Song" = "À la fin du titre actuel";
 "Enter a search of up to 500 characters without control characters." = "Saisissez une recherche de 500 caractères maximum, sans caractères de contrôle.";
+"Episode" = "Épisode";
+"Episode Options" = "Options de l’épisode";
 "Explicit content" = "Contenu explicite";
 "Explore" = "Explorer";
 "Export Metadata…" = "Exporter les métadonnées…";
@@ -163,11 +172,13 @@
 "Filter queue" = "Filtrer la file d’attente";
 "Filter queue by song, artist, or album" = "Filtrer la file d’attente par titre, artiste ou album";
 "Filtering searches the %lld loaded songs. Play All, Shuffle All, and Add All to Queue include the remaining pages." = "Le filtre recherche parmi les %lld titres chargés. Tout lire, Tout mélanger et Tout ajouter à la file d’attente incluent les pages restantes.";
+"Find loaded library collections in Spotlight" = "Retrouver les collections chargées dans Spotlight";
 "Finding related songs…" = "Recherche de titres similaires…";
 "Finished" = "Terminé";
 "Follow Artist" = "Suivre l’artiste";
 "Follow Playback" = "Suivre la lecture";
 "Forward" = "Suivant";
+"Forward %lld seconds" = "Avancer de %lld secondes";
 "Go to Album: %@" = "Aller à l’album : %@";
 "Go to Artist: %@" = "Aller à l’artiste : %@";
 "Hidden" = "Masqué";
@@ -181,6 +192,7 @@
 "Keep the description within 5,000 characters." = "Limitez la description à 5 000 caractères.";
 "Key" = "Touche";
 "Keyboard" = "Clavier";
+"Last submitted" = "Dernier envoi";
 "Launch at Login" = "Ouvrir à la connexion";
 "Left Arrow" = "Flèche gauche";
 "Library" = "Bibliothèque";
@@ -201,6 +213,7 @@
 "Loaded Matches" = "Résultats chargés";
 "Loading %@…" = "Chargement de %@…";
 "Loading all songs… %lld loaded" = "Chargement de tous les titres… %lld chargés";
+"Loading local episode progress" = "Chargement de la progression locale de l’épisode";
 "Loading lyrics…" = "Chargement des paroles…";
 "Loading more…" = "Chargement de la suite…";
 "Loading playlists…" = "Chargement des playlists…";
@@ -211,6 +224,8 @@
 "Local Tags and Saved Filters" = "Étiquettes locales et filtres enregistrés";
 "Local collection organization" = "Organisation locale des collections";
 "Local collection storage is unavailable." = "Le stockage local des collections est indisponible.";
+"Local episode progress could not be loaded. Existing data has been retained." = "Impossible de charger la progression locale des épisodes. Les données existantes ont été conservées.";
+"Local episode progress could not be saved." = "Impossible d’enregistrer la progression locale des épisodes.";
 "Local folder" = "Dossier local";
 "Local saved queue storage is unavailable." = "Le stockage local des files d’attente est indisponible.";
 "Local tag" = "Étiquette locale";
@@ -284,6 +299,7 @@
 "Open a YouTube Music song, album, artist, or playlist link." = "Ouvrez un lien YouTube Music vers un titre, un album, un artiste ou une playlist.";
 "Open album or artist" = "Ouvrir l’album ou l’artiste";
 "Open collection" = "Ouvrir la collection";
+"Open or refresh Library to add its loaded catalog collections. Unknown and upload routes are excluded." = "Ouvrez ou actualisez Bibliothèque pour ajouter ses collections du catalogue déjà chargées. Les destinations inconnues et les importations sont exclues.";
 "Open your account again to sign in." = "Rouvrez votre compte pour vous connecter.";
 "Open your account to check the YouTube Music session." = "Ouvrez votre compte pour vérifier la session YouTube Music.";
 "Open your library or search for music." = "Ouvrez votre bibliothèque ou recherchez de la musique.";
@@ -310,6 +326,7 @@
 "Play/Pause" = "Lecture/Pause";
 "Playback" = "Lecture";
 "Playback Shortcuts" = "Raccourcis de lecture";
+"Playback Speed (%@×)" = "Vitesse de lecture (%@×)";
 "Playback position" = "Position de lecture";
 "Playback queue" = "File d’attente de lecture";
 "Playback stalled. Check your connection or retry this song." = "La lecture est bloquée. Vérifiez votre connexion ou réessayez ce titre.";
@@ -325,6 +342,8 @@
 "Playlist order updated. Reloading service order." = "Ordre de la playlist mis à jour. Actualisation de l’ordre du service.";
 "Playlist renamed." = "Playlist renommée.";
 "Playlists" = "Playlists";
+"Podcast" = "Podcast";
+"Podcasts" = "Podcasts";
 "Previous Song" = "Titre précédent";
 "Private" = "Privée";
 "Provided by YouTube Music" = "Fourni par YouTube Music";
@@ -343,15 +362,19 @@
 "Refresh Usage" = "Actualiser l’utilisation";
 "Refresh this page" = "Actualiser cette page";
 "Remaining duration unknown" = "Durée restante inconnue";
+"Removal needs to be retried." = "La suppression doit être réessayée.";
 "Remove Album from Library" = "Retirer l’album de la bibliothèque";
 "Remove Dislike" = "Retirer la mention Je n’aime pas";
+"Remove Entries and Turn Off" = "Supprimer les entrées et désactiver";
 "Remove Like" = "Retirer la mention J’aime";
 "Remove Selected" = "Retirer la sélection";
 "Remove Songs" = "Retirer les titres";
 "Remove Songs?" = "Retirer les titres ?";
+"Remove Spotlight Entries and Turn Off…" = "Supprimer les entrées Spotlight et désactiver…";
 "Remove from Playlist…" = "Retirer de la playlist…";
 "Remove from Queue" = "Retirer de la file d’attente";
 "Remove the selected songs from “%@”? Other copies in the playlist stay in place." = "Retirer les titres sélectionnés de « %@ » ? Les autres copies dans la playlist restent en place.";
+"Remove this app's indexed library collections?" = "Supprimer les collections de bibliothèque indexées par cette app ?";
 "Rename Local Folder" = "Renommer le dossier local";
 "Rename Playlist" = "Renommer la playlist";
 "Rename Playlist…" = "Renommer la playlist…";
@@ -364,6 +387,7 @@
 "Restart the current song, or select the previous song near the beginning." = "Recommencez le titre actuel, ou passez au précédent si vous êtes près du début.";
 "Results for “%@”" = "Résultats pour « %@ »";
 "Resume Music" = "Reprendre la musique";
+"Resume at %@" = "Reprendre à %@";
 "Resume the selected song in YT Music for Mac. Sign in in the app first." = "Reprenez le titre sélectionné dans YT Music for Mac. Connectez-vous d’abord dans l’app.";
 "Retry" = "Réessayer";
 "Retry Playback" = "Réessayer la lecture";
@@ -380,6 +404,7 @@
 "Save the current queue to return to it later." = "Enregistrez la file d’attente actuelle pour la retrouver plus tard.";
 "Saved %@" = "Enregistré le %@";
 "Saved Data" = "Données enregistrées";
+"Saved Episodes" = "Épisodes enregistrés";
 "Saved Filters" = "Filtres enregistrés";
 "Saved Library Metadata" = "Métadonnées enregistrées de la bibliothèque";
 "Saved Local Filters" = "Filtres locaux enregistrés";
@@ -441,10 +466,13 @@
 "Sign in to a confirmed account to view its metadata cache." = "Connectez-vous à un compte confirmé pour consulter son cache de métadonnées.";
 "Sign in to a confirmed account to view its saved-data usage." = "Connectez-vous à un compte confirmé pour consulter l’espace de ses données enregistrées.";
 "Sign in, then open the song link again." = "Connectez-vous, puis rouvrez le lien du titre.";
+"Sign-out clears this app's session and current queue. Named saved queues and local collection organization stay on this Mac for their account until deleted." = "La déconnexion efface la session de l’app et la file d’attente actuelle. Les files d’attente nommées et l’organisation locale des collections restent sur ce Mac pour leur compte jusqu’à leur suppression.";
 "Sign-out clears this app's session and current queue. Named saved queues stay on this Mac for their account until deleted." = "La déconnexion efface la session de l’app et la file d’attente actuelle. Les files d’attente nommées restent sur ce Mac pour leur compte jusqu’à leur suppression.";
 "Signed in" = "Connecté";
 "Signing out clears the current queue. Named saved queues stay on this Mac until you delete them." = "La déconnexion efface la file d’attente actuelle. Les files d’attente nommées restent sur ce Mac jusqu’à leur suppression.";
+"Skip Backward" = "Reculer";
 "Skip Backward 10 Seconds" = "Reculer de 10 secondes";
+"Skip Forward" = "Avancer";
 "Skip Forward 10 Seconds" = "Avancer de 10 secondes";
 "Sleep Timer" = "Minuteur de veille";
 "Snapshot saved" = "Instantané enregistré";
@@ -461,6 +489,9 @@
 "Sorts loaded library items. Load More adds additional items." = "Trie les éléments chargés de la bibliothèque. Charger la suite ajoute des éléments.";
 "Sorts loaded songs. Play All uses service order." = "Trie les titres chargés. Tout lire utilise l’ordre du service.";
 "Space" = "Espace";
+"Spotlight" = "Spotlight";
+"Spotlight could not finish updating this app's entries. Retry removing indexed collections before indexing again." = "Spotlight n’a pas pu terminer la mise à jour des entrées de cette app. Réessayez de supprimer les collections indexées avant de relancer l’indexation.";
+"Start Episode Over" = "Recommencer l’épisode";
 "Start Radio" = "Lancer une radio";
 "Starting radio…" = "Démarrage de la radio…";
 "Startup" = "Démarrage";
@@ -469,6 +500,7 @@
 "Stored on this Mac for this account. Filters match library collections currently loaded; Load More includes more collections." = "Stockés sur ce Mac pour ce compte. Les filtres s’appliquent aux collections déjà chargées ; Charger la suite inclut davantage de collections.";
 "System" = "Système";
 "Tags and Saved Filters…" = "Étiquettes et filtres enregistrés…";
+"The Spotlight cleanup record is unsupported. Remove this app's indexed collections before indexing again." = "L’enregistrement de nettoyage Spotlight n’est pas pris en charge. Supprimez les collections indexées par cette app avant de relancer l’indexation.";
 "The YouTube Music page changed songs. Choose a song using the app's controls to continue." = "La page YouTube Music a changé de titre. Choisissez un titre avec les commandes de l’app pour continuer.";
 "The account changed. Open Saved Queues again." = "Le compte a changé. Rouvrez les files d’attente enregistrées.";
 "The account changed. Open Storage again." = "Le compte a changé. Rouvrez Stockage.";
@@ -507,6 +539,7 @@
 "This radio could not start. %@" = "Impossible de lancer cette radio. %@";
 "This recording may be instrumental, or YouTube Music may not supply its lyrics." = "Cet enregistrement peut être instrumental, ou YouTube Music peut ne pas fournir ses paroles.";
 "This removes the tag from local collection bookmarks. Saved filters using it must be updated or deleted first." = "Cela retire l’étiquette des collections locales en favoris. Les filtres enregistrés qui l’utilisent doivent d’abord être modifiés ou supprimés.";
+"This removes this app's library metadata from Spotlight. Saved queues, local organization, caches and your sign-in session stay available." = "Cela supprime de Spotlight les métadonnées de bibliothèque de cette app. Les files d’attente enregistrées, l’organisation locale, les caches et votre session de connexion restent disponibles.";
 "This saved queue could not be opened. The current queue has been kept." = "Impossible d’ouvrir cette file d’attente enregistrée. La file d’attente actuelle a été conservée.";
 "This selection includes repeated songs. Allow duplicates to add every occurrence." = "Cette sélection contient des titres répétés. Autorisez les doublons pour ajouter chaque occurrence.";
 "This shortcut is already assigned to %@. Change or disable that binding first." = "Ce raccourci est déjà attribué à %@. Modifiez ou désactivez d’abord cette attribution.";
@@ -530,6 +563,7 @@
 "Unpin Locally" = "Désépingler localement";
 "Until %@" = "Jusqu’à %@";
 "Up Arrow" = "Flèche haut";
+"Updating Spotlight…" = "Mise à jour de Spotlight…";
 "Updating your library…" = "Mise à jour de votre bibliothèque…";
 "Uploaded" = "Importé";
 "Uploaded %@" = "%@ importés";
@@ -558,11 +592,13 @@
 "Volume Down" = "Baisser le volume";
 "Volume Up" = "Augmenter le volume";
 "Wait for the saved queue operation to finish." = "Attendez la fin de l’opération sur les files d’attente enregistrées.";
+"When enabled, macOS stores names, kinds and identifiers for up to 500 supported catalog collections loaded from Library. This metadata can appear in Spotlight outside the app and expires after seven days. Opening a result navigates to its collection." = "Lorsque cette option est activée, macOS conserve les noms, types et identifiants de 500 collections prises en charge au maximum, chargées depuis Bibliothèque. Ces métadonnées peuvent apparaître dans Spotlight en dehors de l’app et expirent après sept jours. Ouvrir un résultat affiche sa collection.";
 "When the queue ends with repeat off, keep playing related songs." = "Lorsque la file d’attente se termine sans répétition, continuez avec des titres similaires.";
 "YT Music" = "YT Music";
 "YT Music for Mac" = "YT Music for Mac";
 "YT Music for Mac is still opening or checking its account. Try again when it is ready." = "YT Music for Mac est en cours d’ouverture ou de vérification du compte. Réessayez lorsque l’app sera prête.";
 "YouTube Music" = "YouTube Music";
+"YouTube Music %@" = "YouTube Music %@";
 "YouTube Music Player" = "Lecteur YouTube Music";
 "YouTube Music could not complete the library check." = "YouTube Music n’a pas pu terminer la vérification de la bibliothèque.";
 "YouTube Music could not load. Check your connection and try again." = "Impossible de charger YouTube Music. Vérifiez votre connexion et réessayez.";
@@ -574,6 +610,7 @@
 "YouTube Music offered no songs for this radio." = "YouTube Music n’a proposé aucun titre pour cette radio.";
 "YouTube Music's playback controls did not respond. Try again." = "Les commandes de lecture de YouTube Music n’ont pas répondu. Réessayez.";
 "Your Library" = "Votre bibliothèque";
+"Your Podcasts" = "Vos podcasts";
 "Your Queue Is Empty" = "Votre file d’attente est vide";
 "Your YouTube Music account" = "Votre compte YouTube Music";
 "Your account's uploaded music" = "Musique importée dans votre compte";

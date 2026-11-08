@@ -23,6 +23,11 @@ plural rules; each rule needs its numeric type and `other` form. Automated tests
 compare language key sets, placeholder signatures, and packaged resource paths.
 These checks do not establish translation quality or runtime accessibility.
 
+Use complete count messages for songs, episodes, skip intervals, and Spotlight
+collections. A count and a separately translated noun cannot select the correct
+plural form for the whole message. Spotlight descriptions may translate a
+collection kind; indexed identities and service collection titles stay intact.
+
 `AppShortcuts.strings` supplies translated invocation phrases. Preserve the
 `${applicationName}` token. Intent titles, parameters, descriptions, and short
 titles use the app's `Localizable.strings` table. These resources do not establish

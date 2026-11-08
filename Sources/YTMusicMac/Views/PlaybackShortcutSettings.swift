@@ -74,10 +74,10 @@ private struct PlaybackBindingEditor: View {
                 }
             }.frame(maxWidth: 250)
             HStack(spacing: 16) {
-                modifier("Command", flag: .command)
-                modifier("Option", flag: .option)
-                modifier("Control", flag: .control)
-                modifier("Shift", flag: .shift)
+                modifier(AppLocalization.text("Command"), flag: .command)
+                modifier(AppLocalization.text("Option"), flag: .option)
+                modifier(AppLocalization.text("Control"), flag: .control)
+                modifier(AppLocalization.text("Shift"), flag: .shift)
             }
             Text(candidate.displayText).font(.title3.monospaced()).accessibilityLabel(candidate.accessibilityText)
             Text("Choose Command or Control with a key. Standard Mac and app combinations stay reserved. Play/Pause can keep its default Space key.")

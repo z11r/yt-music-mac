@@ -34,9 +34,9 @@ enum MusicDestination: Hashable {
         case .search: AppLocalization.text("Search")
         case let .uploads(category): AppLocalization.format("Uploaded %@", category.title)
         case .uploadSearch: AppLocalization.text("Search Uploads")
-        case .podcasts: "Podcasts"
-        case .podcastLibrary: "Your Podcasts"
-        case .savedEpisodes: "Saved Episodes"
+        case .podcasts: AppLocalization.text("Podcasts")
+        case .podcastLibrary: AppLocalization.text("Your Podcasts")
+        case .savedEpisodes: AppLocalization.text("Saved Episodes")
         case let .collection(value): value.title
         case let .discovery(category): category.title
         case let .browse(reference): reference.title

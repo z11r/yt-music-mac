@@ -19,7 +19,10 @@
 "New Releases" = "New Releases";
 "Playlist" = "Playlist";
 "Playlists" = "Playlists";
+"Podcast" = "Podcast";
+"Podcasts" = "Podcasts";
 "Reload this collection to confirm its current permissions, occurrences, and library state before editing." = "Reload this collection to confirm its current permissions, occurrences, and library state before editing.";
+"Saved Episodes" = "Saved Episodes";
 "Search" = "Search";
 "Search Uploads" = "Search Uploads";
 "Sign in to view your library." = "Sign in to view your library.";
@@ -44,3 +47,4 @@
 "YouTube Music requires an account action before making this change. Open YouTube Music to continue." = "YouTube Music requires an account action before making this change. Open YouTube Music to continue.";
 "YouTube Music returned HTTP %lld." = "YouTube Music returned HTTP %lld.";
 "YouTube Music returned an unreadable response." = "YouTube Music returned an unreadable response.";
+"Your Podcasts" = "Your Podcasts";

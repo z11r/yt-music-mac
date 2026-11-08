@@ -84,7 +84,7 @@ final class EpisodePlaybackSession {
             catch {
                 guard let self, self.scope == expected else { return }
                 self.isLoading = false
-                self.errorMessage = "Local episode progress could not be loaded. Existing data has been retained."
+                self.errorMessage = AppLocalization.text("Local episode progress could not be loaded. Existing data has been retained.")
             }
         }
         return true
@@ -184,7 +184,7 @@ final class EpisodePlaybackSession {
         }
         catch {
             guard expected == scope else { return false }
-            errorMessage = "Local episode progress could not be saved."
+            errorMessage = AppLocalization.text("Local episode progress could not be saved.")
             return false
         }
     }
@@ -227,7 +227,7 @@ final class EpisodePlaybackSession {
             } catch is CancellationError { }
             catch {
                 guard let self, self.scope == expected else { return }
-                self.saveTask = nil; self.errorMessage = "Local episode progress could not be saved."
+                self.saveTask = nil; self.errorMessage = AppLocalization.text("Local episode progress could not be saved.")
             }
         }
     }

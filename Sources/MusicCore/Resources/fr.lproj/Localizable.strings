@@ -1,10 +1,14 @@
 /* Native interface copy. Service metadata remains verbatim. */
 "A newer library snapshot or cache-clear request replaced this operation." = "Un nouvel instantané ou une nouvelle demande de nettoyage du cache a remplacé cette opération.";
 "A saved-data path is not a regular file. Its contents have been kept." = "Un chemin de données enregistrées ne désigne pas un fichier ordinaire. Son contenu a été conservé.";
+"Album" = "Album";
 "An item of this type already has this name." = "Un élément de ce type porte déjà ce nom.";
+"Artist" = "Artiste";
 "Choose an export location outside the app's saved queue storage." = "Choisissez un emplacement d’exportation en dehors du stockage des files d’attente de l’app.";
 "Library metadata cache version %lld is not supported. Its file has been kept." = "La version %lld du cache des métadonnées de la bibliothèque n’est pas prise en charge. Son fichier a été conservé.";
 "Local collection organization version %lld is not supported." = "La version %lld de l’organisation locale des collections n’est pas prise en charge.";
+"Playlist" = "Playlist";
+"Podcast" = "Podcast";
 "Saved queue exchange version %lld is not supported." = "La version %lld du format d’échange des files d’attente n’est pas prise en charge.";
 "Saved queue version %lld is not supported." = "La version %lld de la file d’attente enregistrée n’est pas prise en charge.";
 "Saved queues version %lld is not supported." = "La version %lld des files d’attente enregistrées n’est pas prise en charge.";

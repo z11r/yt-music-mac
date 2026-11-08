@@ -66,7 +66,7 @@ final class SpotlightLibraryController {
                 lastSubmittedCount = stored.count
             } else {
                 receiptUnavailable = true
-                errorMessage = "The Spotlight cleanup record is unsupported. Remove this app's indexed collections before indexing again."
+                errorMessage = AppLocalization.text("The Spotlight cleanup record is unsupported. Remove this app's indexed collections before indexing again.")
             }
         }
     }
@@ -210,7 +210,7 @@ final class SpotlightLibraryController {
                 pending = nil
                 lastSubmittedCount = 0
                 references.removeAll()
-                errorMessage = "Spotlight could not finish updating this app's entries. Retry removing indexed collections before indexing again."
+                errorMessage = AppLocalization.text("Spotlight could not finish updating this app's entries. Retry removing indexed collections before indexing again.")
                 break
             }
         }

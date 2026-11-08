@@ -386,7 +386,7 @@ private struct CollectionTracksView: View {
                             }
                             ContentOriginBadge(isUploaded: row.track.origin == .upload)
                             if let episode = row.track.episode {
-                                Text(episode.publishedText ?? "Episode").font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                                Text(episode.publishedText ?? AppLocalization.text("Episode")).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                             }
                             Text(row.track.artist).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                         }
@@ -552,16 +552,25 @@ private struct CollectionTracksView: View {
             if case let .collection(value) = session.destination, let subtitle = value.subtitle {
                 Text(subtitle).foregroundStyle(.secondary).lineLimit(2)
             }
-            Text(page.continuation == nil ? "\(allTracks.count) \(contentNoun)" : "\(allTracks.count) \(contentNoun) loaded")
+            Text(contentCountDescription)
                 .foregroundStyle(.secondary)
             UnavailableMusicNotice(page: page)
         }
     }
 
-    private var contentNoun: String {
-        if session.destination == .savedEpisodes { return "episodes" }
-        if case let .collection(collection) = session.destination, collection.kind == .podcast { return "episodes" }
-        return "songs"
+    private var contentCountDescription: String {
+        if isEpisodeCollection {
+            return page.continuation == nil ? AppLocalization.format("%lld episodes", allTracks.count)
+                : AppLocalization.format("%lld episodes loaded", allTracks.count)
+        }
+        return page.continuation == nil ? AppLocalization.format("%lld songs", allTracks.count)
+            : AppLocalization.format("%lld songs loaded", allTracks.count)
+    }
+
+    private var isEpisodeCollection: Bool {
+        if session.destination == .savedEpisodes { return true }
+        if case let .collection(collection) = session.destination, collection.kind == .podcast { return true }
+        return false
     }
 }
 

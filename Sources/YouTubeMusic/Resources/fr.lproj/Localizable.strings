@@ -19,7 +19,10 @@
 "New Releases" = "Nouveautés";
 "Playlist" = "Playlist";
 "Playlists" = "Playlists";
+"Podcast" = "Podcast";
+"Podcasts" = "Podcasts";
 "Reload this collection to confirm its current permissions, occurrences, and library state before editing." = "Rechargez cette collection pour confirmer ses autorisations, ses occurrences et son état actuel dans la bibliothèque avant de la modifier.";
+"Saved Episodes" = "Épisodes enregistrés";
 "Search" = "Rechercher";
 "Search Uploads" = "Rechercher dans les importations";
 "Sign in to view your library." = "Connectez-vous pour consulter votre bibliothèque.";
@@ -44,3 +47,4 @@
 "YouTube Music requires an account action before making this change. Open YouTube Music to continue." = "YouTube Music nécessite une action sur le compte avant cette modification. Ouvrez YouTube Music pour continuer.";
 "YouTube Music returned HTTP %lld." = "YouTube Music a renvoyé le code HTTP %lld.";
 "YouTube Music returned an unreadable response." = "YouTube Music a renvoyé une réponse illisible.";
+"Your Podcasts" = "Vos podcasts";

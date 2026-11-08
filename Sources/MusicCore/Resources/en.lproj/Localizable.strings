@@ -1,10 +1,14 @@
 /* Native interface copy. Service metadata remains verbatim. */
 "A newer library snapshot or cache-clear request replaced this operation." = "A newer library snapshot or cache-clear request replaced this operation.";
 "A saved-data path is not a regular file. Its contents have been kept." = "A saved-data path is not a regular file. Its contents have been kept.";
+"Album" = "Album";
 "An item of this type already has this name." = "An item of this type already has this name.";
+"Artist" = "Artist";
 "Choose an export location outside the app's saved queue storage." = "Choose an export location outside the app's saved queue storage.";
 "Library metadata cache version %lld is not supported. Its file has been kept." = "Library metadata cache version %lld is not supported. Its file has been kept.";
 "Local collection organization version %lld is not supported." = "Local collection organization version %lld is not supported.";
+"Playlist" = "Playlist";
+"Podcast" = "Podcast";
 "Saved queue exchange version %lld is not supported." = "Saved queue exchange version %lld is not supported.";
 "Saved queue version %lld is not supported." = "Saved queue version %lld is not supported.";
 "Saved queues version %lld is not supported." = "Saved queues version %lld is not supported.";

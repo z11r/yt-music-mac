@@ -132,6 +132,28 @@ struct LocalizationTests {
         }
     }
 
+    @Test func spotlightAndEpisodeCountsUseCompleteLocalizedMessages() throws {
+        let singulars: [(String, String)] = [
+            ("%lld episodes", "1 épisode"),
+            ("%lld episodes loaded", "1 épisode chargé"),
+            ("Back %lld seconds", "Reculer de 1 seconde"),
+            ("Forward %lld seconds", "Avancer de 1 seconde"),
+            ("%lld seconds", "1 seconde"),
+            ("%lld catalog collections", "1 collection du catalogue"),
+        ]
+        let french = try languageBundle("fr", in: AppLocalization.bundle)
+        for (key, expected) in singulars {
+            let format = french.localizedString(forKey: key, value: nil, table: "Localizable")
+            #expect(String(format: format, locale: Locale(identifier: "fr"), arguments: [Int64(1)]) == expected)
+        }
+        let loaded = french.localizedString(forKey: "%lld episodes loaded", value: nil, table: "Localizable")
+        #expect(String(format: loaded, locale: Locale(identifier: "fr"), arguments: [Int64(2)]) == "2 épisodes chargés")
+        let service = try languageBundle("fr", in: ServiceLocalization.bundle)
+        #expect(service.localizedString(forKey: "Saved Episodes", value: nil, table: "Localizable") == "Épisodes enregistrés")
+        let core = try languageBundle("fr", in: CoreLocalization.bundle)
+        #expect(core.localizedString(forKey: "Artist", value: nil, table: "Localizable") == "Artiste")
+    }
+
     private func languageBundle(_ language: String, in bundle: Bundle) throws -> Bundle {
         let url = try #require(bundle.url(forResource: language, withExtension: "lproj"))
         return try #require(Bundle(url: url))

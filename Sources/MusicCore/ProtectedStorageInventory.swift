@@ -2,7 +2,7 @@ import Foundation
 
 public enum ProtectedStorageInventoryError: Error, LocalizedError, Sendable {
     case unsupportedFile
-    public var errorDescription: String? { "A saved-data path is not a regular file. Its contents have been kept." }
+    public var errorDescription: String? { CoreLocalization.text("A saved-data path is not a regular file. Its contents have been kept.") }
 }
 
 public struct ProtectedStorageUsage: Equatable, Sendable {

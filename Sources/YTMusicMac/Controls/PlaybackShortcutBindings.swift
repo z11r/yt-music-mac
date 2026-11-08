@@ -51,11 +51,11 @@ struct PlaybackKeyBinding: Codable, Hashable, Sendable {
 
     var keyTitle: String {
         switch key {
-        case "space": "Space"
-        case "left": "Left Arrow"
-        case "right": "Right Arrow"
-        case "up": "Up Arrow"
-        case "down": "Down Arrow"
+        case "space": AppLocalization.text("Space")
+        case "left": AppLocalization.text("Left Arrow")
+        case "right": AppLocalization.text("Right Arrow")
+        case "up": AppLocalization.text("Up Arrow")
+        case "down": AppLocalization.text("Down Arrow")
         default: key.uppercased()
         }
     }
@@ -78,10 +78,10 @@ struct PlaybackKeyBinding: Codable, Hashable, Sendable {
 
     var accessibilityText: String {
         var parts: [String] = []
-        if modifiers.contains(.control) { parts.append("Control") }
-        if modifiers.contains(.option) { parts.append("Option") }
-        if modifiers.contains(.shift) { parts.append("Shift") }
-        if modifiers.contains(.command) { parts.append("Command") }
+        if modifiers.contains(.control) { parts.append(AppLocalization.text("Control")) }
+        if modifiers.contains(.option) { parts.append(AppLocalization.text("Option")) }
+        if modifiers.contains(.shift) { parts.append(AppLocalization.text("Shift")) }
+        if modifiers.contains(.command) { parts.append(AppLocalization.text("Command")) }
         return (parts + [keyTitle]).joined(separator: ", ")
     }
 
@@ -107,15 +107,15 @@ struct PlaybackKeyBinding: Codable, Hashable, Sendable {
 extension PlaybackShortcut {
     var title: String {
         switch self {
-        case .playPause: "Play/Pause"
-        case .nextSong: "Next Song"
-        case .previousSong: "Previous Song"
-        case .seekForward: "Skip Forward 10 Seconds"
-        case .seekBackward: "Skip Backward 10 Seconds"
-        case .volumeUp: "Volume Up"
-        case .volumeDown: "Volume Down"
-        case .shuffle: "Shuffle"
-        case .repeatMode: "Repeat"
+        case .playPause: AppLocalization.text("Play/Pause")
+        case .nextSong: AppLocalization.text("Next Song")
+        case .previousSong: AppLocalization.text("Previous Song")
+        case .seekForward: AppLocalization.text("Skip Forward 10 Seconds")
+        case .seekBackward: AppLocalization.text("Skip Backward 10 Seconds")
+        case .volumeUp: AppLocalization.text("Volume Up")
+        case .volumeDown: AppLocalization.text("Volume Down")
+        case .shuffle: AppLocalization.text("Shuffle")
+        case .repeatMode: AppLocalization.text("Repeat")
         }
     }
 
@@ -139,10 +139,10 @@ enum PlaybackBindingError: Error, Equatable, LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .unsupportedKey: "Choose a letter, number, arrow key, or Space."
-        case .modifierRequired: "Custom shortcuts need Command or Control. Space remains available for Play/Pause."
-        case .reserved: "This combination is reserved for a standard Mac or app command. Choose another shortcut."
-        case let .conflict(action): "This shortcut is already assigned to \(action.title). Change or disable that binding first."
+        case .unsupportedKey: AppLocalization.text("Choose a letter, number, arrow key, or Space.")
+        case .modifierRequired: AppLocalization.text("Custom shortcuts need Command or Control. Space remains available for Play/Pause.")
+        case .reserved: AppLocalization.text("This combination is reserved for a standard Mac or app command. Choose another shortcut.")
+        case let .conflict(action): AppLocalization.format("This shortcut is already assigned to %@. Change or disable that binding first.", action.title)
         }
     }
 }
@@ -197,7 +197,7 @@ final class PlaybackShortcutBindings {
             try validate(decoded)
             overrides = decoded
         } catch {
-            loadMessage = "Saved shortcuts could not be read. Defaults are active. Reset or save new bindings to replace them."
+            loadMessage = AppLocalization.text("Saved shortcuts could not be read. Defaults are active. Reset or save new bindings to replace them.")
         }
     }
 

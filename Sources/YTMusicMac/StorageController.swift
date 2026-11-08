@@ -84,7 +84,7 @@ final class StorageController {
         catch LibraryMetadataCacheError.superseded { }
         catch {
             guard scope == context.scope, latestCapture == context.captureID, !Task.isCancelled else { return }
-            errorMessage = "Library metadata could not be cached. The existing file has been kept."
+            errorMessage = AppLocalization.text("Library metadata could not be cached. The existing file has been kept.")
         }
     }
 
@@ -148,8 +148,8 @@ final class StorageController {
         case signInRequired, accountChanged
         var errorDescription: String? {
             switch self {
-            case .signInRequired: "Sign in to a confirmed account to view its local metadata storage."
-            case .accountChanged: "The account changed. Open Storage again."
+            case .signInRequired: AppLocalization.text("Sign in to a confirmed account to view its local metadata storage.")
+            case .accountChanged: AppLocalization.text("The account changed. Open Storage again.")
             }
         }
     }

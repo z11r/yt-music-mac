@@ -19,11 +19,11 @@ public enum LibraryMetadataCacheError: Error, Equatable, LocalizedError, Sendabl
     case invalidArchive, fileTooLarge, invalidMetadata, superseded, unsupportedVersion(Int)
     public var errorDescription: String? {
         switch self {
-        case .invalidArchive: "The library metadata cache could not be read. Its file has been kept."
-        case .fileTooLarge: "The library metadata cache exceeds its storage limit."
-        case .invalidMetadata: "This library metadata could not be cached. The previous snapshot has been kept."
-        case .superseded: "A newer library snapshot or cache-clear request replaced this operation."
-        case let .unsupportedVersion(value): "Library metadata cache version \(value) is not supported. Its file has been kept."
+        case .invalidArchive: CoreLocalization.text("The library metadata cache could not be read. Its file has been kept.")
+        case .fileTooLarge: CoreLocalization.text("The library metadata cache exceeds its storage limit.")
+        case .invalidMetadata: CoreLocalization.text("This library metadata could not be cached. The previous snapshot has been kept.")
+        case .superseded: CoreLocalization.text("A newer library snapshot or cache-clear request replaced this operation.")
+        case let .unsupportedVersion(value): CoreLocalization.format("Library metadata cache version %lld is not supported. Its file has been kept.", value)
         }
     }
 }

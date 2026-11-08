@@ -18,7 +18,7 @@ struct SpotlightSettingsSection: View {
             } else if session.spotlight.isRemovalPending {
                 Text("Removal needs to be retried.").font(.callout)
             } else if session.spotlight.isEnabled {
-                LabeledContent("Last submitted", value: "\(session.spotlight.lastSubmittedCount) catalog collections")
+                LabeledContent("Last submitted", value: AppLocalization.format("%lld catalog collections", session.spotlight.lastSubmittedCount))
                 Text("Open or refresh Library to add its loaded catalog collections. Unknown and upload routes are excluded.")
                     .font(.caption).foregroundStyle(.secondary)
             }

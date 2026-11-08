@@ -4,7 +4,7 @@ import MusicCore
 
 extension YouTubeMusicClient {
     public func podcasts() async throws -> MusicPage {
-        try await firstPage(endpoint: .browse, body: ["browseId": "FEmusic_podcasts"], title: "Podcasts",
+        try await firstPage(endpoint: .browse, body: ["browseId": "FEmusic_podcasts"], title: ServiceLocalization.text("Podcasts"),
                             requiresAuthentication: false, preservesOccurrences: false)
     }
 
@@ -12,17 +12,17 @@ extension YouTubeMusicClient {
         try validateIdentifier(id)
         let id = id.hasPrefix("PL") ? "MPSP" + id : id
         guard id.hasPrefix("MPSP"), id.count > 4 else { throw MusicServiceError.invalidInput }
-        return try await firstPage(endpoint: .browse, body: ["browseId": id], title: "Podcast",
+        return try await firstPage(endpoint: .browse, body: ["browseId": id], title: ServiceLocalization.text("Podcast"),
                                    requiresAuthentication: false, preservesOccurrences: true)
     }
 
     public func libraryPodcasts() async throws -> MusicPage {
-        try await firstPage(endpoint: .browse, body: ["browseId": "FEmusic_library_non_music_audio_list"], title: "Your Podcasts",
+        try await firstPage(endpoint: .browse, body: ["browseId": "FEmusic_library_non_music_audio_list"], title: ServiceLocalization.text("Your Podcasts"),
                             requiresAuthentication: true, preservesOccurrences: false)
     }
 
     public func savedEpisodes() async throws -> MusicPage {
-        try await firstPage(endpoint: .browse, body: ["browseId": "VLSE"], title: "Saved Episodes",
+        try await firstPage(endpoint: .browse, body: ["browseId": "VLSE"], title: ServiceLocalization.text("Saved Episodes"),
                             requiresAuthentication: true, preservesOccurrences: true)
     }
 }

@@ -25,9 +25,9 @@ struct StorageSettingsView: View {
             }
             Form {
                 Section("Artwork Cache") {
-                    LabeledContent("Decoded images in memory", value: "\(bytes(artwork.bytes)) · \(artwork.count) images")
-                    LabeledContent("Memory limit", value: "48 MiB · 160 images")
-                    LabeledContent("Artwork disk cache", value: "0 bytes · memory only")
+                    LabeledContent("Decoded images in memory", value: AppLocalization.format("%@ · %lld images", bytes(artwork.bytes), artwork.count))
+                    LabeledContent("Memory limit", value: AppLocalization.text("48 MiB · 160 images"))
+                    LabeledContent("Artwork disk cache", value: AppLocalization.text("0 bytes · memory only"))
                     Button("Clear Cached Artwork…") { clearsArtwork = true }
                     Text("Usage counts decoded cache entries. Visible artwork stays available and browsing can refill the cache.")
                         .font(.caption).foregroundStyle(.secondary)
@@ -39,7 +39,7 @@ struct StorageSettingsView: View {
                         .font(.caption).foregroundStyle(.secondary)
                     if session.account.isSignedIn && session.storage.scope == displayedScope {
                         LabeledContent("This account's metadata file", value: bytes(session.storage.metadataBytes))
-                        LabeledContent("Limit per account", value: "2 MiB · 2,000 collections · 7 days")
+                        LabeledContent("Limit per account", value: AppLocalization.text("2 MiB · 2,000 collections · 7 days"))
                         if let snapshot = session.storage.snapshot {
                             LabeledContent("Snapshot saved", value: snapshot.capturedAt.formatted(date: .abbreviated, time: .shortened))
                             Button("Read Saved Library Metadata") {
@@ -118,7 +118,7 @@ private struct OfflineLibraryMetadataView: View {
                 List(snapshot.collections) { collection in
                     VStack(alignment: .leading, spacing: 4) {
                         Label(collection.title, systemImage: collection.symbol)
-                        Text(collection.kind.rawValue.capitalized).font(.caption).foregroundStyle(.secondary)
+                        Text(collection.kind.localizedTitle).font(.caption).foregroundStyle(.secondary)
                     }
                     .textSelection(.enabled)
                 }

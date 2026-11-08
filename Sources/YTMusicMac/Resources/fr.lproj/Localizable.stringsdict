@@ -34,6 +34,54 @@
 			<string>%lld minutes</string>
 		</dict>
 	</dict>
+	<key>%lld catalog collections</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@songs@</string>
+		<key>songs</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>%lld collection du catalogue</string>
+			<key>other</key>
+			<string>%lld collections du catalogue</string>
+		</dict>
+	</dict>
+	<key>%lld episodes</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@songs@</string>
+		<key>songs</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>%lld épisode</string>
+			<key>other</key>
+			<string>%lld épisodes</string>
+		</dict>
+	</dict>
+	<key>%lld episodes loaded</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@songs@</string>
+		<key>songs</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>%lld épisode chargé</string>
+			<key>other</key>
+			<string>%lld épisodes chargés</string>
+		</dict>
+	</dict>
 	<key>%lld hours</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -80,6 +128,22 @@
 			<string>%lld titre</string>
 			<key>other</key>
 			<string>%lld titres</string>
+		</dict>
+	</dict>
+	<key>%lld seconds</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@songs@</string>
+		<key>songs</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>%lld seconde</string>
+			<key>other</key>
+			<string>%lld secondes</string>
 		</dict>
 	</dict>
 	<key>%lld songs</key>
@@ -178,6 +242,22 @@
 			<string>%lld durées inconnues</string>
 		</dict>
 	</dict>
+	<key>Back %lld seconds</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@songs@</string>
+		<key>songs</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>Reculer de %lld seconde</string>
+			<key>other</key>
+			<string>Reculer de %lld secondes</string>
+		</dict>
+	</dict>
 	<key>Filtering searches the %lld loaded songs. Play All, Shuffle All, and Add All to Queue include the remaining pages.</key>
 	<dict>
 		<key>NSStringLocalizedFormatKey</key>
@@ -192,6 +272,22 @@
 			<string>Le filtre recherche parmi le %lld titre chargé. Tout lire, Tout mélanger et Tout ajouter à la file d’attente incluent les pages restantes.</string>
 			<key>other</key>
 			<string>Le filtre recherche parmi les %lld titres chargés. Tout lire, Tout mélanger et Tout ajouter à la file d’attente incluent les pages restantes.</string>
+		</dict>
+	</dict>
+	<key>Forward %lld seconds</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@songs@</string>
+		<key>songs</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>Avancer de %lld seconde</string>
+			<key>other</key>
+			<string>Avancer de %lld secondes</string>
 		</dict>
 	</dict>
 	<key>Loading all songs… %lld loaded</key>
