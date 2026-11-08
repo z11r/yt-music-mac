@@ -88,7 +88,8 @@ import XCTest
         let next = try await client.nextPage(token)
         XCTAssertEqual(next.tracks.map(\.id), ["xyzABC98_-7"])
         let requests = await transport.requests
-        XCTAssertEqual(requests[1].httpBody, requests[2].httpBody)
+        XCTAssertEqual(try requestBody(requests[1]) as NSDictionary, try requestBody(requests[2]) as NSDictionary)
+        XCTAssertEqual(requests[1].url, requests[2].url)
         XCTAssertEqual(try requestBody(requests[1])["query"] as? String, "école")
         XCTAssertEqual(try requestBody(requests[1])["params"] as? String, MusicLibrarySearchFilter.songs.params)
         XCTAssertNil(try requestBody(requests[1])["continuation"])
