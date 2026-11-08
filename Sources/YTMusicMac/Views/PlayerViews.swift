@@ -96,7 +96,7 @@ struct TrackIdentityView: View {
         .help([session.currentTrack?.title, session.currentTrack?.artist].compactMap { $0 }.joined(separator: " — "))
         .contextMenu {
             if let track = session.currentTrack {
-                MusicLinkActions(link: .track(track.id))
+                MusicLinkActions(track: track)
                 TrackMetadataActions(track: track, session: session)
                 TrackRatingActions(session: session, track: track)
             }

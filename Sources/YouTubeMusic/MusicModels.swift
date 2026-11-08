@@ -10,6 +10,7 @@ public struct MusicCollection: Identifiable, Hashable, Sendable {
     public let artworkURL: URL?
     /// The radio or mix the service offered for this collection, if any.
     public let radioPlaylistID: String?
+    public var isUploaded: Bool { MusicUploadRoutes.isCollectionID(id) }
 
     public init(id: String, kind: Kind, title: String, subtitle: String? = nil, artworkURL: URL? = nil,
                 radioPlaylistID: String? = nil) {
@@ -173,6 +174,14 @@ public struct MusicContinuation: Sendable, CustomStringConvertible, CustomDebugS
     let preservesOccurrences: Bool
     let previousTokens: Set<String>
     let previousItems: Set<String>
+    let contentOrigin: MusicContentOrigin?
+
+    init(token: String, endpoint: MusicEndpoint, scope: UUID, title: String, requiresAuthentication: Bool,
+         preservesOccurrences: Bool, previousTokens: Set<String>, previousItems: Set<String>, contentOrigin: MusicContentOrigin? = nil) {
+        self.token = token; self.endpoint = endpoint; self.scope = scope; self.title = title
+        self.requiresAuthentication = requiresAuthentication; self.preservesOccurrences = preservesOccurrences
+        self.previousTokens = previousTokens; self.previousItems = previousItems; self.contentOrigin = contentOrigin
+    }
     public var description: String { "MusicContinuation" }
     public var debugDescription: String { description }
 }

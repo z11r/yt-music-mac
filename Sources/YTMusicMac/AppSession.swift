@@ -11,6 +11,16 @@ enum MusicDestination: Hashable {
     case collection(MusicCollection)
     case discovery(MusicDiscoveryCategory)
     case browse(MusicBrowseReference)
+    case uploads(MusicUploadCategory)
+    case uploadSearch(String)
+
+    var isUploadDestination: Bool {
+        switch self {
+        case .uploads, .uploadSearch: true
+        case let .collection(collection): collection.isUploaded
+        default: false
+        }
+    }
 
     var title: String {
         switch self {
@@ -21,6 +31,8 @@ enum MusicDestination: Hashable {
         case .history: "Listening History"
         case let .libraryCategory(category): category.title
         case .search: "Search"
+        case let .uploads(category): "Uploaded \(category.title)"
+        case .uploadSearch: "Search Uploads"
         case let .collection(value): value.title
         case let .discovery(category): category.title
         case let .browse(reference): reference.title
@@ -328,6 +340,8 @@ final class AppSession {
                 case .likedSongs: result = try await client.likedSongs()
                 case .history: result = try await client.history()
                 case let .search(query): result = try await client.search(query: query, filter: filter)
+                case let .uploads(category): result = try await client.uploads(category: category)
+                case let .uploadSearch(query): result = try await client.searchUploads(query: query)
                 case let .collection(value):
                     switch value.kind {
                     case .album: result = try await client.album(id: value.id)

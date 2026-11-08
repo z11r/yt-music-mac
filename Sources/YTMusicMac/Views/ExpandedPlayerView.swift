@@ -23,7 +23,7 @@ struct ExpandedPlayerView: View {
                             ExplicitContentBadge(track: track)
                             TrackMetadataMenu(track: track, session: session)
                             TrackRatingMenu(session: session, track: track)
-                            MusicLinkActions(link: .track(track.id))
+                            MusicLinkActions(track: track)
                         }
                     }
                 }

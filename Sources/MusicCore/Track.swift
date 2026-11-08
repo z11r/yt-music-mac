@@ -1,5 +1,8 @@
 import Foundation
 
+/// Content provenance, separate from a playback video ID or queue occurrence.
+public enum MusicContentOrigin: String, Codable, Hashable, Sendable { case catalog, upload }
+
 public struct Track: Identifiable, Codable, Hashable, Sendable {
     public let id: String
     public var title: String
@@ -11,6 +14,7 @@ public struct Track: Identifiable, Codable, Hashable, Sendable {
     public var artistReferences: [TrackMetadataReference]?
     /// True when a service badge establishes explicit content; nil means unknown.
     public var isExplicit: Bool?
+    public var origin: MusicContentOrigin?
 
     public init(
         id: String,
@@ -21,7 +25,8 @@ public struct Track: Identifiable, Codable, Hashable, Sendable {
         duration: TimeInterval? = nil,
         albumReference: TrackMetadataReference? = nil,
         artistReferences: [TrackMetadataReference]? = nil,
-        isExplicit: Bool? = nil
+        isExplicit: Bool? = nil,
+        origin: MusicContentOrigin? = nil
     ) {
         self.id = id
         self.title = title
@@ -32,6 +37,7 @@ public struct Track: Identifiable, Codable, Hashable, Sendable {
         self.albumReference = albumReference
         self.artistReferences = artistReferences
         self.isExplicit = isExplicit
+        self.origin = origin
     }
 }
 

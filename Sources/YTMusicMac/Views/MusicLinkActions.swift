@@ -4,9 +4,12 @@ import SwiftUI
 import YouTubeMusic
 
 struct MusicLinkActions: View {
-    let link: MusicLink
+    let link: MusicLink?
+    init(link: MusicLink) { self.link = link }
+    init(track: Track) { link = track.origin == .upload ? nil : .track(track.id) }
+    init(collection: MusicCollection) { link = collection.isUploaded ? nil : .collection(collection) }
     var body: some View {
-        if let url = link.url {
+        if let url = link?.url {
             ShareLink(item: url) { Label("Share…", systemImage: "square.and.arrow.up") }
             Button("Copy Link", systemImage: "link") {
                 NSPasteboard.general.clearContents()

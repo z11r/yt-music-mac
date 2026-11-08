@@ -26,6 +26,7 @@ struct RootView: View {
                         Label("Artists", systemImage: "person.2").tag(MusicDestination.libraryCategory(.artists))
                         Label("Liked Songs", systemImage: "heart").tag(MusicDestination.likedSongs)
                         Label("Listening History", systemImage: "clock").tag(MusicDestination.history)
+                        Label("Uploads", systemImage: "music.note.house").tag(MusicDestination.uploads(.songs))
                     }
                     LocalCollectionsSidebar(session: session)
                 }

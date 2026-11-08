@@ -2,6 +2,7 @@
 // See THIRD_PARTY_NOTICES.md for the license and upstream source paths.
 import CryptoKit
 import Foundation
+import MusicCore
 
 public actor YouTubeMusicClient {
     public enum LibraryCategory: String, CaseIterable, Hashable, Sendable {
@@ -84,16 +85,19 @@ public actor YouTubeMusicClient {
         try await browse("VLLM", title: "Liked Songs", requiresAuthentication: true, preservesOccurrences: true)
     }
     public func playlist(id: String) async throws -> MusicPage {
+        guard !MusicUploadRoutes.isCollectionID(id) else { throw MusicServiceError.invalidInput }
         try validateIdentifier(id)
         let browseID = Self.playlistBrowseID(id)
         return try await browse(browseID, title: "Playlist", requiresAuthentication: browseID == "VLLM", preservesOccurrences: true)
     }
     public func album(id: String) async throws -> MusicPage {
+        if MusicUploadRoutes.isCollectionID(id) { return try await uploadedAlbum(id: id) }
         try validateIdentifier(id)
         let browseID = id.hasPrefix("OLAK") ? "VL" + id : id
         return try await browse(browseID, title: "Album", preservesOccurrences: true)
     }
     public func artist(id: String) async throws -> MusicPage {
+        if MusicUploadRoutes.isCollectionID(id) { return try await uploadedArtist(id: id) }
         try validateIdentifier(id)
         return try await browse(id, title: "Artist")
     }
@@ -121,7 +125,11 @@ public actor YouTubeMusicClient {
         let data = try await request(endpoint: continuation.endpoint, body: ["continuation": continuation.token],
                                      session: session, requiresAuthentication: continuation.requiresAuthentication)
         let parsed: ParsedMusicPage
-        do { parsed = try MusicResponseParser.parse(data, preservesOccurrences: continuation.preservesOccurrences) }
+        do {
+            let prepared = try continuation.contentOrigin == .upload ? MusicUploadResponseAdapter.prepare(data, isSearch: continuation.endpoint == .search) : data
+            parsed = try MusicResponseParser.parse(prepared, preservesOccurrences: continuation.preservesOccurrences)
+            try validateUploadTracks(parsed, origin: continuation.contentOrigin)
+        }
         catch MusicServiceError.unsupportedResponse {
             return .unsupported(includeStructure ? MusicResponseStructure.summarize(data) : nil)
         }
@@ -131,7 +139,7 @@ public actor YouTubeMusicClient {
         return .page(makePage(parsed, title: continuation.title, endpoint: continuation.endpoint, session: session,
                         requiresAuthentication: continuation.requiresAuthentication,
                         preservesOccurrences: continuation.preservesOccurrences, previousTokens: tokens,
-                        previousItems: continuation.previousItems))
+                        previousItems: continuation.previousItems, contentOrigin: continuation.contentOrigin))
     }
 
     /// Bounded collection for explicit exports or queue construction. The UI should load one page at a time.
@@ -174,22 +182,29 @@ public actor YouTubeMusicClient {
                             requiresAuthentication: requiresAuthentication, preservesOccurrences: preservesOccurrences)
     }
 
-    private func firstPage(endpoint: MusicEndpoint, body: [String: String], title: String,
-                           requiresAuthentication: Bool, preservesOccurrences: Bool, expectedScope: UUID? = nil) async throws -> MusicPage {
+    func firstPage(endpoint: MusicEndpoint, body: [String: String], title: String,
+                   requiresAuthentication: Bool, preservesOccurrences: Bool, expectedScope: UUID? = nil,
+                   contentOrigin: MusicContentOrigin? = nil) async throws -> MusicPage {
         let session = await sessions.snapshot()
         if let expectedScope, expectedScope != session.scope { throw MusicServiceError.sessionChanged }
         let data = try await request(endpoint: endpoint, body: body, session: session, requiresAuthentication: requiresAuthentication)
-        let parsed = try MusicResponseParser.parse(data, preservesOccurrences: preservesOccurrences)
+        let prepared = try contentOrigin == .upload ? MusicUploadResponseAdapter.prepare(data, isSearch: endpoint == .search) : data
+        let parsed = try MusicResponseParser.parse(prepared, preservesOccurrences: preservesOccurrences)
+        try validateUploadTracks(parsed, origin: contentOrigin)
         return makePage(parsed, title: title, endpoint: endpoint, session: session,
-                        requiresAuthentication: requiresAuthentication, preservesOccurrences: preservesOccurrences)
+                        requiresAuthentication: requiresAuthentication, preservesOccurrences: preservesOccurrences, contentOrigin: contentOrigin)
     }
 
     private func makePage(_ parsed: ParsedMusicPage, title: String, endpoint: MusicEndpoint, session: MusicSession,
                           requiresAuthentication: Bool, preservesOccurrences: Bool,
-                          previousTokens: Set<String> = [], previousItems: Set<String> = []) -> MusicPage {
+                          previousTokens: Set<String> = [], previousItems: Set<String> = [], contentOrigin: MusicContentOrigin? = nil) -> MusicPage {
         var seen = previousItems
         let sections = parsed.sections.compactMap { section -> MusicSection? in
             let items = section.items.filter { preservesOccurrences || seen.insert($0.id).inserted }.map { item in
+                if contentOrigin == .upload, case var .track(track) = item {
+                    track.origin = .upload
+                    return MusicItem.track(track)
+                }
                 if case let .browse(reference) = item { return MusicItem.browse(reference.scoped(to: session.scope)) }
                 return item
             }
@@ -200,15 +215,27 @@ public actor YouTubeMusicClient {
         let next = parsed.token.map {
             MusicContinuation(token: $0, endpoint: endpoint, scope: session.scope, title: parsed.title ?? title,
                               requiresAuthentication: requiresAuthentication, preservesOccurrences: preservesOccurrences,
-                              previousTokens: previousTokens, previousItems: seen)
+                              previousTokens: previousTokens, previousItems: seen, contentOrigin: contentOrigin)
         }
         return MusicPage(title: parsed.title ?? title, sections: sections, items: sections.flatMap(\.items), continuation: next,
-                         playlistItems: parsed.playlistItems, playlistCapabilities: parsed.playlistCapabilities,
+                         playlistItems: parsed.playlistItems.map { item in
+                            guard contentOrigin == .upload else { return item }
+                            var track = item.track; track.origin = .upload
+                            return MusicPlaylistItem(track: track, setVideoID: item.setVideoID)
+                         }, playlistCapabilities: parsed.playlistCapabilities,
                          likeStates: parsed.likeStates, ratings: parsed.ratings,
                          unavailableItemCount: parsed.unavailableItemCount,
                          hasUnsupportedContent: parsed.hasUnsupportedContent,
                          playlistDetails: parsed.playlistDetails, albumLibraryState: parsed.albumLibraryState,
                          artistSubscription: parsed.artistSubscription)
+    }
+
+    private func validateUploadTracks(_ page: ParsedMusicPage, origin: MusicContentOrigin?) throws {
+        guard origin == .upload else { return }
+        for item in page.items {
+            if case let .track(track) = item, !MusicUploadRoutes.isVideoID(track.id) { throw MusicServiceError.unsupportedResponse }
+            if case let .collection(collection) = item, !collection.isUploaded { throw MusicServiceError.unsupportedResponse }
+        }
     }
 
     func request(endpoint: MusicEndpoint, body: [String: Any], session: MusicSession, requiresAuthentication: Bool) async throws -> Data {

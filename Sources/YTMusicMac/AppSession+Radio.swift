@@ -53,6 +53,7 @@ extension AppSession {
 
     /// Replaces the queue with the song and plays it, then appends its radio when it arrives.
     func startRadio(from track: Track) {
+        guard track.origin != .upload else { return }
         guard account.isSignedIn else { openAccount(); return }
         playTracks([track])
         guard queue.currentTrack?.id == track.id,
@@ -65,7 +66,7 @@ extension AppSession {
 
     /// Replaces the queue with the radio the service offered for the collection, once it loads.
     func startRadio(from collection: MusicCollection) {
-        guard let playlistID = collection.radioPlaylistID else { return }
+        guard !collection.isUploaded, let playlistID = collection.radioPlaylistID else { return }
         guard account.isSignedIn else { openAccount(); return }
         collectionPlayback.cancel()
         sleepTimer.allowPlayback()
@@ -143,7 +144,7 @@ extension AppSession {
     // MARK: Requests
 
     private var autoplayAllowed: Bool {
-        radio.autoplayEnabled && wantsPlayback && account.isSignedIn && !isSceneCheck &&
+        currentTrack?.origin != .upload && radio.autoplayEnabled && wantsPlayback && account.isSignedIn && !isSceneCheck &&
             !sleepTimer.blocksAutoplay && !collectionPlayback.isLoading && !collectionPlayback.canRetry
     }
 

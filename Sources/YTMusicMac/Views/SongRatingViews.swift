@@ -9,12 +9,12 @@ struct TrackRatingActions: View {
     var body: some View {
         let current = session.rating(for: track)
         let scope = session.libraryEditingScope
-        if session.canEditRating(.liked) {
+        if track.origin != .upload && session.canEditRating(.liked) {
             ratingButton(current == .liked ? "Remove Like" : "Like",
                          symbol: current == .liked ? "hand.thumbsup.fill" : "hand.thumbsup",
                          target: current == .liked ? .neutral : .liked, scope: scope)
         }
-        if session.canEditRating(.disliked) {
+        if track.origin != .upload && session.canEditRating(.disliked) {
             ratingButton(current == .disliked ? "Remove Dislike" : "Dislike",
                          symbol: current == .disliked ? "hand.thumbsdown.fill" : "hand.thumbsdown",
                          target: current == .disliked ? .neutral : .disliked, scope: scope)
@@ -38,7 +38,7 @@ struct TrackRatingMenu: View {
     let track: Track
 
     var body: some View {
-        if session.hasRatingControls {
+        if track.origin != .upload && session.hasRatingControls {
             let rating = session.rating(for: track)
             Menu { TrackRatingActions(session: session, track: track) } label: {
                 Label("Song Rating", systemImage: symbol(rating))

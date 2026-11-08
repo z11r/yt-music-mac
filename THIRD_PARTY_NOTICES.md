@@ -91,6 +91,11 @@ at commit `206d470bd857dde9e4c588170a23188037e03ad5` (version 1.12.3):
 - `ytmusicapi/mixins/browsing.py`
 - `ytmusicapi/parsers/albums.py`
 - `ytmusicapi/parsers/songs.py`
+- `ytmusicapi/mixins/uploads.py`
+- `ytmusicapi/mixins/search.py`
+- `ytmusicapi/parsers/uploads.py`
+- `ytmusicapi/parsers/search.py`
+- `ytmusicapi/parsers/library.py`
 
 MIT License
 

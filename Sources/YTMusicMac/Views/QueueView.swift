@@ -88,7 +88,7 @@ struct QueueView: View {
                 if !ids.isEmpty {
                     Button("Play") { playSelection(ids) }
                     if ids.count == 1, let entry = session.queue.entries.first(where: { ids.contains($0.id) }) {
-                        Button("Start Radio") { session.startRadio(from: entry.track) }
+                        if entry.track.origin != .upload { Button("Start Radio") { session.startRadio(from: entry.track) } }
                     }
                     Button("Remove from Queue") { session.removeQueueEntries(ids) }
                     if ids.count == 1, let entry = session.queue.entries.first(where: { ids.contains($0.id) }) {
@@ -130,6 +130,7 @@ struct QueueView: View {
                         .lineLimit(1)
                     ExplicitContentBadge(track: entry.track)
                 }
+                ContentOriginBadge(isUploaded: entry.track.origin == .upload)
                 Text(entry.track.artist).font(.caption).foregroundStyle(.secondary).lineLimit(1)
             }
             Spacer(minLength: 2)
@@ -141,12 +142,12 @@ struct QueueView: View {
         }
         .padding(.vertical, 5)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(entry.track.title), \(entry.track.artist)\(entry.track.isExplicit == true ? ", Explicit content" : "")")
+        .accessibilityLabel("\(entry.track.title), \(entry.track.artist)\(entry.track.origin == .upload ? ", uploaded music" : "")\(entry.track.isExplicit == true ? ", Explicit content" : "")")
         .accessibilityValue(queuePosition(entry, index: index))
         .help("\(entry.track.title) — \(entry.track.artist)")
         .accessibilityActions {
             Button("Play") { session.selectQueueEntry(entry.id) }
-            Button("Start Radio") { session.startRadio(from: entry.track) }
+            if entry.track.origin != .upload { Button("Start Radio") { session.startRadio(from: entry.track) } }
             if !isFiltering && index > 0 {
                 Button("Move Up") { moveEntry(entry.id, up: true) }
             }

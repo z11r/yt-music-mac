@@ -1,7 +1,7 @@
 import Foundation
 
 public enum NamedQueueExchangeError: Error, Equatable, LocalizedError, Sendable {
-    case unsupportedVersion(Int), invalidDocument, invalidSong, invalidLink, tooManySongs, protectedDestination
+    case unsupportedVersion(Int), invalidDocument, invalidSong, invalidLink, tooManySongs, protectedDestination, uploadedMusicUnsupported
 
     public var errorDescription: String? {
         switch self {
@@ -10,6 +10,7 @@ public enum NamedQueueExchangeError: Error, Equatable, LocalizedError, Sendable 
         case .invalidSong: "The file contains invalid song identifiers, text, or durations."
         case .invalidLink: "Song links must identify the matching song on YouTube Music."
         case .tooManySongs: "This file contains too many songs to import."
+        case .uploadedMusicUnsupported: "Uploaded music has no verified portable service link. Save this queue locally instead."
         case .protectedDestination: "Choose an export location outside the app's saved queue storage."
         }
     }
@@ -73,6 +74,7 @@ public enum NamedQueueExchange {
         guard snapshot.entries.count <= maximumSongs else { throw NamedQueueExchangeError.tooManySongs }
         let songs = try snapshot.entries.map { entry -> Song in
             let track = entry.track
+            guard track.origin != .upload else { throw NamedQueueExchangeError.uploadedMusicUnsupported }
             let song = Song(videoID: track.id, title: track.title, artist: track.artist,
                             album: track.album, duration: track.duration,
                             link: "https://music.youtube.com/watch?v=" + track.id)

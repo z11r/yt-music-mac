@@ -441,6 +441,8 @@ enum MusicResponseParser {
         default: break
         }
         guard let id = browse["browseId"].string else { return nil }
+        if id.hasPrefix(MusicUploadRoutes.albumPrefix) { return .album }
+        if id.hasPrefix(MusicUploadRoutes.artistPrefix) { return .artist }
         if id.hasPrefix("MPRE") || id.hasPrefix("OLAK") { return .album }
         if id.hasPrefix("VL") || id.hasPrefix("PL") || id.hasPrefix("RD") || id.hasPrefix("VM") { return .playlist }
         if id.hasPrefix("UC") { return .artist }
