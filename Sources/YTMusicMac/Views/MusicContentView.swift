@@ -24,7 +24,8 @@ struct MusicContentView: View {
     }
 
     private var showsSortedLibrary: Bool {
-        session.destination.libraryCategory != nil && session.libraryDisplayOrder != .serviceOrder
+        session.destination.libraryCategory != nil && (session.libraryDisplayOrder != .serviceOrder ||
+            !session.libraryFilter.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
     }
 
     var body: some View {
@@ -117,6 +118,11 @@ struct MusicContentView: View {
                             .frame(maxWidth: .infinity, minHeight: 240)
                     }
                 }
+                if showsSortedLibrary, !page.items.isEmpty,
+                   LibraryDisplayOrder.filtered(page.items, matching: session.libraryFilter).isEmpty {
+                    ContentUnavailableView.search(text: session.libraryFilter)
+                        .frame(maxWidth: .infinity, minHeight: 180)
+                }
                 // A filtered search is one list that grows page by page, so show it as one grid.
                 ForEach(Array((showsResultGrid || showsSortedLibrary ? [] : page.sections).enumerated()), id: \.offset) { _, section in
                     VStack(alignment: .leading, spacing: 14) {
@@ -145,7 +151,7 @@ struct MusicContentView: View {
                 if (showsResultGrid || showsSortedLibrary || page.sections.isEmpty) && !page.items.isEmpty {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 176, maximum: 220), spacing: 20)],
                               alignment: .leading, spacing: 26) {
-                        ForEach(Array((showsSortedLibrary ? session.libraryDisplayOrder.sorted(page.items) : page.items).enumerated()), id: \.offset) { _, item in
+                        ForEach(Array((showsSortedLibrary ? session.libraryDisplayOrder.sorted(LibraryDisplayOrder.filtered(page.items, matching: session.libraryFilter)) : page.items).enumerated()), id: \.offset) { _, item in
                             MusicCard(item: item, session: session, presentEditor: presentEditor)
                         }
                     }
@@ -282,30 +288,10 @@ private struct CollectionTracksView: View {
     let presentEditor: (LibraryEditorRequest) -> Void
     @State private var selection: Set<Int> = []
 
-    private struct Row: Identifiable {
-        let id: Int
-        let track: Track
-        let removalReference: PlaylistItemReference?
-    }
-    private var allTracks: [Track] {
-        page.tracks.isEmpty ? page.sections.flatMap(\.items).compactMap {
-            if case let .track(track) = $0 { track } else { nil }
-        } : page.tracks
-    }
+    private typealias Row = CollectionDisplayRow
+    private var allTracks: [Track] { CollectionPresentation.tracks(in: page) }
     private var rows: [Row] {
-        let tracks = allTracks
-        let query = session.collectionFilter.trimmingCharacters(in: .whitespacesAndNewlines)
-        // Match service occurrences before filtering, so identical song IDs
-        // never borrow another occurrence's removal reference.
-        return tracks.enumerated().compactMap { index, track in
-            guard query.isEmpty || track.title.localizedCaseInsensitiveContains(query) ||
-                track.artist.localizedCaseInsensitiveContains(query) else { return nil }
-            let reference: PlaylistItemReference?
-            if page.playlistItems.count == tracks.count, page.playlistItems[index].track == track {
-                reference = page.playlistItems[index].removalReference
-            } else { reference = nil }
-            return Row(id: index, track: track, removalReference: reference)
-        }
+        CollectionPresentation.rows(in: page, matching: session.collectionFilter, order: session.collectionDisplayOrder)
     }
     private var selectedTracks: [Track] { rows.filter { selection.contains($0.id) }.map(\.track) }
 
@@ -329,9 +315,9 @@ private struct CollectionTracksView: View {
                 .disabled(session.isLoadingMore || session.collectionPlayback.isLoading)
                 CollectionPlaybackStatus(session: session)
                 HStack {
-                    TextField("Filter this collection", text: $session.collectionFilter)
+                    TextField("Filter loaded songs", text: $session.collectionFilter)
                         .textFieldStyle(.roundedBorder).frame(maxWidth: 290)
-                        .accessibilityLabel("Filter this collection")
+                        .accessibilityLabel("Filter loaded songs by title, artist, or album")
                     if !session.collectionFilter.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         Menu("Loaded Matches") {
                             Button("Play Loaded Matches") { session.playTracks(session.visibleTracks) }
@@ -341,6 +327,11 @@ private struct CollectionTracksView: View {
                         .help("Use matching songs from the pages already loaded")
                     }
                     Spacer()
+                    Picker("Sort Loaded Songs", selection: $session.collectionDisplayOrder) {
+                        ForEach(CollectionDisplayOrder.allCases, id: \.self) { order in Text(order.title).tag(order) }
+                    }
+                    .pickerStyle(.menu).fixedSize()
+                    .help("Sorts loaded songs. Play All uses service order.")
                     Menu {
                         Button("Play Selected") { session.playTracks(selectedTracks) }
                         Button("Play Selected Next") { session.playNext(selectedTracks) }
@@ -415,13 +406,14 @@ private struct CollectionTracksView: View {
                 if rows.isEmpty {
                     ContentUnavailableView(session.collectionFilter.isEmpty ? "No Songs Yet" : "No Matching Songs",
                         systemImage: "music.note.list",
-                        description: Text(session.collectionFilter.isEmpty ? "This collection has no songs to show." : "Try a different title or artist."))
+                        description: Text(session.collectionFilter.isEmpty ? "This collection has no songs to show." : "Try a different title, artist, or album."))
                 }
             }
             PaginationView(session: session).padding(12)
         }
         .onChange(of: session.collectionFilter) { selection.removeAll() }
         .onChange(of: session.destination) { selection.removeAll() }
+        .onChange(of: session.collectionDisplayOrder) { selection.removeAll() }
     }
 
     private var canQueueCollection: Bool { !allTracks.isEmpty || page.continuation != nil }

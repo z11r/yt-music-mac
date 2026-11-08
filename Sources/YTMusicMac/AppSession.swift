@@ -127,6 +127,8 @@ final class AppSession {
     let lyrics: LyricsSession
     var libraryDisplayOrder: LibraryDisplayOrder = .serviceOrder
     var collectionFilter = ""
+    var libraryFilter = ""
+    var collectionDisplayOrder: CollectionDisplayOrder = .serviceOrder
     var showsQueue = false
     var showsAccount = false
     var showsLocalFolders = false
@@ -249,13 +251,8 @@ final class AppSession {
     func rating(for track: Track) -> MusicRating? { songRatings.values[track.id] }
     var visibleTracks: [Track] {
         guard let page else { return [] }
-        let tracks = page.tracks.isEmpty ? page.sections.flatMap(\.items).compactMap {
-            if case let .track(track) = $0 { track } else { nil }
-        } : page.tracks
-        let query = collectionFilter.trimmingCharacters(in: .whitespacesAndNewlines)
-        return query.isEmpty ? tracks : tracks.filter {
-            $0.title.localizedCaseInsensitiveContains(query) || $0.artist.localizedCaseInsensitiveContains(query)
-        }
+        return CollectionPresentation.rows(in: page, matching: collectionFilter,
+            order: collectionDisplayOrder).map(\.track)
     }
 
     func start() async {
@@ -292,6 +289,8 @@ final class AppSession {
         canGoBack = !backHistory.isEmpty
         canGoForward = !forwardHistory.isEmpty
         collectionFilter = ""
+        libraryFilter = ""
+        collectionDisplayOrder = .serviceOrder
         page = nil
         pageError = nil
         isLoading = true

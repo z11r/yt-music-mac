@@ -24,3 +24,10 @@ Changing the queue, using playback controls, navigating away, or changing
 accounts cancels a pending collection operation. To start again, return to the
 collection and choose the desired action. Signing in is required before
 starting playback.
+
+Loaded songs can be sorted by title, artist, album, or duration. Unknown albums
+and durations sort after known values. Matching and selected-song actions use
+the displayed order; Play All and Add All retain service order. Display sorting
+does not reorder the service playlist, and each row keeps its original
+occurrence reference for editing. Library filtering searches loaded card titles
+and subtitles; Load More expands the set being searched.

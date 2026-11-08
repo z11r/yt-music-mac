@@ -14,6 +14,13 @@ enum LibraryDisplayOrder: String, CaseIterable {
         }
     }
 
+    static func filtered(_ items: [MusicItem], matching query: String) -> [MusicItem] {
+        let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        return query.isEmpty ? items : items.filter {
+            $0.title.localizedStandardContains(query) || ($0.subtitle?.localizedStandardContains(query) ?? false)
+        }
+    }
+
     func sorted(_ items: [MusicItem]) -> [MusicItem] {
         guard self != .serviceOrder else { return items }
         return items.enumerated().sorted { left, right in

@@ -20,6 +20,12 @@ struct LibraryCategoryBar: View {
             .pickerStyle(.segmented)
             .accessibilityHint("Shows this category from your YouTube Music library")
             HStack {
+                if session.localCollections.activeFilter == nil {
+                    TextField("Filter loaded library items", text: Binding(
+                        get: { session.libraryFilter }, set: { session.libraryFilter = $0 }))
+                        .textFieldStyle(.roundedBorder).frame(maxWidth: 300)
+                        .accessibilityLabel("Filter loaded library items by title or subtitle")
+                }
                 Spacer()
                 Picker("Sort Loaded Items", selection: Binding(
                     get: { session.libraryDisplayOrder }, set: { session.libraryDisplayOrder = $0 })) {
@@ -31,6 +37,8 @@ struct LibraryCategoryBar: View {
                 .fixedSize()
                 .help("Sorts loaded library items. Load More adds additional items.")
             }
+            Text("Search and sorting apply to loaded items. Load More expands the results.")
+                .font(.caption).foregroundStyle(.secondary)
         }
     }
 }
