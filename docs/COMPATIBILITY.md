@@ -10,10 +10,10 @@ checks, playback, and performance are separate checks.
 | --- | --- |
 | Local automated suite on Apple silicon, macOS 26.6, Xcode 27.2 | Checkpoint `170a0a6` passed 1,021 checks in three consecutive combined runs; four opt-in live checks skipped. An earlier intermittent TXT-export error remains under investigation; see [export verification](STREAMING_METADATA_EXPORT.md#verification). |
 | Anonymous home, explore, search, album, artist, and playlist requests through the native service client | Passed locally |
-| Debug arm64 bundle and release universal bundle | Built locally; arm64 and x86_64 slices declare macOS 14 |
-| Relocated debug and release bundle diagnostics on Apple silicon/macOS 26.6 | Passed identity, resources, runtime paths, and ad-hoc signature checks |
-| CI tests and host app builds on Intel/macOS 15 and Apple silicon/macOS 26 | Feature checkpoint [8282d73](https://github.com/z11r/yt-music-mac/actions/runs/42456513876) passed tests, release packaging and relocated-bundle checks on both architectures with Xcode 26.2 |
-| Release window and menu scenes with isolated synthetic data | Passed 100 rendered queue-state changes locally |
+| Local release universal bundle | Checkpoint `4371905` built locally; arm64 and x86_64 slices declare macOS 14 |
+| Relocated release bundle diagnostics on Apple silicon/macOS 26.6 | Checkpoint `4371905` passed identity, resources, runtime paths, shortcut metadata and ad-hoc signature checks |
+| CI tests and host app builds on Intel/macOS 15 and Apple silicon/macOS 26 | Feature checkpoint [4371905](https://github.com/z11r/yt-music-mac/actions/runs/42462170230) passed tests, release packaging and relocated-bundle checks on both architectures with Xcode 26.2 |
+| Release window and menu scenes with isolated synthetic data | Checkpoint `4371905` passed 100 rendered queue-state changes locally |
 | Packaged app on macOS 14, physical Intel and Apple silicon | Pending |
 | Initial Premium sign-in and playback on the development Mac | Manually reported working; extended cases pending |
 | Packaged release: retained sign-in, queue restore without autoplay, saved-position playback, pause, and resume | Verified through native commands on the development Mac |
