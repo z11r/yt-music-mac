@@ -8,7 +8,10 @@ No subscription or saved-episode mutation action is enabled.
 
 [Episode Details](EPISODE_DETAILS.md) makes an explicit read for the current
 episode description and supplied timestamp references. Those references are
-read-only and do not infer chapter titles or seek playback.
+displayed without inferred chapter titles. Eligible references offer explicit
+seeking only for the exact currently playing episode, with fresh player proof,
+advertisement refusal and position readback. Real WebKit timing acceptance
+remains pending.
 
 Episode rows require a service episode browse identity or an explicit podcast
 video type. `Track.contentKind` distinguishes episodes from songs, and

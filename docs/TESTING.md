@@ -30,8 +30,10 @@ Recovery tests save and reopen isolated queue files after failed loads, and chec
 that retries, new occurrences, explicit seeks, and account changes handle saved
 positions correctly. Keyboard tests cover text and web focus, sheets, focused
 controls, shortcut routing, bounded seek steps, and volume/mute actions using
-isolated preferences without network requests. On November 7, 2026, the combined feature branch passed 636 deterministic
-tests locally on Apple silicon; four opt-in network tests were skipped.
+isolated preferences without network requests. Combined checkpoint `267784d`
+passed 1,533 deterministic checks locally on Apple silicon; four opt-in live
+checks were skipped. See [compatibility evidence](COMPATIBILITY.md) for its
+universal package and hosted Intel/Apple silicon results.
 
 Local audio checks use fake bookmark/file/profile adapters and fake native output.
 The integrated transport also uses controlled Web acknowledgments and retirement
@@ -42,11 +44,20 @@ queues. They establish control and storage behavior without playing local files
 or invoking real chooser/bookmark/AV output operations. Native format, permission,
 device and accessibility acceptance remains separate.
 
+[Optional Apple lyrics translation](LYRICS_TRANSLATION.md) uses injected language
+and translation providers in tests. Checks cover explicit admission, frozen
+source and credit, stale owners, view-host cancellation, held native-call
+settlement and bounded output. Tests and bundle diagnostics do not query Apple's
+language list, create a translation session, prepare models or translate text.
+Actual model consent/download, language availability and native accessibility
+acceptance remain separate.
+
 Check scripts and workflow syntax separately:
 
 ```sh
 shellcheck Scripts/*.sh
 actionlint .github/workflows/checks.yml
+python3 -B -m unittest discover -s Scripts/tests
 ```
 
 CI runs tests and packages the host architecture on Intel/macOS 15 and Apple
@@ -61,7 +72,11 @@ Scripts/check-app.sh "$app_path" --configuration release --universal --smoke-tes
 
 The static check verifies bundle metadata, executable architectures, macOS 14
 deployment targets, packaged playback resources, license files, library paths, and the code
-signature. The smoke check copies the app outside the checkout, clears package
+signature. Each linked thin executable and each requested packaged slice must
+keep Translation, its SwiftUI overlay and FoundationModels absent or weakly
+linked, with weak optional imports. Parser fixtures reject strong loads/imports,
+truncated metadata and failed tools; CI runs those fixtures separately.
+The smoke check copies the app outside the checkout, clears package
 resource overrides, and runs the bundle's diagnostic mode. That mode verifies
 its own identity, resource location, and registration of the native playback
 commands before creating a playback session or contacting the music service.

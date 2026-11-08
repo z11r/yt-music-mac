@@ -42,7 +42,7 @@ formats or controls in the YouTube Music playback path.
 | Collection playback | Play All, Shuffle All, and Add All load every page before changing the queue, with cancellation and retry | Live queue construction and navigation/accessibility checks. See [collection behavior](COLLECTIONS.md). |
 | Library edits | Three-state ratings, operation-specific gates, basic playlist forms, and a bounded disposable-playlist diagnostic | Live confirmation before enabling each operation. See [editing boundaries](LIBRARY_EDITING.md). |
 | Mac integration | Standard shortcuts, media keys, Now Playing, Dock, mini-player, menu bar, player windows, output picker, notifications, startup controls, links, and AppleScript | Device routing, notification delivery, installed login items, visual layout, and VoiceOver checks. |
-| Lyrics | Service plain lyrics and validated timed lyrics, with attribution, stale-request fencing, and line seeking | Live recording/provider coverage and window/accessibility checks. |
+| Lyrics | Service plain and timed lyrics, attribution, guarded line seeking, and optional macOS 15 Apple translation of loaded text | Live recording/provider, native translation and window/accessibility checks; language-aware romanization remains missing. |
 | Local organization | Account-specific pins, folders, tags, saved loaded-library filters and rules over explicit captured-song snapshots | Runtime/layout checks; captured metadata does not cover the whole service library. |
 | Advanced playback | Capability audit completed | Follow the specific playback-path and device proofs in [capability boundaries](PLAYBACK_CAPABILITIES.md). |
 
@@ -103,7 +103,7 @@ and the correct song version must be established separately.
 | G13 | Collection/library sorting, library search, and pinned playlist navigation | Implemented; signed-in search and native checks pending | [Service-library search](LIBRARY_SEARCH.md) is separate from catalog search and loaded-item filters. Verify its supported categories, paging, history isolation and signed-in coverage; keep local sorting separate from service order. |
 | G14 | Rich track/album/artist navigation and metadata | Partial; navigation, credits, indicators, collection summaries and artist About implemented | Verify [credits](SONG_CREDITS.md) and [collection details](COLLECTION_DETAILS.md), including bounded artist biography text and preserved supplied attribution. Service summaries remain distinct from loaded counts and known durations; missing metadata stays unknown. |
 | G15 | Plain lyrics | Implemented; live checks pending | Prefer service-provided lyrics; handle instrumental/missing lyrics and stale requests. Show provider attribution where required. |
-| G16 | Synchronized lyrics and optional line seeking | Partial; service timing and line seeking implemented | Require timing for the correct recording, seek with the native clock, reject stale results, and support readable static text and reduced motion. Translation/romanization needs an established provider path. |
+| G16 | Synchronized lyrics and optional line seeking | Partial; timing, line seeking and optional Apple translation implemented | Require timing for the correct recording and reject stale requests. [Apple translation](LYRICS_TRANSLATION.md) requires macOS 15 and explicit actions, preserves original credits and timing, and displays separate untimed text. Native model/download, language, layout and accessibility acceptance remain pending; language-aware romanization is missing. |
 | G17 | Copy link, native Share, and open supported music links | Implemented; runtime checks pending | Support songs/albums/artists/playlists; parse trusted URLs and app routes without losing the active queue on invalid input. |
 | G18 | Recent searches and search-history controls | Implemented; session-local history | Distinguish local suggestions from service history; provide clearing and account isolation. |
 | G19 | Queue search, remaining duration, drag-and-drop between views, and clearer manual/radio sections | Implemented; native interaction checks pending | Preserve occurrence IDs and selected order; unknown durations do not become zero. Keep user-added items distinct from recommendations. |
@@ -161,7 +161,8 @@ credentials and delivery receipts. They require a provider connection; Last.fm
 also requires registered application credentials. Neither provider has received
 a live acceptance check on this combined build. [Video presentation](VIDEO_PRESENTATION.md)
 shares one WebKit player; actual native animation/PiP behavior remains unverified,
-and switching between corresponding audio/video recordings is still unavailable.
+and an explicit service-paired recording can be added next and played from the
+start. A position-preserving audio/video switch remains unavailable.
 
 Scrobbling and external presence have precedents in
 [Pear Desktop](https://peardesktop.com/). Synchronized social listening is a

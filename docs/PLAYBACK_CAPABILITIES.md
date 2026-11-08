@@ -1,9 +1,10 @@
 # Playback capabilities
 
-YT Music for Mac plays the service's web player through WebKit. Native controls
-manage transport, volume, seeking, and queue identity. The app does not receive
-decoded audio samples or own a native service-media decoder. A feature available
-in another service client is not automatically available inside this player.
+YT Music for Mac plays the service's web player through WebKit and reviewed
+local audio through AVFoundation. Both sources use the shared native transport
+and queue. The service path does not expose decoded audio samples or a native
+service-media decoder. A feature available in another service client is not
+automatically available inside this player.
 
 ## Current boundaries
 
@@ -17,10 +18,10 @@ in another service client is not automatically available inside this player.
 | Offline downloads | Metadata, artwork, or browser cache do not establish a playable licensed download. The entitled service download flow, renewal, storage, and disconnected playback need verification inside WebKit. |
 | Device routing | WebKit permits AirPlay. The native Audio Output picker still needs receiver and continuity checks. It does not establish Google Cast, service device handoff, or synchronized group listening. |
 | Lossless or spatial audio | No source-format or spatial-content claim is established. Output sample rate, resampling, and EQ do not prove a lossless source. |
-| Local files | Not implemented. A native file player is a possible separate source, requiring file access, persistent identity, queue migration, and engine-switching behavior. |
+| Local files | [Profile-local audio](LOCAL_AUDIO.md) has reviewed import, persistent identity, an AVFoundation adapter, source handoff and paused restoration in the shared queue. Actual decoding, file permissions, relaunch access, hardware and long-playback acceptance remain pending. |
 | Extensions and filtering | Optional [SponsorBlock previews](SPONSORBLOCK.md) offer explicit guarded manual skips for eligible song sections, with default-off session consent. Real timing/provider acceptance remains pending. General extension hosting is not implemented; full WebKit extension hosting requires macOS 15.4 or later. |
 | Language commands | Eight Shortcuts actions and exact Quick Commands use the shared session. Optional reviewed on-device interpretation targets eligible macOS 26 Apple silicon Macs; explicit catalog queue building also supports the macOS 14/Intel target. Installed invocation, model accuracy and native interaction remain runtime checks. |
-| Appearance and feedback | System/light/dark appearance and optional native control accents are implemented with an Increase Contrast fallback. Custom palettes and haptics remain separate work; reactive visualization needs an actual audio source and a measured resource budget. |
+| Appearance and feedback | System/light/dark appearance, named or custom light/dark [control accents](APPEARANCE.md), and default-off [native queue haptics](NATIVE_HAPTICS.md) are implemented. Increase Contrast inherits the system accent. Whole-app themes and reactive visualization need supported paths and resource measurements; native visual, hardware and accessibility acceptance remains pending. |
 
 ## Supported next steps
 
