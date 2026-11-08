@@ -39,6 +39,22 @@ public struct MusicRadioContinuation: Sendable, CustomStringConvertible, CustomD
 }
 
 extension YouTubeMusicClient {
+    /// One explicitly requested song-radio page. Only supplied, classified song metadata is returned.
+    /// The preview never follows the continuation or changes the service library.
+    public func queueRecommendations(videoID: String, expectedScope: UUID) async throws -> [Track] {
+        guard videoID.utf8.count == 11 else { throw MusicServiceError.invalidInput }
+        try validateIdentifier(videoID)
+        let session = await sessions.snapshot()
+        guard session.scope == expectedScope else { throw MusicServiceError.sessionChanged }
+        guard session.isAuthenticated else { throw MusicServiceError.signInRequired }
+        let body = Self.radioOptions.merging(["videoId": videoID, "playlistId": "RDAMVM" + videoID,
+            "tunerSettingValue": "AUTOMIX_SETTING_NORMAL"]) { $1 }
+        let data = try await request(endpoint: .next, body: body, session: session, requiresAuthentication: true)
+        let parsed = try MusicRadioParser.parse(data, recommendationsOnly: true)
+        try await validateScope(expectedScope)
+        return parsed.tracks
+    }
+
     /// Songs related to a seed song. Without a playlist ID this requests the song's radio (`RDAMVM` and the video ID).
     public func radio(videoID: String, playlistID: String? = nil) async throws -> MusicRadioPage {
         try validateIdentifier(videoID)

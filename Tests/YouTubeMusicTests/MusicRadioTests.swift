@@ -47,6 +47,57 @@ final class MusicRadioTests: XCTestCase {
         XCTAssertEqual(parsed.tracks[1].episode?.identity.browseID, "MPEDxyzABC34_-5")
     }
 
+    func testExplicitRecommendationReadUsesOneAuthenticatedRadioPageAndActualClassifiedMetadata() async throws {
+        func typed(_ id: String, _ type: String, title: String? = nil) -> [String: Any] {
+            panelItem(id, extra: ["title": text(title ?? "Song \(id)"), "navigationEndpoint": ["watchEndpoint": ["videoId": id,
+                "watchEndpointMusicSupportedConfigs": ["watchEndpointMusicConfig": ["musicVideoType": type]]]]])
+        }
+        var absentArtist = typed("00000000004", "MUSIC_VIDEO_TYPE_ATV")
+        var renderer = absentArtist["playlistPanelVideoRenderer"] as! [String: Any]
+        renderer.removeValue(forKey: "longBylineText"); renderer.removeValue(forKey: "shortBylineText")
+        absentArtist["playlistPanelVideoRenderer"] = renderer
+        let rows = [typed("00000000001", "MUSIC_VIDEO_TYPE_ATV"), typed("00000000001", "MUSIC_VIDEO_TYPE_ATV"),
+                    typed("00000000002", "MUSIC_VIDEO_TYPE_UGC"), typed("00000000003", "MUSIC_VIDEO_TYPE_PODCAST_EPISODE"),
+                    absentArtist, typed("00000000005", "MUSIC_VIDEO_TYPE_OMV")]
+        let transport = RadioTransport([response(firstPage(rows, token: "must-not-follow"))])
+        let sessions = MusicSessionStore()
+        await sessions.replaceSession(accountID: String(repeating: "a", count: 64), cookieHeader: "fixture=1", sapisid: "fixture",
+            configuration: radioConfiguration)
+        let client = YouTubeMusicClient(transport: transport, sessions: sessions, pause: { _ in })
+        let scope = await sessions.snapshot().scope
+        let tracks = try await client.queueRecommendations(videoID: "abcDEF12_-3", expectedScope: scope)
+        XCTAssertEqual(tracks.map(\.id), ["00000000001", "00000000005"])
+        XCTAssertTrue(tracks.allSatisfy { $0.origin == .catalog && $0.contentKind == .song && $0.episode == nil && !$0.artist.isEmpty })
+        let requests = await transport.requests
+        XCTAssertEqual(requests.count, 1)
+        XCTAssertEqual(requests[0].url?.path, "/youtubei/v1/next")
+        let options = try body(requests[0])
+        XCTAssertEqual(options["videoId"] as? String, "abcDEF12_-3")
+        XCTAssertEqual(options["playlistId"] as? String, "RDAMVMabcDEF12_-3")
+        XCTAssertNil(options["continuation"])
+        XCTAssertEqual(requests[0].value(forHTTPHeaderField: "Cookie"), "fixture=1")
+        await sessions.clear()
+        do { _ = try await client.queueRecommendations(videoID: "abcDEF12_-3", expectedScope: scope); XCTFail("Expected changed scope") }
+        catch { XCTAssertEqual(error as? MusicServiceError, .sessionChanged) }
+        let count = await transport.requests.count
+        XCTAssertEqual(count, 1)
+    }
+
+    func testRecommendationParsingInspectsAtMostTwoHundredRowsAndRejectsUnknownIDsWithoutFabricatingTitles() throws {
+        let rows = (0..<205).map { value -> [String: Any] in
+            let id = String(format: "%011d", value)
+            return panelItem(id, extra: ["navigationEndpoint": ["watchEndpoint": ["videoId": id,
+                "watchEndpointMusicSupportedConfigs": ["watchEndpointMusicConfig": ["musicVideoType": "MUSIC_VIDEO_TYPE_ATV"]]]]])
+        }
+        let parsed = try MusicRadioParser.parse(json(firstPage(rows, token: "unused")), recommendationsOnly: true)
+        XCTAssertEqual(parsed.tracks.count, 200)
+        XCTAssertEqual(parsed.tracks.first?.id, "00000000000")
+        XCTAssertEqual(parsed.tracks.last?.id, "00000000199")
+        let malformed = panelItem("short", extra: ["navigationEndpoint": ["watchEndpoint": ["videoId": "short",
+            "watchEndpointMusicSupportedConfigs": ["watchEndpointMusicConfig": ["musicVideoType": "MUSIC_VIDEO_TYPE_ATV"]]]]])
+        XCTAssertTrue(try MusicRadioParser.parse(json(firstPage([malformed], token: nil)), recommendationsOnly: true).tracks.isEmpty)
+    }
+
     func testContinuationLoadsTheNextPageWithItsToken() async throws {
         let transport = RadioTransport([try fixtureResponse("radio_song_first_page"), try fixtureResponse("radio_continuation")])
         let client = client(transport)

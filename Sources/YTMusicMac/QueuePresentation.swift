@@ -18,6 +18,7 @@ struct QueueDisplayGroup: Identifiable {
         case .manual: AppLocalization.text("Added by You")
         case .radio: AppLocalization.text("Radio")
         case .autoplay: AppLocalization.text("Autoplay")
+        case .recommendation: AppLocalization.text("Recommendations Added by You")
         }
     }
 }

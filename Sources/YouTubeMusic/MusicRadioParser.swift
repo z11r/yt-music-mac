@@ -17,7 +17,7 @@ struct ParsedRadioPage {
 /// `continuationContents.playlistPanelContinuation`. A queue without a panel means
 /// the service offered no songs for the request.
 enum MusicRadioParser {
-    static func parse(_ data: Data) throws -> ParsedRadioPage {
+    static func parse(_ data: Data, recommendationsOnly: Bool = false) throws -> ParsedRadioPage {
         let root: JSONNode
         do { root = try JSONDecoder().decode(JSONNode.self, from: data) }
         catch { throw MusicServiceError.invalidResponse }
@@ -42,11 +42,13 @@ enum MusicRadioParser {
         }
         result.playlistID = panel["playlistId"].string
         var seen = Set<String>()
-        for item in panel["contents"].array {
+        let contents = panel["contents"].array
+        // An explicit preview inspects one bounded page and never follows radio continuations.
+        for item in contents.prefix(recommendationsOnly ? 200 : contents.count) {
             let renderer = item["playlistPanelVideoRenderer"].exists
                 ? item["playlistPanelVideoRenderer"]
                 : item["playlistPanelVideoWrapperRenderer"]["primaryRenderer"]["playlistPanelVideoRenderer"]
-            guard let track = track(renderer) else { continue }
+            guard let track = track(renderer, recommendationsOnly: recommendationsOnly) else { continue }
             if renderer["selected"].bool == true, result.selectedTrackID == nil { result.selectedTrackID = track.id }
             guard seen.insert(track.id).inserted else { continue }
             result.tracks.append(track)
@@ -74,23 +76,30 @@ enum MusicRadioParser {
         return nil
     }
 
-    private static func track(_ renderer: JSONNode) -> Track? {
-        guard renderer.exists, !renderer["unplayableText"].exists,
+    private static func track(_ renderer: JSONNode, recommendationsOnly: Bool) -> Track? {
+        guard renderer.exists, !renderer["unplayableText"].exists, (!recommendationsOnly || renderer["isPlayable"].bool != false),
               let id = renderer["videoId"].string ?? renderer["navigationEndpoint"]["watchEndpoint"]["videoId"].string,
               isVideoID(id), let title = renderer["title"].text else { return nil }
         let runs = renderer["longBylineText"]["runs"].array
         // The byline reads "Artist • Album • Year" for songs and "Artist • views • likes" for videos.
         let credits = runs.prefix { !isSeparator($0["text"].string) }
         let artistText = credits.compactMap { $0["text"].string }.joined().trimmingCharacters(in: .whitespacesAndNewlines)
-        let artist = artistText.isEmpty ? (renderer["shortBylineText"].text ?? ServiceLocalization.text("Unknown artist")) : artistText
+        let suppliedArtist = artistText.isEmpty ? renderer["shortBylineText"].text : artistText
+        let artist = suppliedArtist ?? ServiceLocalization.text("Unknown artist")
         let album = runs.first { MusicResponseParser.collectionKind($0["navigationEndpoint"]["browseEndpoint"]) == .album }?["text"].string
         let duration = renderer["lengthText"].text.flatMap(MusicResponseParser.parseDuration)
         let endpoint = renderer["navigationEndpoint"]
         let episode = MusicPodcastParser.metadata(renderer, videoID: id, endpoints: [endpoint])
         let type = endpoint["watchEndpoint"]["watchEndpointMusicSupportedConfigs"]["watchEndpointMusicConfig"]["musicVideoType"].string
         let song = type.map { ["MUSIC_VIDEO_TYPE_ATV", "MUSIC_VIDEO_TYPE_OMV"].contains($0) } ?? false
+        if recommendationsOnly {
+            guard song, episode == nil, id.utf8.count == 11,
+                  !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                  let suppliedArtist, !suppliedArtist.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+        }
         return Track(id: id, title: title, artist: artist, album: album,
                      artworkURL: MusicResponseParser.thumbnail(renderer), duration: duration,
+                     origin: recommendationsOnly ? .catalog : nil,
                      contentKind: episode != nil ? .podcastEpisode : song ? .song : nil, episode: episode)
     }
 

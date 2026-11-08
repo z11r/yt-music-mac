@@ -7,6 +7,7 @@ struct QueueView: View {
     @State private var filter = ""
     @State private var showsSavedQueues = false
     @State private var playlistReview: QueuePlaylistReviewRequest?
+    @State private var showsRecommendations = false
 
     private var isFiltering: Bool { !filter.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
     private var rows: [QueueDisplayRow] { QueuePresentation.rows(in: session.queue.entries, matching: filter) }
@@ -47,6 +48,8 @@ struct QueueView: View {
                         playlistReview = QueuePlaylistReviewRequest(snapshot: session.savedQueueSnapshot(),
                             accountGeneration: session.accountGeneration, scope: session.queuePlaylistSave.scope)
                     }
+                    Button("Preview Recommendations…") { showsRecommendations = true }
+                        .disabled(!session.canPreviewRecommendations)
                     Divider()
                     Button("Play Selected") { playSelection(selection) }.disabled(selection.isEmpty)
                     Button("Move Up") { moveSelection(up: true) }.disabled(!canMove(up: true))
@@ -126,6 +129,7 @@ struct QueueView: View {
         }
         .sheet(isPresented: $showsSavedQueues) { SavedQueuesView(session: session) }
         .sheet(item: $playlistReview) { QueuePlaylistSaveView(session: session, request: $0) }
+        .sheet(isPresented: $showsRecommendations) { QueueRecommendationsView(session: session) }
         .onChange(of: session.savedQueues.scope) { showsSavedQueues = false }
         .onChange(of: session.queuePlaylistSave.scope) { playlistReview = nil }
     }
@@ -140,6 +144,9 @@ struct QueueView: View {
                     ExplicitContentBadge(track: entry.track)
                 }
                 ContentOriginBadge(isUploaded: entry.track.origin == .upload)
+                if entry.origin == .recommendation {
+                    Label("Recommendation Added by You", systemImage: "sparkles").font(.caption2).foregroundStyle(.secondary)
+                }
                 if entry.track.contentKind == .podcastEpisode { Text("Episode").font(.caption2).foregroundStyle(.secondary) }
                 Text(entry.track.artist).font(.caption).foregroundStyle(.secondary).lineLimit(1)
             }
@@ -152,7 +159,7 @@ struct QueueView: View {
         }
         .padding(.vertical, 5)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(entry.track.title), \(entry.track.artist)\(entry.track.origin == .upload ? AppLocalization.text(", uploaded music") : "")\(entry.track.isExplicit == true ? AppLocalization.text(", Explicit content") : "")")
+        .accessibilityLabel("\(entry.track.title), \(entry.track.artist)\(entry.track.origin == .upload ? AppLocalization.text(", uploaded music") : "")\(entry.track.isExplicit == true ? AppLocalization.text(", Explicit content") : "")\(entry.origin == .recommendation ? AppLocalization.text(", recommendation added by you") : "")")
         .accessibilityValue(queuePosition(entry, index: index))
         .help("\(entry.track.title) — \(entry.track.artist)")
         .accessibilityActions {

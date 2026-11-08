@@ -123,7 +123,8 @@ final class AppSession {
     let spotlight: SpotlightLibraryController
     let songRules: LocalSongRuleLibrary
     let queuePlaylistSave: QueuePlaylistSave
-    var queue = PlaybackQueue()
+    let recommendations: QueueRecommendations
+    var queue = PlaybackQueue() { didSet { recommendations.discardIfStale() } }
     let collectionPlayback: CollectionPlayback
     let songRatings = SongRatings()
     let episodePlayback: EpisodePlaybackSession
@@ -171,17 +172,17 @@ final class AppSession {
     @ObservationIgnored private let preferences: UserDefaults
     @ObservationIgnored let isSceneCheck: Bool
     @ObservationIgnored private var started = false
-    @ObservationIgnored var wantsPlayback = false
+    @ObservationIgnored var wantsPlayback = false { didSet { recommendations.discardIfStale() } }
     @ObservationIgnored private(set) var pageTask: Task<Void, Never>?
     @ObservationIgnored private var saveTask: Task<Void, Never>?
     @ObservationIgnored private var pageGeneration = UUID()
-    @ObservationIgnored var accountGeneration = UUID()
+    @ObservationIgnored var accountGeneration = UUID() { didSet { recommendations.cancel() } }
     @ObservationIgnored private var backHistory: [MusicDestination] = []
     @ObservationIgnored private var forwardHistory: [MusicDestination] = []
     @ObservationIgnored private var resumeState = PlaybackResumeState()
     @ObservationIgnored private var volumeState = VolumeState()
     @ObservationIgnored private var systemMedia: SystemMediaControls?
-    @ObservationIgnored private var scriptingPlayGeneration = UUID()
+    @ObservationIgnored private var scriptingPlayGeneration = UUID() { didSet { recommendations.discardIfStale() } }
     @ObservationIgnored private var libraryEditID: UUID?
     @ObservationIgnored private var spotlightPageSource: SpotlightLibrarySource?
     @ObservationIgnored private var pendingSpotlightResult: String?
@@ -202,6 +203,10 @@ final class AppSession {
         spotlight = SpotlightLibraryController(index: configuration.spotlightIndex, sessions: configuration.credentials,
             preferences: configuration.preferences, namespace: AppIdentity.identifier)
         songRules = LocalSongRuleLibrary(store: configuration.localSongRuleStore, sessions: configuration.credentials)
+        let recommendationClient = configuration.client
+        recommendations = QueueRecommendations(sessions: configuration.credentials) { videoID, scope in
+            try await recommendationClient.queueRecommendations(videoID: videoID, expectedScope: scope)
+        }
         listenBrainz = ListenBrainzSession(coordinator: configuration.listenBrainzCoordinator)
         queuePlaylistSave = QueuePlaylistSave(store: configuration.queuePlaylistJournal, service: configuration.client, sessions: configuration.credentials)
         lastFM = LastFMSession(coordinator: configuration.lastFMCoordinator)
@@ -785,6 +790,7 @@ final class AppSession {
     func seek(to value: TimeInterval) {
         collectionPlayback.cancel()
         guard value.isFinite, value >= 0 else { return }
+        recommendations.cancel()
         cancelPendingCollectionRadio()
         listenBrainz.interrupt()
         lastFM.interrupt()
@@ -958,7 +964,7 @@ final class AppSession {
         listenBrainz.begin(track: track, occurrence: occurrence, intent: listeningIntent)
         let chosenByUser: Bool? = switch queue.currentEntry?.origin {
         case .manual: true
-        case .radio, .autoplay: false
+        case .radio, .autoplay, .recommendation: false
         default: nil
         }
         lastFM.begin(track: track, occurrence: occurrence, intent: listeningIntent, chosenByUser: chosenByUser)
@@ -1205,6 +1211,7 @@ final class AppSession {
         episodeContinuation = nil
         isShuttingDown = true
         queuePlaylistSave.cancel()
+        recommendations.cancel()
         cancelMusicLink()
         await listenBrainz.stop()
         await lastFM.stop()
@@ -1226,5 +1233,11 @@ final class AppSession {
         player.onListeningInterrupted = nil
         player.stop()
         systemMedia?.refresh()
+    }
+
+    var recommendationContext: QueueRecommendationContext {
+        QueueRecommendationContext(account: accountGeneration, revision: queue.revision,
+            currentEntryID: queue.currentEntryID, occurrence: queue.currentOccurrence,
+            intent: scriptingPlayGeneration, wantsPlayback: wantsPlayback, repeatMode: queue.repeatMode)
     }
 }

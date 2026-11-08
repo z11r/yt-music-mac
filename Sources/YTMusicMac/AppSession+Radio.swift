@@ -29,6 +29,7 @@ final class RadioSession {
     @ObservationIgnored fileprivate var task: Task<Void, Never>?
     @ObservationIgnored fileprivate var startingCollection: MusicCollection?
     @ObservationIgnored private let preferences: UserDefaults
+    var isStartingCollectionRadio: Bool { state.isStartingCollectionRadio }
 
     init(preferences: UserDefaults) {
         self.preferences = preferences
