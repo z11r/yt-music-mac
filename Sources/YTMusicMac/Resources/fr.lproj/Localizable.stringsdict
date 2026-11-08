@@ -488,5 +488,43 @@
 			<string>Incertaines : %lld</string>
 		</dict>
 	</dict>
+	<key>%1$lld files: %2$lld format matches, %3$lld with issues</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%1$#@files@ : %2$#@matches@, %3$#@issues@</string>
+		<key>files</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>%lld fichier</string>
+			<key>other</key>
+			<string>%lld fichiers</string>
+		</dict>
+		<key>matches</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>%lld format correspondant</string>
+			<key>other</key>
+			<string>%lld formats correspondants</string>
+		</dict>
+		<key>issues</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>%lld avec un problème</string>
+			<key>other</key>
+			<string>%lld avec des problèmes</string>
+		</dict>
+	</dict>
 </dict>
 </plist>

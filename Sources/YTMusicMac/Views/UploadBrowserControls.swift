@@ -6,20 +6,23 @@ struct UploadBrowserControls: View {
     @State private var query = ""
 
     var body: some View {
-        HStack(spacing: 14) {
-            Menu("Browse Uploads") {
-                ForEach(MusicUploadCategory.allCases, id: \.self) { category in
-                    Button(category.title) { session.navigate(to: .uploads(category)) }
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 14) {
+                Menu("Browse Uploads") {
+                    ForEach(MusicUploadCategory.allCases, id: \.self) { category in
+                        Button(category.title) { session.navigate(to: .uploads(category)) }
+                    }
                 }
+                Text("Your account's uploaded music").font(.caption).foregroundStyle(.secondary)
+                Spacer(minLength: 0)
+                TextField("Search Uploads", text: $query)
+                    .textFieldStyle(.roundedBorder).frame(maxWidth: 260)
+                    .accessibilityLabel("Search your uploaded music")
+                    .onSubmit(search)
+                Button("Search Uploads", action: search)
+                    .disabled(query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
-            Text("Your account's uploaded music").font(.caption).foregroundStyle(.secondary)
-            Spacer(minLength: 0)
-            TextField("Search Uploads", text: $query)
-                .textFieldStyle(.roundedBorder).frame(maxWidth: 260)
-                .accessibilityLabel("Search your uploaded music")
-                .onSubmit(search)
-            Button("Search Uploads", action: search)
-                .disabled(query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            UploadReviewButton(session: session)
         }
         .padding(.horizontal, 24).padding(.vertical, 12)
         .disabled(!session.account.isSignedIn)

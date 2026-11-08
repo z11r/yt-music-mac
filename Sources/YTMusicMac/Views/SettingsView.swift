@@ -54,6 +54,7 @@ struct SettingsView: View {
                 }
                 .task { await songNotifications.refreshAuthorization() }
             }
+            Section("Uploads") { UploadReviewButton(session: session) }
             Section("Storage") {
                 Button("Manage Storage…") { showsStorage = true }
                 Text("View cache usage, clear cached artwork and library metadata, and read your last library snapshot.")

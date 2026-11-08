@@ -30,4 +30,6 @@ Google documents uploads as private to their owner and distinguishes their
 search scope from the music catalog. Sharing a playlist does not give other
 accounts access to its uploaded songs.
 [Google's uploaded-music guidance](https://support.google.com/youtubemusic/answer/9716522?hl=en)
-describes the service behavior; native upload management is tracked separately.
+describes the service behavior. [Local upload review](UPLOAD_REVIEW.md) provides
+metadata checks and an explicit browser handoff; native transfers and service
+management writes remain unavailable.
