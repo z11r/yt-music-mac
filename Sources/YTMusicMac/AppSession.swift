@@ -172,6 +172,7 @@ final class AppSession {
             if let self {
                 if self.wantsPlayback && !self.player.playbackIntent {
                     self.cancelPendingCollectionRadio()
+                    self.collectionPlayback.cancel()
                 }
                 self.wantsPlayback = self.player.playbackIntent
             }
@@ -327,16 +328,15 @@ final class AppSession {
     func performCollectionAction(_ action: CollectionPlaybackAction) -> Task<Void, Never>? {
         guard let page, !isLoadingMore else { return nil }
         guard action == .append || account.isSignedIn else { openAccount(); return nil }
+        cancelRadio()
         let pageScope = pageGeneration
         let accountScope = accountGeneration
         let queueState = queue.snapshot()
-        let occurrence = queue.currentOccurrence
-        let playbackIntent = wantsPlayback
         return collectionPlayback.start(page: page, action: action, isCurrent: { [weak self] in
             guard let self else { return false }
             return self.pageGeneration == pageScope && self.accountGeneration == accountScope &&
-                self.queue.snapshot() == queueState && self.queue.currentOccurrence == occurrence &&
-                self.wantsPlayback == playbackIntent
+                self.queue.entries == queueState.entries && self.queue.repeatMode == queueState.repeatMode &&
+                self.queue.isShuffled == queueState.isShuffled
         }, commit: { [weak self] complete, action in
             guard let self else { return }
             self.page = complete
@@ -345,6 +345,7 @@ final class AppSession {
             case .append:
                 self.addToQueue(complete.tracks)
             case .play, .shuffle:
+                self.sleepTimer.allowPlayback()
                 self.scriptingPlayGeneration = UUID()
                 self.wantsPlayback = true
                 self.request(self.queue.replaceForPlayback(with: complete.tracks, shuffled: action == .shuffle))

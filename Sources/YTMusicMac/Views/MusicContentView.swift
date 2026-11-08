@@ -280,22 +280,11 @@ private struct CollectionTracksView: View {
                     }
                     collectionHeading.frame(maxWidth: .infinity, alignment: .leading)
                 }
-                HStack {
-                    Button("Play All", systemImage: "play.fill") { session.performCollectionAction(.play) }
-                        .buttonStyle(.borderedProminent)
-                        .help("Load every page and play the entire collection in order")
-                    Button("Shuffle All", systemImage: "shuffle") { session.performCollectionAction(.shuffle) }
-                        .help("Load every page and shuffle the entire collection")
-                    Button("Add All to Queue", systemImage: "text.badge.plus") { session.performCollectionAction(.append) }
-                        .help("Load every page and add the entire collection to the queue")
-                    if case let .collection(collection) = session.destination, collection.radioPlaylistID != nil {
-                        Button("Start Radio", systemImage: "dot.radiowaves.left.and.right") {
-                            session.startRadio(from: collection)
-                        }
-                    }
-                    playlistActions
+                ViewThatFits(in: .horizontal) {
+                    collectionButtonRow(compact: false)
+                    collectionButtonRow(compact: true)
                 }
-                .disabled((allTracks.isEmpty && page.continuation == nil) || session.isLoadingMore || session.collectionPlayback.isLoading)
+                .disabled(session.isLoadingMore || session.collectionPlayback.isLoading)
                 CollectionPlaybackStatus(session: session)
                 HStack {
                     TextField("Filter this collection", text: $session.collectionFilter)
@@ -383,6 +372,38 @@ private struct CollectionTracksView: View {
         }
         .onChange(of: session.collectionFilter) { selection.removeAll() }
         .onChange(of: session.destination) { selection.removeAll() }
+    }
+
+    private var canQueueCollection: Bool { !allTracks.isEmpty || page.continuation != nil }
+
+    private func collectionButtonRow(compact: Bool) -> some View {
+        HStack {
+            Button("Play All", systemImage: "play.fill") { session.performCollectionAction(.play) }
+                .buttonStyle(.borderedProminent).disabled(!canQueueCollection)
+                .help("Load every page and play the entire collection in order")
+            if !compact {
+                Button("Shuffle All", systemImage: "shuffle") { session.performCollectionAction(.shuffle) }
+                    .disabled(!canQueueCollection)
+            }
+            Menu {
+                if compact {
+                    Button("Shuffle All", systemImage: "shuffle") { session.performCollectionAction(.shuffle) }
+                        .disabled(!canQueueCollection)
+                }
+                Button("Add All to Queue", systemImage: "text.badge.plus") { session.performCollectionAction(.append) }
+                    .disabled(!canQueueCollection)
+                if case let .collection(collection) = session.destination {
+                    if collection.radioPlaylistID != nil {
+                        Button("Start Radio", systemImage: "dot.radiowaves.left.and.right") { session.startRadio(from: collection) }
+                    }
+                    MusicLinkActions(link: .collection(collection))
+                }
+                playlistActions
+            } label: {
+                Label("Collection Actions", systemImage: "ellipsis.circle")
+            }
+            .labelStyle(.iconOnly).help("Collection Actions")
+        }
     }
 
     @ViewBuilder private var playlistActions: some View {

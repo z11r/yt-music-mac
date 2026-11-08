@@ -67,6 +67,7 @@ extension AppSession {
     func startRadio(from collection: MusicCollection) {
         guard let playlistID = collection.radioPlaylistID else { return }
         guard account.isSignedIn else { openAccount(); return }
+        collectionPlayback.cancel()
         sleepTimer.allowPlayback()
         radio.startingCollection = collection
         loadRadio(radio.state.startCollectionRadio(playlistID: playlistID, queue: queue, account: accountGeneration))
@@ -104,6 +105,7 @@ extension AppSession {
     }
 
     func retryRadio() {
+        collectionPlayback.cancel()
         guard let retry = radio.status?.retry else { return }
         radio.show(nil)
         switch retry {
@@ -141,7 +143,8 @@ extension AppSession {
     // MARK: Requests
 
     private var autoplayAllowed: Bool {
-        radio.autoplayEnabled && wantsPlayback && account.isSignedIn && !isSceneCheck && !sleepTimer.blocksAutoplay
+        radio.autoplayEnabled && wantsPlayback && account.isSignedIn && !isSceneCheck &&
+            !sleepTimer.blocksAutoplay && !collectionPlayback.isLoading && !collectionPlayback.canRetry
     }
 
     private func loadRadio(_ request: RadioQueue.Request) {

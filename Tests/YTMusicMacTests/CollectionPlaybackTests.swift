@@ -243,6 +243,29 @@ struct CollectionPlaybackTests {
         #expect(session.player.webView.url == nil)
     }
 
+    @Test func naturalQueueAdvancementKeepsAnExplicitCollectionAppend() async throws {
+        let transport = CollectionTransport([.page(collectionData(["a"], next: "second")), .wait])
+        let name = "collection-natural-advance-test.\(UUID().uuidString)"
+        let preferences = try #require(UserDefaults(suiteName: name))
+        defer { preferences.removePersistentDomain(forName: name) }
+        let session = AppSession(configuration: AppSessionConfiguration(
+            preferences: preferences, dataStore: .nonPersistent(), credentials: MusicSessionStore(),
+            client: collectionClient(transport), queueStore: nil, queueStorageError: nil,
+            installsSystemMedia: false, isSceneCheck: true))
+        _ = session.queue.replace(with: [collectionTrack("old"), collectionTrack("next")], startAt: 0)
+        let occurrence = try #require(session.queue.currentOccurrence)
+        session.navigate(to: .collection(MusicCollection(id: "PLfixture", kind: .playlist, title: "Fixture")))
+        try await waitUntil { !session.isLoading }
+        let task = try #require(session.performCollectionAction(.append))
+        await transport.waitForRequestCount(2)
+        _ = session.queue.handleEnd(occurrence: occurrence)
+        await transport.releaseFirst(collectionData(["b"], continuation: true))
+        await task.value
+        #expect(session.queue.entries.map(\.track.id) == ["old", "next", "a", "b"])
+        #expect(session.queue.currentTrack?.id == "next")
+        #expect(!session.player.playbackIntent)
+    }
+
     @Test func navigatingAwayCancelsAnInFlightSessionAppend() async throws {
         let transport = CollectionTransport([
             .page(collectionData(["a"], next: "second")), .wait, .page(collectionData([])),
