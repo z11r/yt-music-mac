@@ -23,6 +23,7 @@ struct AppSessionConfiguration {
     var episodeProgressStore: EpisodeProgressStore? = nil
     var localSongRuleStore: LocalSongRuleStore? = nil
     var listenBrainzCoordinator: ListenBrainzCoordinator? = nil
+    var queuePlaylistJournal: QueuePlaylistJournalStore? = nil
 
     static func live() -> Self {
         let credentials = MusicSessionStore()
@@ -46,7 +47,8 @@ struct AppSessionConfiguration {
                     listenBrainzCoordinator: directory.map { ListenBrainzCoordinator(
                         store: ListenBrainzStore(directory: $0.appendingPathComponent("listenbrainz", isDirectory: true)),
                         tokens: KeychainListenBrainzTokens(service: AppIdentity.identifier + ".listenbrainz"),
-                        api: ListenBrainzAPI(transport: ListenBrainzHTTPTransport())) })
+                        api: ListenBrainzAPI(transport: ListenBrainzHTTPTransport())) },
+                    queuePlaylistJournal: directory.map { QueuePlaylistJournalStore(directoryURL: $0.appendingPathComponent("PendingQueuePlaylists", isDirectory: true)) })
     }
 
     static func sceneCheck(preferences: UserDefaults, transport: SceneCheckTransport) -> Self {

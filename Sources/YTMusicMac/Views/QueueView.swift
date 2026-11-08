@@ -6,6 +6,7 @@ struct QueueView: View {
     @State private var selection: Set<UUID> = []
     @State private var filter = ""
     @State private var showsSavedQueues = false
+    @State private var playlistReview: QueuePlaylistReviewRequest?
 
     private var isFiltering: Bool { !filter.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
     private var rows: [QueueDisplayRow] { QueuePresentation.rows(in: session.queue.entries, matching: filter) }
@@ -42,6 +43,10 @@ struct QueueView: View {
                     .labelStyle(.iconOnly).buttonStyle(.borderless)
                 Menu {
                     Button("Saved Queues…") { showsSavedQueues = true }
+                    Button("Save Queue as Playlist…") {
+                        playlistReview = QueuePlaylistReviewRequest(snapshot: session.savedQueueSnapshot(),
+                            accountGeneration: session.accountGeneration, scope: session.queuePlaylistSave.scope)
+                    }
                     Divider()
                     Button("Play Selected") { playSelection(selection) }.disabled(selection.isEmpty)
                     Button("Move Up") { moveSelection(up: true) }.disabled(!canMove(up: true))
@@ -120,7 +125,9 @@ struct QueueView: View {
             selection.formIntersection(visibleIDs)
         }
         .sheet(isPresented: $showsSavedQueues) { SavedQueuesView(session: session) }
+        .sheet(item: $playlistReview) { QueuePlaylistSaveView(session: session, request: $0) }
         .onChange(of: session.savedQueues.scope) { showsSavedQueues = false }
+        .onChange(of: session.queuePlaylistSave.scope) { playlistReview = nil }
     }
 
     private func queueRow(_ entry: QueueEntry, index: Int) -> some View {

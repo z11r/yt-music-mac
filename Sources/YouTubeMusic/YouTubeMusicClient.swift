@@ -38,6 +38,7 @@ public actor YouTubeMusicClient {
     private var bootstrapCache: (configuration: MusicClientConfiguration, expires: Date)?
     var libraryEditInProgress = false
     var pendingPlaylistEditCleanup: PendingPlaylistEditCleanup?
+    var queuePlaylistWriteLease: QueuePlaylistWriteLease?
 
     public init(transport: any MusicHTTPTransport = URLSessionMusicTransport(),
                 sessions: any MusicSessionProviding = MusicSessionStore(),
@@ -195,7 +196,7 @@ public actor YouTubeMusicClient {
                         requiresAuthentication: requiresAuthentication, preservesOccurrences: preservesOccurrences, contentOrigin: contentOrigin)
     }
 
-    private func makePage(_ parsed: ParsedMusicPage, title: String, endpoint: MusicEndpoint, session: MusicSession,
+    func makePage(_ parsed: ParsedMusicPage, title: String, endpoint: MusicEndpoint, session: MusicSession,
                           requiresAuthentication: Bool, preservesOccurrences: Bool,
                           previousTokens: Set<String> = [], previousItems: Set<String> = [], contentOrigin: MusicContentOrigin? = nil) -> MusicPage {
         var seen = previousItems

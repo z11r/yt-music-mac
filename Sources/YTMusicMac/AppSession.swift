@@ -122,6 +122,7 @@ final class AppSession {
     let storage: StorageController
     let spotlight: SpotlightLibraryController
     let songRules: LocalSongRuleLibrary
+    let queuePlaylistSave: QueuePlaylistSave
     var queue = PlaybackQueue()
     let collectionPlayback: CollectionPlayback
     let songRatings = SongRatings()
@@ -201,6 +202,7 @@ final class AppSession {
             preferences: configuration.preferences, namespace: AppIdentity.identifier)
         songRules = LocalSongRuleLibrary(store: configuration.localSongRuleStore, sessions: configuration.credentials)
         listenBrainz = ListenBrainzSession(coordinator: configuration.listenBrainzCoordinator)
+        queuePlaylistSave = QueuePlaylistSave(store: configuration.queuePlaylistJournal, service: configuration.client, sessions: configuration.credentials)
         isSceneCheck = configuration.isSceneCheck
         account = WebSession(dataStore: configuration.dataStore, credentials: configuration.credentials,
                              preferences: configuration.preferences)
@@ -612,7 +614,9 @@ final class AppSession {
             libraryEditError = MusicLibraryEditError.featureUnavailable.localizedDescription
             return false
         }
-        guard !isEditingLibrary else { return false }
+        guard !isEditingLibrary, !queuePlaylistSave.isWorking else {
+            libraryEditError = MusicLibraryEditError.operationInProgress.localizedDescription; return false
+        }
         let id = UUID()
         let generation = accountGeneration
         let startingDestination = destination
@@ -1023,6 +1027,11 @@ final class AppSession {
             hasUnsupportedContent: page.hasUnsupportedContent, source: source, expectedScope: expectedScope)
     }
 
+    func prepareQueuePlaylistReview(snapshot: QueueSnapshot, expectedAccount: UUID, expectedScope: UUID) async {
+        guard account.isSignedIn, !isShuttingDown, accountGeneration == expectedAccount else { return }
+        await queuePlaylistSave.prepare(snapshot: snapshot, expectedScope: expectedScope)
+    }
+
     func performSongRuleAction(play: Bool, selectedIDs: Set<UUID>?, expectedScope: UUID, expectedRevision: UUID) async {
         guard account.isSignedIn, !isShuttingDown else { return }
         let accountScope = accountGeneration
@@ -1055,6 +1064,7 @@ final class AppSession {
         localCollections.invalidate()
         storage.invalidate()
         songRules.invalidate()
+        queuePlaylistSave.invalidate()
         songRulePageSource = nil
         showsSongRules = false
         showsLocalFolders = false
@@ -1072,6 +1082,7 @@ final class AppSession {
         await saveTask?.value
         await spotlight.waitForIdle()
         _ = await progressFlush?.value
+        await queuePlaylistSave.waitForIdle()
         await account.signOut()
         do { try await queueStore?.clear() }
         catch { queueError = AppLocalization.text("The saved queue could not be removed. Try signing out again.") }
@@ -1108,6 +1119,7 @@ final class AppSession {
         localCollections.invalidate()
         storage.invalidate()
         songRules.invalidate()
+        queuePlaylistSave.invalidate()
         songRulePageSource = nil
         showsSongRules = false
         showsLocalFolders = false
@@ -1173,6 +1185,7 @@ final class AppSession {
     func shutdown() async {
         episodeContinuation = nil
         isShuttingDown = true
+        queuePlaylistSave.cancel()
         cancelMusicLink()
         await listenBrainz.stop()
         episodeStartTask?.cancel(); episodeStartTask = nil; pendingEpisodeOccurrence = nil
@@ -1187,6 +1200,7 @@ final class AppSession {
         saveQueue()
         await saveTask?.value
         await spotlight.waitForIdle()
+        await queuePlaylistSave.waitForIdle()
         player.onStateChanged = nil
         player.onVerifiedContentProgress = nil
         player.onListeningInterrupted = nil
