@@ -6,39 +6,40 @@ import SwiftUI
 struct PlaybackCommands: Commands {
     let session: AppSession
     let keyboardFocus: KeyboardFocusMonitor
+    let bindings: PlaybackShortcutBindings
 
     var body: some Commands {
         CommandMenu("Playback") {
             Button(session.player.isPlaying || session.player.isBuffering ? "Pause" : "Play") {
-                keyboardFocus.run(.playPause, action: session.togglePlayback)
+                run(.playPause, action: session.togglePlayback)
             }
             .keyboardShortcut(shortcut(.playPause))
             .disabled(session.currentTrack == nil)
-            Button("Next Song") { keyboardFocus.run(.nextSong, action: session.next) }
+            Button("Next Song") { run(.nextSong, action: session.next) }
                 .keyboardShortcut(shortcut(.nextSong))
                 .disabled(!session.queue.hasNext)
-            Button("Previous Song") { keyboardFocus.run(.previousSong, action: session.previous) }
+            Button("Previous Song") { run(.previousSong, action: session.previous) }
                 .keyboardShortcut(shortcut(.previousSong))
                 .disabled(session.currentTrack == nil)
-            Button("Skip Forward 10 Seconds") { keyboardFocus.run(.seekForward) { session.seekBy(10) } }
+            Button("Skip Forward 10 Seconds") { run(.seekForward) { session.seekBy(10) } }
                 .keyboardShortcut(shortcut(.seekForward))
                 .disabled(!session.canSeek)
-            Button("Skip Backward 10 Seconds") { keyboardFocus.run(.seekBackward) { session.seekBy(-10) } }
+            Button("Skip Backward 10 Seconds") { run(.seekBackward) { session.seekBy(-10) } }
                 .keyboardShortcut(shortcut(.seekBackward))
                 .disabled(!session.canSeek)
             Divider()
-            Button("Volume Up") { keyboardFocus.run(.volumeUp, action: session.increaseVolume) }
+            Button("Volume Up") { run(.volumeUp, action: session.increaseVolume) }
                 .keyboardShortcut(shortcut(.volumeUp))
-            Button("Volume Down") { keyboardFocus.run(.volumeDown, action: session.decreaseVolume) }
+            Button("Volume Down") { run(.volumeDown, action: session.decreaseVolume) }
                 .keyboardShortcut(shortcut(.volumeDown))
             Button(session.player.volume == 0 ? "Unmute" : "Mute", action: session.toggleMute)
             Divider()
             Button(session.queue.isShuffled ? "Turn Shuffle Off" : "Turn Shuffle On") {
-                keyboardFocus.run(.shuffle, action: session.toggleShuffle)
+                run(.shuffle, action: session.toggleShuffle)
             }
             .keyboardShortcut(shortcut(.shuffle))
             Button("Repeat: \(session.queue.repeatMode.rawValue.capitalized)") {
-                keyboardFocus.run(.repeatMode, action: session.cycleRepeat)
+                run(.repeatMode, action: session.cycleRepeat)
             }
             .keyboardShortcut(shortcut(.repeatMode))
             Divider()
@@ -49,7 +50,11 @@ struct PlaybackCommands: Commands {
     /// Reading the focus here updates the menu when a text field or control
     /// gains or loses focus.
     private func shortcut(_ shortcut: PlaybackShortcut) -> KeyboardShortcut? {
-        shortcut.keyboardShortcut(for: keyboardFocus.focus)
+        bindings.binding(for: shortcut)?.keyboardShortcut(for: keyboardFocus.focus)
+    }
+
+    private func run(_ shortcut: PlaybackShortcut, action: () -> Void) {
+        keyboardFocus.run(binding: bindings.binding(for: shortcut), action: action)
     }
 }
 

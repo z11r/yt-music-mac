@@ -3,11 +3,13 @@ import SwiftUI
 struct SettingsView: View {
     @Bindable var session: AppSession
     var songNotifications: SongChangeNotifier? = nil
+    var playbackBindings: PlaybackShortcutBindings? = nil
     @AppStorage("appearance", store: AppIdentity.preferences)
     private var appearance = "system"
     @Environment(\.openWindow) private var openWindow
     @State private var isSigningOut = false
     @State private var showsStorage = false
+    @State private var showsKeyboardSettings = false
 
     var body: some View {
         Form {
@@ -29,6 +31,11 @@ struct SettingsView: View {
                 }
                 Button("Open Mini-Player", systemImage: "pip") { openWindow(id: "mini-player") }
                 KeepMiniPlayerOnTopToggle()
+            }
+            if playbackBindings != nil {
+                Section("Keyboard") {
+                    Button("Customize Playback Shortcuts…") { showsKeyboardSettings = true }
+                }
             }
             if let songNotifications {
                 Section("Notifications") {
@@ -64,5 +71,8 @@ struct SettingsView: View {
         .padding(10)
         .frame(width: 470, height: 580)
         .sheet(isPresented: $showsStorage) { StorageSettingsView(session: session) }
+        .sheet(isPresented: $showsKeyboardSettings) {
+            if let playbackBindings { PlaybackShortcutSettings(bindings: playbackBindings) }
+        }
     }
 }

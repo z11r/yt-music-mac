@@ -4,58 +4,26 @@ import SwiftUI
 import WebKit
 
 /// Playback commands bound to keys that text editing and focused controls also use.
-enum PlaybackShortcut: CaseIterable, Sendable {
+enum PlaybackShortcut: String, CaseIterable, Sendable {
     case playPause, nextSong, previousSong, seekForward, seekBackward, volumeUp, volumeDown, shuffle, repeatMode
 
-    var key: KeyEquivalent {
-        switch self {
-        case .playPause: .space
-        case .nextSong, .seekForward: .rightArrow
-        case .previousSong, .seekBackward: .leftArrow
-        case .volumeUp: .upArrow
-        case .volumeDown: .downArrow
-        case .shuffle: "s"
-        case .repeatMode: "r"
-        }
-    }
-
-    var modifiers: EventModifiers {
-        switch self {
-        case .playPause: []
-        case .seekForward, .seekBackward: [.command, .option]
-        default: .command
-        }
-    }
+    var key: KeyEquivalent { defaultBinding.keyEquivalent }
+    var modifiers: EventModifiers { defaultBinding.modifiers.eventModifiers }
 
     /// The shortcut a menu item shows and responds to, or nil while the
     /// focused view needs the key for itself.
     func keyboardShortcut(for focus: KeyboardFocus) -> KeyboardShortcut? {
-        isAvailable(for: focus) ? KeyboardShortcut(key, modifiers: modifiers) : nil
+        defaultBinding.keyboardShortcut(for: focus)
     }
 
     func isAvailable(for focus: KeyboardFocus) -> Bool {
-        switch self {
-        case .playPause: !focus.usesSpace
-        case .shuffle, .repeatMode: !focus.usesCommandLetters
-        default: !focus.usesCommandArrows
-        }
+        defaultBinding.isAvailable(for: focus)
     }
 
     /// Whether a key press is this shortcut. A menu click or an accessibility
     /// action has no matching key press.
     func matches(_ input: KeyInput) -> Bool {
-        let expected: (String, NSEvent.ModifierFlags) = switch self {
-        case .playPause: (" ", [])
-        case .nextSong: (KeyInput.character(NSRightArrowFunctionKey), .command)
-        case .previousSong: (KeyInput.character(NSLeftArrowFunctionKey), .command)
-        case .seekForward: (KeyInput.character(NSRightArrowFunctionKey), [.command, .option])
-        case .seekBackward: (KeyInput.character(NSLeftArrowFunctionKey), [.command, .option])
-        case .volumeUp: (KeyInput.character(NSUpArrowFunctionKey), .command)
-        case .volumeDown: (KeyInput.character(NSDownArrowFunctionKey), .command)
-        case .shuffle: ("s", .command)
-        case .repeatMode: ("r", .command)
-        }
-        return input.characters == expected.0 && input.modifiers == expected.1
+        defaultBinding.matches(input)
     }
 }
 
@@ -95,7 +63,7 @@ struct KeyboardFocus: Equatable, Sendable {
     var usesCommandLetters = false
 
     static let none = KeyboardFocus()
-    static let textInput = KeyboardFocus(usesSpace: true, usesCommandArrows: true)
+    static let textInput = KeyboardFocus(usesSpace: true, usesCommandArrows: true, usesCommandLetters: true)
     static let control = KeyboardFocus(usesSpace: true, usesCommandArrows: false)
     static let selectableText = KeyboardFocus(usesSpace: false, usesCommandArrows: true)
     static let webContent = KeyboardFocus(usesSpace: true, usesCommandArrows: true, usesCommandLetters: true)
@@ -103,6 +71,12 @@ struct KeyboardFocus: Equatable, Sendable {
     @MainActor
     init(_ responder: NSResponder?) {
         self = Self.classify(responder)
+    }
+
+    @MainActor
+    init(window: NSWindow?) {
+        if let window, window.sheetParent != nil || window.attachedSheet != nil { self = .webContent }
+        else { self = Self.classify(window?.firstResponder ?? window) }
     }
 
     init(usesSpace: Bool = false, usesCommandArrows: Bool = false, usesCommandLetters: Bool = false) {
@@ -167,6 +141,11 @@ enum ShortcutRoute: Equatable, Sendable {
         guard let input, shortcut.matches(input) else { return .perform }
         return shortcut.isAvailable(for: focus) ? .perform : .returnKeyToFocusedView
     }
+
+    static func route(binding: PlaybackKeyBinding?, input: KeyInput?, focus: KeyboardFocus) -> Self {
+        guard let binding, let input, binding.matches(input) else { return .perform }
+        return binding.isAvailable(for: focus) ? .perform : .returnKeyToFocusedView
+    }
 }
 
 /// Follows the key window's first responder so playback shortcuts step aside
@@ -192,13 +171,17 @@ final class KeyboardFocusMonitor {
     }
 
     /// The focus at this moment, read directly from the key window.
-    var currentFocus: KeyboardFocus { KeyboardFocus(NSApplication.shared.keyWindow?.firstResponder) }
+    var currentFocus: KeyboardFocus { KeyboardFocus(window: NSApplication.shared.keyWindow) }
 
     /// Runs a playback command from the menu, unless its key press belongs to
     /// the focused view.
     func run(_ shortcut: PlaybackShortcut, action: () -> Void) {
+        run(binding: shortcut.defaultBinding, action: action)
+    }
+
+    func run(binding: PlaybackKeyBinding?, action: () -> Void) {
         let event = NSApplication.shared.currentEvent
-        switch ShortcutRoute.route(shortcut, input: KeyInput(event), focus: currentFocus) {
+        switch ShortcutRoute.route(binding: binding, input: KeyInput(event), focus: currentFocus) {
         case .perform:
             action()
         case .returnKeyToFocusedView:
@@ -227,7 +210,7 @@ final class KeyboardFocusMonitor {
     }
 
     private func update() {
-        let value = KeyboardFocus(observedWindow?.firstResponder)
+        let value = KeyboardFocus(window: observedWindow)
         if value != focus { focus = value }
     }
 

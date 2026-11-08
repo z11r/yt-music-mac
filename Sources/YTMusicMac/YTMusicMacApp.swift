@@ -7,6 +7,7 @@ struct YTMusicMacApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @State private var session: AppSession
     @State private var keyboardFocus: KeyboardFocusMonitor
+    @State private var playbackBindings: PlaybackShortcutBindings
     @State private var songNotifications: SongChangeNotifier
     private let sceneCheck: SceneCheckDriver?
     @AppStorage("appearance", store: AppIdentity.preferences) private var appearance = "system"
@@ -44,6 +45,8 @@ struct YTMusicMacApp: App {
         let keyboardFocus = KeyboardFocusMonitor()
         keyboardFocus.start()
         _keyboardFocus = State(initialValue: keyboardFocus)
+        _playbackBindings = State(initialValue: PlaybackShortcutBindings(
+            preferences: sceneCheck == nil ? AppIdentity.preferences : SceneCheckPreferences.current.defaults))
         let songNotifications = SongChangeNotifier(session: session, preferences: AppIdentity.preferences)
         if sceneCheck == nil { songNotifications.start() }
         _songNotifications = State(initialValue: songNotifications)
@@ -69,7 +72,7 @@ struct YTMusicMacApp: App {
                 Button("Open Music Link…") { session.links.showsSheet = true }
                     .keyboardShortcut("o", modifiers: .command)
             }
-            PlaybackCommands(session: session, keyboardFocus: keyboardFocus)
+            PlaybackCommands(session: session, keyboardFocus: keyboardFocus, bindings: playbackBindings)
             NavigationCommands(session: session)
             CommandGroup(after: .sidebar) {
                 Button(session.showsQueue ? "Hide Queue" : "Show Queue") { session.showsQueue.toggle() }
@@ -100,7 +103,8 @@ struct YTMusicMacApp: App {
             MenuBarPlayerView(session: session).preferredColorScheme(colorScheme)
         }.menuBarExtraStyle(.window)
         Settings {
-            SettingsView(session: session, songNotifications: songNotifications).preferredColorScheme(colorScheme)
+            SettingsView(session: session, songNotifications: songNotifications, playbackBindings: playbackBindings)
+                .preferredColorScheme(colorScheme)
         }
     }
 }
