@@ -328,6 +328,7 @@ final class AppSession {
     func performCollectionAction(_ action: CollectionPlaybackAction) -> Task<Void, Never>? {
         guard let page, !isLoadingMore else { return nil }
         guard action == .append || account.isSignedIn else { openAccount(); return nil }
+        scriptingPlayGeneration = UUID()
         cancelRadio()
         let pageScope = pageGeneration
         let accountScope = accountGeneration
@@ -387,6 +388,8 @@ final class AppSession {
     func play(_ track: Track) { playTracks([track], startingAt: 0) }
 
     func beginScriptedPlaybackRequest() -> UUID {
+        collectionPlayback.cancel()
+        cancelPendingCollectionRadio()
         scriptingPlayGeneration = UUID()
         return scriptingPlayGeneration
     }
@@ -422,6 +425,14 @@ final class AppSession {
         guard account.isSignedIn else { throw AppScriptingError.signInRequired }
         let generation = accountGeneration
         let result = try await client.checkLibrary(maximumPlaylists: 50)
+        guard accountGeneration == generation, account.isSignedIn else { throw AppScriptingError.superseded }
+        return result
+    }
+
+    func checkLibraryNavigation() async throws -> MusicLibraryCheck {
+        guard account.isSignedIn else { throw AppScriptingError.signInRequired }
+        let generation = accountGeneration
+        let result = try await client.checkLibraryNavigation()
         guard accountGeneration == generation, account.isSignedIn else { throw AppScriptingError.superseded }
         return result
     }
@@ -729,7 +740,7 @@ final class AppSession {
     }
 
     private func accountChanged(replacedAccount: Bool) {
-        cancelMusicLink()
+        cancelMusicLink(keepingPending: !links.isReady && !replacedAccount)
         sleepTimer.cancel()
         collectionPlayback.cancel()
         accountGeneration = UUID()

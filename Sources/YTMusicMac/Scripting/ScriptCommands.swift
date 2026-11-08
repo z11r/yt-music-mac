@@ -122,7 +122,16 @@ final class GetPlayerInfoScriptCommand: NSScriptCommand {
 }
 
 @objc(YTMusicCheckLibraryCommand)
-final class CheckLibraryScriptCommand: NSScriptCommand {
+final class CheckLibraryScriptCommand: LibraryReadScriptCommand {}
+
+@objc(YTMusicCheckLibraryNavigationCommand)
+final class CheckLibraryNavigationScriptCommand: LibraryReadScriptCommand {
+    override var checksNavigation: Bool { true }
+}
+
+class LibraryReadScriptCommand: NSScriptCommand {
+    var checksNavigation: Bool { false }
+
     override func performDefaultImplementation() -> Any? {
         let session = MainActor.assumeIsolated { AppScripting.session }
         guard let session else { setScriptError(self, .unavailable); return nil }
@@ -132,9 +141,10 @@ final class CheckLibraryScriptCommand: NSScriptCommand {
         }
         suspendExecution()
         let reply = SuspendedScriptReply(self)
+        let navigation = checksNavigation
         Task { @MainActor in
             do {
-                let report = try await session.checkLibrary()
+                let report = try await navigation ? session.checkLibraryNavigation() : session.checkLibrary()
                 let encoder = JSONEncoder()
                 encoder.outputFormatting = [.sortedKeys]
                 reply.resume(result: String(decoding: try encoder.encode(report), as: UTF8.self), error: nil)

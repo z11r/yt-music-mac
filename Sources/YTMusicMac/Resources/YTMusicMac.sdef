@@ -44,6 +44,10 @@
             <direct-parameter description="YouTube video IDs in queue order."><type type="text" list="yes"/></direct-parameter>
             <result type="integer" description="The number of entries added to the queue."/>
         </command>
+        <command name="check library navigation" code="YTMccnav" description="Read up to three pages each of saved albums, artists, and listening history within 15 seconds, without changing playback or account data.">
+            <cocoa class="YTMusicCheckLibraryNavigationCommand"/>
+            <result type="text" description="JSON with counts, per-page counts, status and whether more pages remain. No music or account identifiers."/>
+        </command>
         <command name="seek to" code="YTMcseek" description="Seek within the selected song.">
             <cocoa class="YTMusicSeekCommand"/>
             <direct-parameter type="real" description="A nonnegative position in seconds."/>

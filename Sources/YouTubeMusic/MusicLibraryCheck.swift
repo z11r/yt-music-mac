@@ -16,7 +16,7 @@ public struct MusicLibraryCheck: Codable, Equatable, Sendable {
 }
 
 public struct MusicLibrarySurfaceCheck: Codable, Equatable, Sendable {
-    public enum Surface: String, Codable, Sendable { case library, likedSongs, playlist }
+    public enum Surface: String, Codable, Sendable { case library, likedSongs, playlist, albums, artists, history }
     public enum Status: String, Codable, Sendable {
         case ok, notAvailable, signInRequired, authenticationRejected, accessDenied
         case networkFailure, rateLimited, serviceUnavailable, requestRejected, unsupportedResponse, invalidResponse, paginationLoop
@@ -57,6 +57,41 @@ public struct MusicLibrarySurfaceCheck: Codable, Equatable, Sendable {
 }
 
 extension YouTubeMusicClient {
+    /// A short read-only format/paging check, distinct from a complete library export.
+    public func checkLibraryNavigation(maximumPages: Int = 3, timeout: Duration = .seconds(15)) async throws -> MusicLibraryCheck {
+        guard (1...10).contains(maximumPages), timeout > .zero, timeout <= .seconds(20) else {
+            throw MusicServiceError.invalidInput
+        }
+        return try await withThrowingTaskGroup(of: MusicLibraryCheck.self) { group in
+            group.addTask {
+                let session = await self.sessions.snapshot()
+                guard session.isAuthenticated else { throw MusicServiceError.signInRequired }
+                var checks: [MusicLibrarySurfaceCheck] = []
+                let categories: [(MusicLibrarySurfaceCheck.Surface, LibraryCategory)] = [(.albums, .albums), (.artists, .artists)]
+                for (surface, category) in categories {
+                    let (result, _) = try await self.inspectLibrarySurface(surface, scope: session.scope, maximumPages: maximumPages) {
+                        try await self.library(category: category)
+                    }
+                    checks.append(result)
+                }
+                let (history, _) = try await self.inspectLibrarySurface(.history, scope: session.scope, maximumPages: maximumPages) {
+                    try await self.history()
+                }
+                checks.append(history)
+                try await self.validateScope(session.scope)
+                return MusicLibraryCheck(surfaces: checks)
+            }
+            group.addTask {
+                try await Task.sleep(for: timeout)
+                throw MusicLibraryCheckError.timedOut
+            }
+            defer { group.cancelAll() }
+            guard let result = try await group.next() else { throw CancellationError() }
+            try Task.checkCancellation()
+            return result
+        }
+    }
+
     /// Tries discovered playlists until one has pagination, a read fails, or the candidate limit is reached.
     /// Does not change playback, navigation, or the library. Every attempted playlist is included in the report.
     public func checkLibrary(maximumPages: Int = 25, maximumPlaylists: Int = 1,

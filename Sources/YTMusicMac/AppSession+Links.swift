@@ -56,10 +56,10 @@ extension AppSession {
         }
     }
 
-    func cancelMusicLink() {
+    func cancelMusicLink(keepingPending: Bool = false) {
         links.task?.cancel()
         links.task = nil
-        links.pending = nil
+        if !keepingPending { links.pending = nil }
         links.generation = UUID()
     }
 }

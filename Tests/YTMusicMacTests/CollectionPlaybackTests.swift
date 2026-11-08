@@ -266,6 +266,26 @@ struct CollectionPlaybackTests {
         #expect(!session.player.playbackIntent)
     }
 
+    @Test func startingCollectionActionSupersedesAnOlderExactLookup() async throws {
+        let transport = CollectionTransport([.page(collectionData(["a"]))])
+        let name = "collection-lookup-test.\(UUID().uuidString)"
+        let preferences = try #require(UserDefaults(suiteName: name))
+        defer { preferences.removePersistentDomain(forName: name) }
+        let session = AppSession(configuration: AppSessionConfiguration(
+            preferences: preferences, dataStore: .nonPersistent(), credentials: MusicSessionStore(),
+            client: collectionClient(transport), queueStore: nil, queueStorageError: nil,
+            installsSystemMedia: false, isSceneCheck: true))
+        session.navigate(to: .collection(MusicCollection(id: "PLfixture", kind: .playlist, title: "Fixture")))
+        try await waitUntil { !session.isLoading }
+        let oldRequest = session.beginScriptedPlaybackRequest()
+        let action = try #require(session.performCollectionAction(.append))
+        await #expect(throws: AppScriptingError.superseded) {
+            _ = try await session.playScriptedVideo("abcDEF12_-3", requestGeneration: oldRequest)
+        }
+        await action.value
+        #expect(session.player.webView.url == nil)
+    }
+
     @Test func navigatingAwayCancelsAnInFlightSessionAppend() async throws {
         let transport = CollectionTransport([
             .page(collectionData(["a"], next: "second")), .wait, .page(collectionData([])),

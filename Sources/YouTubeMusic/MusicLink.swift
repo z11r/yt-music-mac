@@ -8,7 +8,8 @@ public enum MusicLink: Hashable, Sendable {
     case artist(String)
 
     public init?(url: URL) {
-        guard let parts = URLComponents(url: url, resolvingAgainstBaseURL: false),
+        guard url.absoluteString.utf8.count <= 8_192,
+              let parts = URLComponents(url: url, resolvingAgainstBaseURL: false),
               parts.user == nil, parts.password == nil else { return nil }
         let scheme = parts.scheme?.lowercased()
         let host = parts.host?.lowercased() ?? ""

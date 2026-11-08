@@ -4,6 +4,34 @@ import XCTest
 
 @MainActor
 final class MusicLibraryCheckTests: XCTestCase {
+    func testNavigationChecksCategoriesAndKeepsHistoryOccurrences() async throws {
+        let transport = LibraryCheckTransport([
+            page([]), page([]),
+            page([song("private-repeated")], token: "private-next"),
+            page([song("private-repeated")], continuation: true),
+        ])
+        let result = try await YouTubeMusicClient(transport: transport, sessions: session()).checkLibraryNavigation()
+        XCTAssertEqual(result.surfaces.map(\.surface), [.albums, .artists, .history])
+        XCTAssertEqual(result.surfaces.map(\.status), [.ok, .ok, .ok])
+        XCTAssertEqual(result.surfaces.last?.trackCount, 2)
+        XCTAssertEqual(result.surfaces.last?.pageItemCounts, [1, 1])
+        XCTAssertFalse(String(decoding: try JSONEncoder().encode(result), as: UTF8.self).contains("private-"))
+        let requests = await transport.requests
+        let bodies = try requests.prefix(3).map { try JSONSerialization.jsonObject(with: XCTUnwrap($0.httpBody)) as? [String: Any] }
+        XCTAssertEqual(bodies.compactMap { $0?["browseId"] as? String },
+                       ["FEmusic_liked_albums", "FEmusic_library_corpus_artists", "FEmusic_history"])
+    }
+
+    func testNavigationCheckRejectsAnonymousAccountsWithoutNetwork() async throws {
+        let transport = LibraryCheckTransport([])
+        do {
+            _ = try await YouTubeMusicClient(transport: transport).checkLibraryNavigation()
+            XCTFail("Expected sign-in requirement")
+        } catch { XCTAssertEqual(error as? MusicServiceError, .signInRequired) }
+        let requests = await transport.requests
+        XCTAssertTrue(requests.isEmpty)
+    }
+
     func testCheckReadsTwoPagesPerSurfaceAndReturnsOnlyCounts() async throws {
         let store = await session()
         let transport = LibraryCheckTransport([
