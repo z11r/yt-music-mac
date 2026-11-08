@@ -66,7 +66,7 @@ def main():
     for table, helper in [("QueueBuilder", "QueueBuilderCopy"), ("SponsorBlock", "SponsorBlockText"), ("Haptics", "HapticsText"),
                           ("LoginMedia", "LoginMediaText"), ("LocalAudio", "LocalAudioCopy"),
                           ("LocalAudioLibrary", "LocalAudioLibraryCopy"), ("StartupWindow", "StartupWindowText"),
-                          ("EpisodeDetails", "EpisodeDetailsText")]:
+                          ("EpisodeDetails", "EpisodeDetailsText"), ("RecordingCounterpart", "RecordingCounterpartText")]:
         source = root / "Sources/YTMusicMac"
         english = read_strings(source / f"Resources/en.lproj/{table}.strings")
         french = read_strings(source / f"Resources/fr.lproj/{table}.strings")
