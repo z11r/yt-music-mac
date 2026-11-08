@@ -227,8 +227,13 @@ Run the focused deterministic checks with isolated preferences, service fixtures
 and injected lifecycle controls:
 
 ```sh
-Scripts/with-xcode.sh swift test --jobs 1 --filter 'StartupWindow|AppAutomation|EpisodeDetails|PlaylistCollaboration'
+Scripts/with-xcode.sh swift test --jobs 1 --filter 'StartupWindow|AppAutomation|EpisodeDetails|PlaylistCollaboration|CustomControlAccent|NativeControlAccent|MusicDiscovery|RecordingCounterpart'
 ```
+
+[Custom accent checks](APPEARANCE.md) use memory preferences and pure sRGB
+values. They cover draft cancellation, retained picker callbacks, stale owners,
+unknown stored values, reference contrast and narrow profile-cleanup admission.
+They never open the native picker or establish visual control contrast.
 
 [Startup checks](STARTUP_WINDOWS.md) cover launch ownership, presentation
 requests, stale profile/account requests and shutdown. Packaged scene checks use
@@ -239,6 +244,12 @@ They do not establish login approval, system restoration or foreground focus.
 queue, occurrence, profile and account targets. Fixtures hold credential and
 fetch work across cancellation and owner changes. Timestamp references retain
 their numeric source position; they do not seek playback.
+
+[Paired recording checks](VIDEO_PRESENTATION.md) verify the service's exact
+primary/counterpart relationship, bounded metadata, actual credential scope,
+review expiry and current queue ownership. Confirmation inserts and selects the
+returned new entry UUID; it preserves the original queue and starts at zero.
+These fixtures do not establish playback entitlement or timeline equivalence.
 
 [Playlist contributors](COLLABORATIVE_PLAYLISTS.md) come only from a recognized
 current header. Fixtures cover bounded labels and portraits, unrelated headers,
