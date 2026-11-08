@@ -1,8 +1,7 @@
 import Foundation
 import MusicCore
 
-/// Adapters must bind itemID to a validated source/reference before admission.
-/// This foundation neither opens a source nor starts an engine.
+/// The adapter binds itemID to a validated source; this grants no file access.
 struct PlaybackOutputScope: Equatable, Sendable {
     let sessionID: UUID
     let profileGeneration: UUID
@@ -11,147 +10,286 @@ struct PlaybackOutputScope: Equatable, Sendable {
     let engine: PlaybackOutputEngineKind
     let itemID: UUID
     let intentRevision: UInt64
+    fileprivate func sharesOwner(with other: Self) -> Bool {
+        sessionID == other.sessionID && profileGeneration == other.profileGeneration && accountGeneration == other.accountGeneration
+    }
 }
-@MainActor protocol PlaybackOutputRetiring: AnyObject {
+enum PlaybackOutputRetargetEffect: Equatable { case command, nextItemPreparation }
+@MainActor protocol PlaybackOutputEngine: AnyObject {
+    var outputInstanceID: UUID { get }
     var outputKind: PlaybackOutputEngineKind { get }
-    /// Synchronously revoke commands/events before returning the bounded operation.
+    /// Irreversible lifecycle state, never proof of physical silence.
+    var isOutputRetired: Bool { get }
+    /// Next-item preparation mutes/pauses owned output, retaining the instance.
+    func invalidateOutputScopes(_ effect: PlaybackOutputRetargetEffect)
     func revokeOutput() -> PlaybackOutputRetirement
 }
-@MainActor final class PlaybackOutputPermit {
+@MainActor final class PreparedPlaybackOutputPermit {
     let id = UUID()
     let scope: PlaybackOutputScope
-    private weak var admission: PlaybackOutputAdmission?
     fileprivate let lease: UUID
+    private weak var admission: PlaybackOutputAdmission?
     fileprivate init(scope: PlaybackOutputScope, lease: UUID, admission: PlaybackOutputAdmission) {
         self.scope = scope; self.lease = lease; self.admission = admission
     }
     var isCurrent: Bool { admission?.accepts(self) == true }
 }
+@MainActor final class PlaybackOutputPermit {
+    let id = UUID()
+    let scope: PlaybackOutputScope
+    let engineInstanceID: UUID
+    fileprivate let engineObject: ObjectIdentifier
+    fileprivate let lease: UUID
+    private weak var admission: PlaybackOutputAdmission?
+    fileprivate init(scope: PlaybackOutputScope, engine: any PlaybackOutputEngine, lease: UUID, admission: PlaybackOutputAdmission) {
+        self.scope = scope; engineInstanceID = engine.outputInstanceID; engineObject = ObjectIdentifier(engine)
+        self.lease = lease; self.admission = admission
+    }
+    var isCurrent: Bool { admission?.accepts(self) == true }
+    func authorizes(_ engine: any PlaybackOutputEngine) -> Bool { admission?.authorizes(self, engine: engine) == true }
+}
+/// The adapter creates this only after verifying an actual native media/load binding.
+/// Callbacks capture it immutably; old callbacks are never retagged.
+@MainActor final class PlaybackOutputEventBinding {
+    let id = UUID()
+    let permit: PlaybackOutputPermit
+    let nativeMediaID: UUID
+    private weak var admission: PlaybackOutputAdmission?
+    fileprivate init(permit: PlaybackOutputPermit, nativeMediaID: UUID, admission: PlaybackOutputAdmission) {
+        self.permit = permit; self.nativeMediaID = nativeMediaID; self.admission = admission
+    }
+    var isCurrent: Bool { admission?.accepts(self) == true }
+}
 
-/// The future app owner must inject one admission gate across local profiles.
-/// There is deliberately no live/global instance or token in this foundation.
+/// Inject one gate across profiles. There is no live/global instance here.
 @MainActor final class PlaybackOutputAdmission {
-    private struct Lease {
-        let id: UUID
+    @MainActor fileprivate final class Registration {
+        let engine: any PlaybackOutputEngine
+        let instanceID: UUID
+        let kind: PlaybackOutputEngineKind
+        let object: ObjectIdentifier
+        var scope: PlaybackOutputScope
+        var permitID: UUID?
+        var eventID: UUID?
+        var nativeMediaID: UUID?
+        init(_ engine: any PlaybackOutputEngine, scope: PlaybackOutputScope) {
+            self.engine = engine; instanceID = engine.outputInstanceID; kind = engine.outputKind
+            object = ObjectIdentifier(engine); self.scope = scope
+        }
+        var instanceIsValid: Bool {
+            engine.outputInstanceID == instanceID && engine.outputKind == kind && !engine.isOutputRetired
+        }
+        func revokeEvents() { permitID = nil; eventID = nil; nativeMediaID = nil }
+    }
+    private final class Lease {
+        let id = UUID()
         let owner: UUID
-        let engines: [any PlaybackOutputRetiring]
-        var operations: [PlaybackOutputRetirement] = []
-        var active: UUID?
-        var releaseWhenQuiet = false
+        let allows: (PlaybackOutputScope) -> Bool
+        var prepared: PreparedPlaybackOutputPermit?
+        var registration: Registration?
+        var retarget: UUID?
+        var retiring = false
+        var operation: PlaybackOutputRetirement?
         var proofIsValid = true
+        var releaseWhenQuiet = false
+        init(owner: UUID, allows: @escaping (PlaybackOutputScope) -> Bool) { self.owner = owner; self.allows = allows }
     }
     private var lease: Lease?
-    fileprivate func begin(owner: UUID, engines: [any PlaybackOutputRetiring]) -> UUID? {
-        if var current = lease {
-            guard current.owner == owner, !current.releaseWhenQuiet else { return nil }
-            current.active = nil; lease = current
-            return current.id
-        }
-        let id = UUID(); lease = .init(id: id, owner: owner, engines: engines)
-        return id
+    fileprivate func registration(owner: UUID) -> Registration? { lease?.owner == owner ? lease?.registration : nil }
+    fileprivate func isRetiring(owner: UUID) -> Bool { lease?.owner == owner && lease?.retiring == true }
+    fileprivate func reserve(owner: UUID, allows: @escaping (PlaybackOutputScope) -> Bool) -> Bool {
+        if let lease { return lease.owner == owner && lease.registration == nil && !lease.retiring && !lease.releaseWhenQuiet }
+        lease = .init(owner: owner, allows: allows); return true
     }
-    fileprivate func attach(_ operations: [PlaybackOutputRetirement], to id: UUID) -> Bool {
-        guard let current = lease, current.id == id else { return false }
-        let valid = operations.count == current.engines.count &&
-            Set(operations.map { $0.ticket.id }).count == operations.count &&
-            zip(current.engines, operations).allSatisfy { $0.outputKind == $1.ticket.engine }
-        lease?.operations = operations; lease?.proofIsValid = valid
-        for operation in operations {
-            operation.onConfirmedQuiet { [weak self] in self?.releaseIfQuiet(id) }
-        }
-        return valid
+    fileprivate func prepare(_ scope: PlaybackOutputScope, owner: UUID) -> PreparedPlaybackOutputPermit? {
+        guard let lease, lease.owner == owner, lease.registration == nil, !lease.retiring,
+              !lease.releaseWhenQuiet, lease.allows(scope), self.lease === lease else { return nil }
+        let value = PreparedPlaybackOutputPermit(scope: scope, lease: lease.id, admission: self)
+        lease.prepared = value; return value
     }
-    fileprivate func grant(_ scope: PlaybackOutputScope, lease id: UUID) -> PlaybackOutputPermit? {
-        guard let current = lease, current.id == id, !current.releaseWhenQuiet, current.proofIsValid,
-              current.operations.allSatisfy(\.isConfirmedQuiet) else { return nil }
-        let permit = PlaybackOutputPermit(scope: scope, lease: id, admission: self)
-        lease?.active = permit.id; lease?.operations = []
+    fileprivate func cancel(_ prepared: PreparedPlaybackOutputPermit, owner: UUID) -> Bool {
+        guard let lease, lease.owner == owner, lease.id == prepared.lease, lease.prepared?.id == prepared.id,
+              lease.registration == nil, !lease.retiring else { return false }
+        self.lease = nil; return true
+    }
+    fileprivate func bind(_ prepared: PreparedPlaybackOutputPermit, owner: UUID, engine: any PlaybackOutputEngine) -> PlaybackOutputPermit? {
+        guard let lease, lease.owner == owner, accepts(prepared), engine.outputKind == prepared.scope.engine,
+              !engine.isOutputRetired else { return nil }
+        let registration = Registration(engine, scope: prepared.scope)
+        let permit = PlaybackOutputPermit(scope: prepared.scope, engine: engine, lease: lease.id, admission: self)
+        guard self.lease === lease, accepts(prepared), registration.instanceIsValid else { return nil }
+        lease.prepared = nil; registration.permitID = permit.id; lease.registration = registration
         return permit
     }
-    fileprivate func block(_ id: UUID) {
-        guard lease?.id == id else { return }
-        lease?.active = nil; lease?.releaseWhenQuiet = true; releaseIfQuiet(id)
+    fileprivate func beginRetirement(owner: UUID, expectedPermit: UUID? = nil) -> Registration? {
+        guard let lease, lease.owner == owner, !lease.retiring, let registration = lease.registration,
+              expectedPermit == nil || registration.permitID == expectedPermit else { return nil }
+        lease.retiring = true; lease.prepared = nil; lease.retarget = nil; registration.revokeEvents()
+        return registration
     }
-    private func releaseIfQuiet(_ id: UUID) {
-        guard let current = lease, current.id == id, current.releaseWhenQuiet, current.proofIsValid,
-              !current.operations.isEmpty, current.operations.allSatisfy(\.isConfirmedQuiet) else { return }
-        lease = nil
+    fileprivate func attach(_ operation: PlaybackOutputRetirement, owner: UUID, registration: Registration) -> Bool {
+        guard let lease, lease.owner == owner, lease.retiring, lease.registration === registration else { return false }
+        let valid = operation.ticket.engine == registration.kind && operation.ticket.instanceID == registration.instanceID
+        lease.operation = operation; lease.proofIsValid = valid
+        operation.onConfirmedQuiet { [weak self] in self?.releaseIfQuiet(owner) }
+        return valid
+    }
+    fileprivate func finishRetirement(owner: UUID, operation: PlaybackOutputRetirement) -> Bool {
+        guard let lease, lease.owner == owner, lease.operation === operation, lease.proofIsValid,
+              operation.isConfirmedQuiet, !lease.releaseWhenQuiet else { return false }
+        lease.registration = nil; lease.operation = nil; lease.retiring = false; return true
+    }
+    fileprivate func release(owner: UUID) {
+        guard let lease, lease.owner == owner else { return }
+        lease.prepared = nil; lease.releaseWhenQuiet = true; lease.registration?.revokeEvents()
+        releaseIfQuiet(owner)
+    }
+    private func releaseIfQuiet(_ owner: UUID) {
+        guard let lease, lease.owner == owner, lease.releaseWhenQuiet else { return }
+        if lease.registration == nil && !lease.retiring { self.lease = nil }
+        else if lease.proofIsValid, lease.operation?.isConfirmedQuiet == true { self.lease = nil }
+    }
+    fileprivate func beginRetarget(_ permit: PlaybackOutputPermit, scope: PlaybackOutputScope, owner: UUID) -> (UUID, Registration)? {
+        guard let lease, lease.owner == owner, !lease.retiring, lease.retarget == nil,
+              let registration = lease.registration, registration.permitID == permit.id,
+              registration.instanceID == permit.engineInstanceID, registration.object == permit.engineObject,
+              registration.instanceIsValid, registration.scope.sharesOwner(with: scope),
+              registration.kind == scope.engine, scope.intentRevision > registration.scope.intentRevision,
+              lease.allows(scope), self.lease === lease else { return nil }
+        let id = UUID(); lease.retarget = id; registration.revokeEvents()
+        return (id, registration)
+    }
+    fileprivate func finishRetarget(_ id: UUID, scope: PlaybackOutputScope, owner: UUID) -> PlaybackOutputPermit? {
+        guard let lease, lease.owner == owner, lease.retarget == id, !lease.retiring,
+              let registration = lease.registration, registration.instanceIsValid, lease.allows(scope) else { return nil }
+        let permit = PlaybackOutputPermit(scope: scope, engine: registration.engine, lease: lease.id, admission: self)
+        guard lease.allows(scope), self.lease === lease, lease.retarget == id, !lease.retiring, registration.instanceIsValid else { return nil }
+        registration.scope = scope; registration.permitID = permit.id; lease.retarget = nil
+        return permit
+    }
+    fileprivate func accepts(_ prepared: PreparedPlaybackOutputPermit) -> Bool {
+        guard let lease, lease.id == prepared.lease, lease.prepared?.id == prepared.id, lease.registration == nil,
+              !lease.retiring, !lease.releaseWhenQuiet, lease.allows(prepared.scope) else { return false }
+        return self.lease === lease && lease.prepared?.id == prepared.id && !lease.releaseWhenQuiet
     }
     fileprivate func accepts(_ permit: PlaybackOutputPermit) -> Bool {
-        lease?.id == permit.lease && lease?.active == permit.id && lease?.releaseWhenQuiet == false
+        guard let lease, let registration = lease.registration, lease.id == permit.lease,
+              registration.permitID == permit.id, registration.scope == permit.scope,
+              registration.instanceID == permit.engineInstanceID, registration.object == permit.engineObject,
+              !lease.retiring, lease.retarget == nil, !lease.releaseWhenQuiet,
+              registration.instanceIsValid, lease.allows(permit.scope) else { return false }
+        return self.lease === lease && !lease.retiring && lease.retarget == nil && !lease.releaseWhenQuiet && registration.permitID == permit.id
     }
+    fileprivate func authorizes(_ permit: PlaybackOutputPermit, engine: any PlaybackOutputEngine) -> Bool {
+        ObjectIdentifier(engine) == permit.engineObject && engine.outputInstanceID == permit.engineInstanceID && accepts(permit)
+    }
+    fileprivate func bindEvents(_ permit: PlaybackOutputPermit, engine: any PlaybackOutputEngine, nativeMediaID: UUID) -> PlaybackOutputEventBinding? {
+        guard authorizes(permit, engine: engine), nativeMediaID != UUID(uuid: (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0)),
+              let registration = lease?.registration else { return nil }
+        let value = PlaybackOutputEventBinding(permit: permit, nativeMediaID: nativeMediaID, admission: self)
+        registration.eventID = value.id; registration.nativeMediaID = nativeMediaID; return value
+    }
+    fileprivate func accepts(_ binding: PlaybackOutputEventBinding) -> Bool {
+        accepts(binding.permit) && lease?.registration?.eventID == binding.id && lease?.registration?.nativeMediaID == binding.nativeMediaID
+    }
+    fileprivate func hasReservation(owner: UUID) -> Bool { lease?.owner == owner && lease?.prepared != nil }
 }
 
-enum PlaybackOutputAdmissionResult {
-    case permitted(PlaybackOutputPermit)
-    case blocked(PlaybackOutputProblem)
-}
+enum PlaybackOutputPreparationResult { case prepared(PreparedPlaybackOutputPermit), blocked(PlaybackOutputProblem) }
+enum PlaybackOutputAdmissionResult { case permitted(PlaybackOutputPermit), blocked(PlaybackOutputProblem) }
 enum PlaybackOutputSettlement: Equatable { case quiet, blocked(PlaybackOutputProblem) }
 
-/// Pure ownership facade foundation. Live AppSession integration is separate.
+/// Binding foundation; no live AppSession or native activation is installed here.
 @MainActor final class PlaybackOutputCoordinator {
     private let owner = UUID()
     private let admission: PlaybackOutputAdmission
-    private let engines: [any PlaybackOutputRetiring]
     private let isCurrent: (PlaybackOutputScope) -> Bool
     private var request = UUID()
-    private var lease: UUID?
-    private var operations: [PlaybackOutputRetirement] = []
-    private var isWorking = false
-    private var revoked = false
-    private var retirementProofIsValid = true
+    private var isWorking = false, isRevoking = false, revoked = false
+    private var retirement: (operation: PlaybackOutputRetirement, valid: Bool)?
     private(set) var permit: PlaybackOutputPermit?
-
-    init(engines: [any PlaybackOutputRetiring], admission: PlaybackOutputAdmission,
-         isCurrent: @escaping (PlaybackOutputScope) -> Bool) {
-        self.engines = engines; self.admission = admission; self.isCurrent = isCurrent
+    init(admission: PlaybackOutputAdmission, isCurrent: @escaping (PlaybackOutputScope) -> Bool) {
+        self.admission = admission; self.isCurrent = isCurrent
     }
-    func requestOutput(_ scope: PlaybackOutputScope) async -> PlaybackOutputAdmissionResult {
-        guard !revoked, !isWorking, !Task.isCancelled, isCurrent(scope),
-              (1...2).contains(engines.count), Set(engines.map(\.outputKind)).count == engines.count,
-              engines.contains(where: { $0.outputKind == scope.engine }) else { return .blocked(.stale) }
-        guard let lease = admission.begin(owner: owner, engines: engines) else { return .blocked(.busy) }
-        self.lease = lease; permit = nil; isWorking = true
+    private func allows(_ scope: PlaybackOutputScope) -> Bool { !revoked && isCurrent(scope) }
+    func prepareOutput(_ scope: PlaybackOutputScope) async -> PlaybackOutputPreparationResult {
+        guard !isWorking else { return .blocked(.busy) }
+        guard !revoked, !Task.isCancelled, isCurrent(scope) else { return .blocked(.stale) }
+        isWorking = true; defer { isWorking = false }
         let id = UUID(); request = id
-        // Every engine revokes synchronously; only then may a retirement wait suspend.
-        operations = engines.map { $0.revokeOutput() }
-        retirementProofIsValid = admission.attach(operations, to: lease)
-        defer { isWorking = false }
-        guard retirementProofIsValid else { revoked = true; admission.block(lease); return .blocked(.unconfirmed) }
-        for operation in operations {
+        if let current = admission.registration(owner: owner) {
+            guard !admission.isRetiring(owner: owner) else { return .blocked(.busy) }
+            if current.scope.sharesOwner(with: scope), current.kind == scope.engine { return .blocked(.retargetRequired) }
+            permit = nil
+            guard let operation = startRetirement() else { return .blocked(.unconfirmed) }
             let receipt = await operation.settle()
-            guard receipt.ticket == operation.ticket, receipt.outcome == .confirmed else {
-                revoked = true; admission.block(lease)
+            guard receipt.outcome == .confirmed, retirement?.valid == true, operation.isConfirmedQuiet else {
+                revoked = true; admission.release(owner: owner)
                 if case let .blocked(problem) = receipt.outcome { return .blocked(problem) }
                 return .blocked(.unconfirmed)
             }
+            guard !Task.isCancelled, request == id, allows(scope), admission.finishRetirement(owner: owner, operation: operation) else {
+                admission.release(owner: owner); return .blocked(.stale)
+            }
         }
-        guard !revoked, request == id, !Task.isCancelled, isCurrent(scope) else {
-            admission.block(lease); return .blocked(.stale)
-        }
-        guard let value = admission.grant(scope, lease: lease) else { return .blocked(.unconfirmed) }
-        permit = value; operations = []
-        return .permitted(value)
+        guard admission.reserve(owner: owner, allows: { [weak self] in self?.allows($0) == true }),
+              let prepared = admission.prepare(scope, owner: owner), prepared.isCurrent else { return .blocked(.busy) }
+        return .prepared(prepared)
     }
-    func acceptsEvent(scope: PlaybackOutputScope, permitID: UUID) -> Bool {
-        guard !revoked, let permit else { return false }
-        return permit.id == permitID && permit.scope == scope && permit.isCurrent && isCurrent(scope)
+    func cancelPreparedOutput(_ prepared: PreparedPlaybackOutputPermit) -> Bool { admission.cancel(prepared, owner: owner) }
+    func bindOutput(_ prepared: PreparedPlaybackOutputPermit, to engine: any PlaybackOutputEngine) -> PlaybackOutputAdmissionResult {
+        guard !revoked, !isWorking, !Task.isCancelled, allows(prepared.scope),
+              let bound = admission.bind(prepared, owner: owner, engine: engine) else { return .blocked(.stale) }
+        permit = bound; return .permitted(bound)
+    }
+    func retargetOutput(_ previous: PlaybackOutputPermit, to scope: PlaybackOutputScope) -> PlaybackOutputAdmissionResult {
+        guard !isWorking else { return .blocked(.busy) }
+        guard !revoked, !Task.isCancelled, allows(scope) else { return .blocked(.stale) }
+        guard previous.scope.sharesOwner(with: scope), previous.scope.engine == scope.engine else { return .blocked(.retirementRequired) }
+        guard let (id, current) = admission.beginRetarget(previous, scope: scope, owner: owner) else { return .blocked(.stale) }
+        isWorking = true; permit = nil; defer { isWorking = false }
+        let effect: PlaybackOutputRetargetEffect = previous.scope.itemID == scope.itemID && previous.scope.occurrence == scope.occurrence ? .command : .nextItemPreparation
+        current.engine.invalidateOutputScopes(effect)
+        guard !Task.isCancelled, allows(scope), let bound = admission.finishRetarget(id, scope: scope, owner: owner) else {
+            _ = startRetirement(release: true); return .blocked(.stale)
+        }
+        permit = bound; return .permitted(bound)
+    }
+    /// Call only for the adapter's actual new native media/load/command binding.
+    func bindMediaEvents(_ permit: PlaybackOutputPermit, engine: any PlaybackOutputEngine, nativeMediaID: UUID) -> PlaybackOutputEventBinding? {
+        guard !revoked, self.permit?.id == permit.id else { return nil }
+        return admission.bindEvents(permit, engine: engine, nativeMediaID: nativeMediaID)
+    }
+    func acceptsEvent(_ binding: PlaybackOutputEventBinding) -> Bool {
+        !revoked && permit?.id == binding.permit.id && binding.isCurrent
+    }
+    @discardableResult func retireOutput(_ bound: PlaybackOutputPermit) -> PlaybackOutputRetirement? {
+        guard admission.registration(owner: owner)?.permitID == bound.id else { return nil }
+        let operation = startRetirement(expectedPermit: bound.id, release: true)
+        if operation != nil { permit = nil }
+        return operation
+    }
+    private func startRetirement(expectedPermit: UUID? = nil, release: Bool = false) -> PlaybackOutputRetirement? {
+        if isRevoking { if release { admission.release(owner: owner) }; return retirement?.operation }
+        guard let current = admission.beginRetirement(owner: owner, expectedPermit: expectedPermit) else { return retirement?.operation }
+        isRevoking = true; defer { isRevoking = false }
+        let operation = current.engine.revokeOutput()
+        let valid = admission.attach(operation, owner: owner, registration: current)
+        retirement = (operation, valid)
+        if release { admission.release(owner: owner) }
+        return operation
     }
     func quiesce() {
         revoked = true; request = UUID(); permit = nil
-        guard let lease else { return }
-        if operations.isEmpty && !isWorking {
-            operations = engines.map { $0.revokeOutput() }
-            retirementProofIsValid = admission.attach(operations, to: lease)
-        }
-        admission.block(lease)
-        // Revoking playback intent does not cancel the stop acknowledgment.
-        // Each operation still returns within its own bounded deadline.
+        _ = startRetirement(release: true)
+        admission.release(owner: owner)
     }
-    /// A blocked receipt lets Quit finish; it is never profile/source activation authority.
+    /// A blocked receipt lets Quit finish; it never authorizes a source/profile activation.
     func settle() async -> PlaybackOutputSettlement {
-        guard permit == nil else { return .blocked(.outputActive) }
-        for operation in operations { _ = await operation.settle() }
-        return retirementProofIsValid && operations.allSatisfy(\.isConfirmedQuiet) ? .quiet : .blocked(.unconfirmed)
+        if admission.registration(owner: owner) != nil && !admission.isRetiring(owner: owner) { return .blocked(.outputActive) }
+        if admission.hasReservation(owner: owner) { return .blocked(.outputActive) }
+        guard let retirement else { return .quiet }
+        _ = await retirement.operation.settle()
+        return retirement.valid && retirement.operation.isConfirmedQuiet ? .quiet : .blocked(.unconfirmed)
     }
 }

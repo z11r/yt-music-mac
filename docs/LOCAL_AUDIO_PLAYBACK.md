@@ -11,19 +11,42 @@ views must not create players or separate queues.
 
 ## Output admission contract
 
-`PlaybackOutputCoordinator` receives injected retirement boundaries and one
-`PlaybackOutputAdmission` shared across profiles. Neither is instantiated in the
-live app by this foundation. A scope includes session, profile activation and
-account generations, the exact queue occurrence, engine kind, item UUID and intent
-revision. The adapter must bind that opaque item UUID to a validated source or
-local reference before requesting admission; an identifier alone grants no media
-access. Item metadata validation remains the source adapter's responsibility.
+`PlaybackOutputCoordinator` receives one injected `PlaybackOutputAdmission` shared
+across profiles. Neither is instantiated in the live app by this foundation.
+A scope includes session, profile activation and account generations, the exact
+queue occurrence, engine kind, item UUID and intent revision. The adapter must
+bind that opaque item UUID to a validated source or local reference before
+requesting admission; an identifier alone grants no media access. Item metadata
+validation remains the source adapter's responsibility.
 
-Every engine revokes commands and events synchronously before the first retirement
-wait. A permit is granted only after all exact retirement receipts confirm quiet
-and the complete requested scope is still current. Events must match that permit
-and scope. A permit grants authority; it does not open a file or start a player.
-The eventual engine adapter must check it again immediately before activation.
+`prepareOutput` reserves output after the exact registered old engine has actually
+retired. Preparation does not retire an unregistered candidate or activate a player.
+`bindOutput` consumes the prepared permit and registers the exact new adapter before
+returning activation authority. Each persistent adapter has a stable engine UUID;
+authority checks both that UUID and object identity. A different wrapper around the
+same UUID is not authorized. Retirement receipts identify that exact instance, and
+quiesce retires the registered adapter rather than a list of previous candidates.
+
+The adapter checks `permit.authorizes(engine)` immediately before activation.
+`cancelPreparedOutput` drops only the current unbound reservation, including after
+asset preparation fails. A canceled or superseded read job may still retain its
+resources, but has no output authority. Dropping an old reservation cannot release
+a newer reservation or bound engine. `retireOutput` similarly requires the exact
+current bound permit; a late asset failure cannot retire a newer intent.
+
+`retargetOutput` reuses the same adapter only within the same session, profile and
+account ownership, engine kind and a newer intent. It invalidates old commands and
+event bindings synchronously. Same-item commands do not force a pause or restart.
+Next-item preparation mutes and pauses owned output while retaining the instance
+and old resources. This is not a retirement receipt or proof of physical silence.
+Changing profile, account ownership or source kind requires exact retirement.
+
+A bound permit alone grants no event authority. After verifying the actual native
+item, load or command binding, the adapter calls `bindMediaEvents` with its real
+native media UUID. Each callback captures that immutable event token, and
+`acceptsEvent` checks the full current scope. Retargeting never relabels old
+callbacks; no new event token exists until the actual native binding is verified.
+Weak coordinator callbacks avoid an engine-to-coordinator retention cycle.
 
 Quiesce invalidates the active permit immediately. Settlement returns an explicit
 `quiet` or `blocked` result within the operation deadline. Missing callbacks keep
@@ -90,7 +113,8 @@ distinguishes reversible pause from suspension that blocks page and user resumes
 Deterministic tests use fake engines, targets, deadlines and receipts. They cover
 joined old-view retirement, callback ordering, bounded inventories, timeouts,
 cancellation, late replies, permanent holds, exact scopes, cross-profile admission
-and bounded Quit settlement. They do not establish physical silence, actual
+prepared reservation cancellation, exact engine registration, same-instance retargeting,
+immutable event bindings and bounded Quit settlement. They do not establish physical silence, actual
 WebKit/PiP behavior, AVPlayer retirement, device behavior, local playback, native
 layout, VoiceOver or older-system runtime acceptance. Those remain requirements
 for the complete integration before local playback is enabled.

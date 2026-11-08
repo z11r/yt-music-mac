@@ -2,12 +2,13 @@ import Foundation
 
 enum PlaybackOutputEngineKind: String, Hashable, Sendable { case web, local }
 enum PlaybackOutputProblem: Equatable, Sendable {
-    case busy, stale, cancelled, timedOut, unconfirmed, unknownTargets, capacity, outputActive
+    case busy, stale, cancelled, timedOut, unconfirmed, unknownTargets, capacity, outputActive, retargetRequired, retirementRequired
 }
 struct PlaybackRetirementTicket: Equatable, Sendable {
     let id: UUID
     let engine: PlaybackOutputEngineKind
-    init(engine: PlaybackOutputEngineKind) { id = UUID(); self.engine = engine }
+    let instanceID: UUID
+    init(engine: PlaybackOutputEngineKind, instanceID: UUID) { id = UUID(); self.engine = engine; self.instanceID = instanceID }
 }
 struct PlaybackRetirementReceipt: Equatable, Sendable {
     enum Outcome: Equatable, Sendable { case confirmed, blocked(PlaybackOutputProblem) }
@@ -31,9 +32,9 @@ struct PlaybackRetirementReceipt: Equatable, Sendable {
     private var deadline: Task<Void, Never>?
     private var waiters: [CheckedContinuation<PlaybackRetirementReceipt, Never>] = []
 
-    init(engine: PlaybackOutputEngineKind, retaining target: AnyObject? = nil,
+    init(engine: PlaybackOutputEngineKind, instanceID: UUID, retaining target: AnyObject? = nil,
          sleep: @escaping @Sendable () async throws -> Void = { try await Task.sleep(for: .seconds(3)) }) {
-        ticket = .init(engine: engine); retained = target
+        ticket = .init(engine: engine, instanceID: instanceID); retained = target
         deadline = Task { [weak self] in
             do { try Task.checkCancellation(); try await sleep() } catch { return }
             self?.block(.timedOut)
@@ -78,6 +79,7 @@ enum RetiredMediaState: Sendable { case none, suspended, paused, playing, unknow
         var suspended = false, closed = false, requestedState = false, receivedState = false, quiet = false
         init(_ target: any PlaybackViewRetirementTarget) { self.target = target }
     }
+    private let instanceID: UUID
     private let maximumTargets: Int
     private let sleep: @Sendable () async throws -> Void
     private var entries: [UUID: Entry] = [:]
@@ -86,13 +88,14 @@ enum RetiredMediaState: Sendable { case none, suspended, paused, playing, unknow
     private(set) var operation: PlaybackOutputRetirement?
     var retainedTargetCount: Int { entries.values.filter { $0.target != nil }.count }
 
-    init(maximumTargets: Int = 8,
+    init(instanceID: UUID = UUID(), maximumTargets: Int = 8,
          sleep: @escaping @Sendable () async throws -> Void = { try await Task.sleep(for: .seconds(3)) }) {
+        self.instanceID = instanceID
         self.maximumTargets = min(8, max(1, maximumTargets)); self.sleep = sleep
     }
     func reserve() -> PlaybackOutputRetirement {
         if let operation { return operation }
-        let value = PlaybackOutputRetirement(engine: .web, retaining: self, sleep: sleep)
+        let value = PlaybackOutputRetirement(engine: .web, instanceID: instanceID, retaining: self, sleep: sleep)
         operation = value; return value
     }
     func begin(_ targets: [any PlaybackViewRetirementTarget], historyIsComplete: Bool = true) -> PlaybackOutputRetirement {

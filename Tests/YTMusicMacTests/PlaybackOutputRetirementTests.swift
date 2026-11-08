@@ -106,6 +106,7 @@ struct PlaybackOutputRetirementTests {
         let exactView = player.webView, generation = player.webViewGeneration
         let operation = player.revokeOutputForHandoff()
         #expect(factory.targets.count == 1 && player.isOutputOwnershipHeld && operation.receipt == nil)
+        #expect(operation.ticket.instanceID == player.outputInstanceID)
         let track = Track(id: "abcDEF12_-3", title: "Synthetic", artist: "Artist", contentKind: .song)
         let occurrence = PlaybackOccurrence(sessionID: UUID(), entryID: UUID(), trackID: track.id, generation: 1)
         player.load(track: track, occurrence: occurrence); player.play(); player.seek(to: 10); player.retry(); player.stop()
@@ -122,120 +123,233 @@ struct PlaybackOutputRetirementTests {
     }
 }
 
-@MainActor @Suite("Source-neutral output admission foundation")
+@MainActor @Suite("Exact engine binding and same-instance retarget")
 struct PlaybackOutputCoordinatorTests {
-    @Test func constructionIsInertAndOutputIsGrantedOnlyAfterEveryEngineReceipt() async throws {
-        let f = OutputCoordinatorFixture()
-        #expect(f.web.calls == 0 && f.local.calls == 0 && f.coordinator.permit == nil)
-        let request = Task { await f.coordinator.requestOutput(f.scope.current) }
-        await f.waitForRevocation()
-        #expect(f.web.revoked && f.local.revoked && f.coordinator.permit == nil)
-        f.web.confirm(); #expect(f.coordinator.permit == nil)
-        f.local.confirm()
-        guard case let .permitted(permit) = await request.value else { Issue.record("Expected confirmed admission"); return }
-        #expect(permit.isCurrent && f.coordinator.acceptsEvent(scope: f.scope.current, permitID: permit.id))
-        #expect(!f.coordinator.acceptsEvent(scope: f.scope.current, permitID: UUID()))
-        await f.close()
+    @Test func preparationIsInertAndOnlyTheExactBoundInstanceReceivesAuthority() async throws {
+        let f = OutputCoordinatorFixture(), web = RetirementTestEngine(.web)
+        let prepared = try await f.prepare()
+        #expect(prepared.isCurrent && web.calls == 0 && f.coordinator.permit == nil)
+        #expect(await f.coordinator.settle() == .blocked(.outputActive))
+        let wrongKind = RetirementTestEngine(.local)
+        guard case .blocked = f.coordinator.bindOutput(prepared, to: wrongKind) else { Issue.record("Wrong kind accepted"); return }
+        let permit = try f.bind(prepared, to: web)
+        let impostor = RetirementTestEngine(.web, id: web.outputInstanceID)
+        #expect(permit.isCurrent && permit.authorizes(web) && !permit.authorizes(impostor))
+        #expect(f.coordinator.bindMediaEvents(permit, engine: impostor, nativeMediaID: UUID()) == nil)
+        #expect(f.coordinator.bindMediaEvents(permit, engine: web, nativeMediaID: .init(uuid: (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))) == nil)
+        let event = try #require(f.coordinator.bindMediaEvents(permit, engine: web, nativeMediaID: UUID()))
+        #expect(f.coordinator.acceptsEvent(event))
+        let foreign = OutputCoordinatorFixture()
+        #expect(foreign.coordinator.bindMediaEvents(permit, engine: web, nativeMediaID: UUID()) == nil)
+        #expect(!foreign.coordinator.acceptsEvent(event))
+        guard case .blocked = f.coordinator.bindOutput(prepared, to: web) else { Issue.record("Consumed reservation rebound"); return }
+        #expect(!f.coordinator.cancelPreparedOutput(prepared))
+        await f.close(web)
     }
-    @Test func everyOwnerOccurrenceItemEngineAndIntentChangeDuringRetirementRejectsActivation() async {
+    @Test func freshEngineAfterRetirementIsRegisteredAndQuiesceRetiresThatExactInstance() async throws {
+        let f = OutputCoordinatorFixture(), old = RetirementTestEngine(.local)
+        f.scope.current = outputScope(engine: .local, from: f.scope.current)
+        let first = try f.bind(await f.prepare(), to: old)
+        let oldEvent = try #require(f.coordinator.bindMediaEvents(first, engine: old, nativeMediaID: UUID()))
+        f.scope.current = outputScope(engine: .web, from: f.scope.current)
+        let waiting = Task { await f.coordinator.prepareOutput(f.scope.current) }
+        await old.waitForRevocation()
+        #expect(!first.isCurrent && !oldEvent.isCurrent)
+        old.confirm()
+        let prepared = try preparedValue(await waiting.value)
+        let fresh = RetirementTestEngine(.web)
+        let permit = try f.bind(prepared, to: fresh)
+        #expect(permit.authorizes(fresh) && !permit.authorizes(old) && fresh.calls == 0)
+        f.coordinator.quiesce()
+        #expect(fresh.calls == 1 && old.calls == 1 && !permit.isCurrent)
+        fresh.confirm(); #expect(await f.coordinator.settle() == .quiet)
+    }
+    @Test func sameWebNextItemAndPauseSeekCommandsRetainOneInstanceAndRejectOldCallbacks() async throws {
+        let f = OutputCoordinatorFixture(), engine = RetirementTestEngine(.web)
+        var permit = try f.bind(await f.prepare(), to: engine)
+        var event = try #require(f.coordinator.bindMediaEvents(permit, engine: engine, nativeMediaID: UUID()))
+        for index in 0..<3 {
+            let old = permit, oldEvent = event
+            f.scope.current = outputScope(nextItem: index == 0, from: f.scope.current)
+            permit = try boundValue(f.coordinator.retargetOutput(old, to: f.scope.current))
+            #expect(!old.isCurrent && !oldEvent.isCurrent && !f.coordinator.acceptsEvent(oldEvent))
+            #expect(permit.authorizes(engine) && engine.calls == 0)
+            // Nothing relabels the old callback with this new permit.
+            #expect(!event.isCurrent)
+            event = try #require(f.coordinator.bindMediaEvents(permit, engine: engine, nativeMediaID: UUID()))
+            #expect(f.coordinator.acceptsEvent(event))
+        }
+        #expect(engine.effects == [.nextItemPreparation, .command, .command])
+        #expect(engine.pauses == 1 && engine.mutes == 1)
+        await f.close(engine)
+    }
+    @Test func sameOwnerPrepareRequiresRetargetWithoutRetiringOrReplacingTheEngine() async throws {
+        let f = OutputCoordinatorFixture(), engine = RetirementTestEngine(.web)
+        let permit = try f.bind(await f.prepare(), to: engine)
+        f.scope.current = outputScope(nextItem: true, from: f.scope.current)
+        guard case .blocked(.retargetRequired) = await f.coordinator.prepareOutput(f.scope.current) else { Issue.record("Expected retarget requirement"); return }
+        #expect(engine.calls == 0)
+        let rebound = try boundValue(f.coordinator.retargetOutput(permit, to: f.scope.current))
+        #expect(rebound.authorizes(engine))
+        await f.close(engine)
+    }
+    @Test func everyOwnerOccurrenceItemEngineAndIntentChangeDuringRetirementRejectsPreparation() async throws {
         for field in 0..<8 {
-            let f = OutputCoordinatorFixture(), expected = f.scope.current
-            let request = Task { await f.coordinator.requestOutput(expected) }
-            await f.waitForRevocation()
-            f.scope.current = outputScope(changing: field, from: expected)
-            f.web.confirm(); f.local.confirm()
-            guard case .blocked = await request.value else { Issue.record("Stale scope was admitted"); continue }
-            #expect(f.coordinator.permit == nil)
+            let f = OutputCoordinatorFixture(), engine = RetirementTestEngine(.web)
+            _ = try f.bind(await f.prepare(), to: engine)
+            let target = outputScope(engine: .local, from: f.scope.current)
+            f.scope.current = target
+            let waiting = Task { await f.coordinator.prepareOutput(target) }
+            await engine.waitForRevocation()
+            f.scope.current = outputScope(changing: field, from: target)
+            engine.confirm()
+            guard case .blocked = await waiting.value else { Issue.record("Stale scope prepared"); continue }
+            #expect(f.coordinator.permit == nil && engine.calls == 1)
         }
     }
-    @Test func uncertainOldOwnerBlocksAnotherProfileButQuitSettlementReturnsWithoutTheMissingCallback() async {
-        let admission = PlaybackOutputAdmission(), first = OutputCoordinatorFixture(admission: admission)
-        let request = Task { await first.coordinator.requestOutput(first.scope.current) }
-        await first.waitForRevocation()
-        first.web.timeout(); first.local.confirm()
-        guard case .blocked(.timedOut) = await request.value else { Issue.record("Expected deadline"); return }
-        #expect(await first.coordinator.settle() == .blocked(.unconfirmed))
-        let next = OutputCoordinatorFixture(admission: admission)
-        guard case .blocked(.busy) = await next.coordinator.requestOutput(next.scope.current) else { Issue.record("Uncertain owner released output"); return }
-        #expect(next.web.calls == 0 && next.local.calls == 0)
-        first.web.confirm()
-        #expect(first.coordinator.permit == nil)
-        let fresh = Task { await next.coordinator.requestOutput(next.scope.current) }
-        await next.waitForRevocation(); next.web.confirm(); next.local.confirm()
-        guard case .permitted = await fresh.value else { Issue.record("Fresh explicit admission failed"); return }
-        await next.close()
-    }
-    @Test func mismatchedEngineReceiptsCannotReleaseUnknownOutputAuthority() async {
+    @Test func supersededPreparedPermitCannotBindOrDropTheNewReservation() async throws {
         let admission = PlaybackOutputAdmission(), f = OutputCoordinatorFixture(admission: admission)
-        f.web.returnedKind = .local
-        guard case .blocked(.unconfirmed) = await f.coordinator.requestOutput(f.scope.current) else {
-            Issue.record("Wrong engine receipt admitted output"); return
-        }
-        f.web.confirm(); f.local.confirm()
-        #expect(await f.coordinator.settle() == .blocked(.unconfirmed))
-        let replacement = OutputCoordinatorFixture(admission: admission)
-        guard case .blocked(.busy) = await replacement.coordinator.requestOutput(replacement.scope.current) else {
-            Issue.record("Mismatched proof released output authority"); return
-        }
-        #expect(replacement.web.calls == 0 && replacement.local.calls == 0)
+        let old = try await f.prepare()
+        f.scope.current = outputScope(from: f.scope.current)
+        let latest = try await f.prepare(), engine = RetirementTestEngine(.web)
+        #expect(!old.isCurrent && latest.isCurrent)
+        #expect(!f.coordinator.cancelPreparedOutput(old))
+        guard case .blocked = f.coordinator.bindOutput(old, to: engine) else { Issue.record("Superseded reservation bound"); return }
+        #expect(f.coordinator.cancelPreparedOutput(latest) && !latest.isCurrent)
+        let other = OutputCoordinatorFixture(admission: admission), next = try await other.prepare()
+        #expect(next.isCurrent && engine.calls == 0)
+        #expect(other.coordinator.cancelPreparedOutput(next))
     }
-    @Test func cancellationAndQuiesceCannotReviveAnOldIntentOrCreateMoreRetirements() async {
-        let f = OutputCoordinatorFixture()
-        let request = Task { await f.coordinator.requestOutput(f.scope.current) }
-        await f.waitForRevocation(); request.cancel()
-        guard case .blocked = await request.value else { Issue.record("Canceled request was admitted"); return }
-        f.coordinator.quiesce(); f.local.timeout()
-        #expect(await f.coordinator.settle() == .blocked(.unconfirmed))
-        let counts = (f.web.calls, f.local.calls)
-        guard case .blocked = await f.coordinator.requestOutput(f.scope.current) else { Issue.record("Revoked coordinator admitted output"); return }
-        #expect(counts == (f.web.calls, f.local.calls))
-        f.web.confirm(); f.local.confirm()
-        #expect(f.coordinator.permit == nil)
+    @Test func canceledPreparationAfterActualQuietReleasesAdmissionWithoutActivatingAnEngine() async throws {
+        let admission = PlaybackOutputAdmission(), f = OutputCoordinatorFixture(admission: admission)
+        let engine = RetirementTestEngine(.web)
+        _ = try f.bind(await f.prepare(), to: engine)
+        f.scope.current = outputScope(engine: .local, from: f.scope.current)
+        let waiting = Task { await f.coordinator.prepareOutput(f.scope.current) }
+        await engine.waitForRevocation(); engine.confirm()
+        let prepared = try preparedValue(await waiting.value)
+        // A separately retained asset/read job is not output authority.
+        let retainedRead = RetirementTestResource()
+        #expect(f.coordinator.cancelPreparedOutput(prepared))
+        let other = OutputCoordinatorFixture(admission: admission), next = try await other.prepare()
+        #expect(next.isCurrent && engine.calls == 1)
+        withExtendedLifetime(retainedRead) { #expect(other.coordinator.cancelPreparedOutput(next)) }
+    }
+    @Test func changedScopeCannotBindAPreparedReservationAndStaleDropStillReleasesIt() async throws {
+        for field in 0..<8 {
+            let admission = PlaybackOutputAdmission(), f = OutputCoordinatorFixture(admission: admission)
+            let prepared = try await f.prepare(), engine = RetirementTestEngine(.web)
+            f.scope.current = outputScope(changing: field, from: f.scope.current)
+            #expect(!prepared.isCurrent)
+            guard case .blocked = f.coordinator.bindOutput(prepared, to: engine) else { Issue.record("Stale preparation bound"); continue }
+            #expect(engine.calls == 0 && f.coordinator.cancelPreparedOutput(prepared))
+            let other = OutputCoordinatorFixture(admission: admission), next = try await other.prepare()
+            #expect(other.coordinator.cancelPreparedOutput(next))
+        }
+    }
+    @Test func nonincreasingIntentCannotRebindCommandsOrMediaEvents() async throws {
+        let f = OutputCoordinatorFixture(), engine = RetirementTestEngine(.web)
+        let old = try f.bind(await f.prepare(), to: engine)
+        let event = try #require(f.coordinator.bindMediaEvents(old, engine: engine, nativeMediaID: UUID()))
+        guard case .blocked(.stale) = f.coordinator.retargetOutput(old, to: old.scope) else { Issue.record("Nonincreasing intent rebound"); return }
+        #expect(old.isCurrent && event.isCurrent && engine.effects.isEmpty)
+        await f.close(engine)
+    }
+    @Test func staleAssetFailureCannotRetireTheNewerBoundIntent() async throws {
+        let f = OutputCoordinatorFixture(), engine = RetirementTestEngine(.web)
+        let old = try f.bind(await f.prepare(), to: engine)
+        f.scope.current = outputScope(nextItem: true, from: f.scope.current)
+        let current = try boundValue(f.coordinator.retargetOutput(old, to: f.scope.current))
+        #expect(f.coordinator.retireOutput(old) == nil && engine.calls == 0 && current.isCurrent)
+        let retirement = try #require(f.coordinator.retireOutput(current))
+        #expect(engine.calls == 1 && !current.isCurrent && engine.pauses == 1)
+        engine.confirm(); #expect((await retirement.settle()).outcome == .confirmed)
         #expect(await f.coordinator.settle() == .quiet)
     }
-    @Test func synchronousEngineCallbacksCannotReenterAndDuplicateRetirementDuringRevocation() async {
-        let f = OutputCoordinatorFixture()
-        f.web.onRevoke = { [weak coordinator = f.coordinator] in coordinator?.quiesce() }
-        let request = Task { await f.coordinator.requestOutput(f.scope.current) }
-        await f.waitForRevocation()
-        #expect(f.web.calls == 1 && f.local.calls == 1)
-        f.web.confirm(); f.local.confirm()
-        guard case .blocked = await request.value else { Issue.record("Reentrant revoked request was activated"); return }
-        #expect(f.coordinator.permit == nil && f.web.calls == 1 && f.local.calls == 1)
-        #expect(await f.coordinator.settle() == .quiet)
+    @Test func crossSessionProfileAccountAndSourceCannotReuseTheBoundEngine() async throws {
+        for field in [0, 1, 2, 5] {
+            let f = OutputCoordinatorFixture(), engine = RetirementTestEngine(.web)
+            let old = try f.bind(await f.prepare(), to: engine)
+            f.scope.current = outputScope(changing: field, from: f.scope.current)
+            guard case .blocked(.retirementRequired) = f.coordinator.retargetOutput(old, to: f.scope.current) else { Issue.record("Cross-owner reuse accepted"); return }
+            #expect(engine.effects.isEmpty && engine.calls == 0)
+            let waiting = Task { await f.coordinator.prepareOutput(f.scope.current) }
+            await engine.waitForRevocation(); engine.confirm()
+            let prepared = try preparedValue(await waiting.value)
+            #expect(f.coordinator.cancelPreparedOutput(prepared))
+        }
     }
-    @Test func quiesceReturnsABlockedReceiptAtDeadlineEvenWhenAnActiveEngineNeverAcknowledges() async {
+    @Test func timeoutBlocksAnotherProfileAndQuitReturnsWithoutTheMissingCallback() async throws {
         let admission = PlaybackOutputAdmission(), f = OutputCoordinatorFixture(admission: admission)
-        let request = Task { await f.coordinator.requestOutput(f.scope.current) }
-        await f.waitForRevocation(); f.web.confirm(); f.local.confirm()
-        guard case let .permitted(permit) = await request.value else { Issue.record("Expected initial permit"); return }
-        f.coordinator.quiesce()
+        let engine = RetirementTestEngine(.web), permit = try f.bind(await f.prepare(), to: engine)
+        f.coordinator.quiesce(); engine.timeout()
         #expect(!permit.isCurrent)
-        f.web.timeout(); f.local.confirm()
         #expect(await f.coordinator.settle() == .blocked(.unconfirmed))
-        let replacement = OutputCoordinatorFixture(admission: admission)
-        guard case .blocked(.busy) = await replacement.coordinator.requestOutput(replacement.scope.current) else {
-            Issue.record("Missing retirement acknowledgment released output"); return
-        }
-        #expect(replacement.web.calls == 0)
-        f.web.confirm()
-        #expect(f.coordinator.permit == nil)
+        let other = OutputCoordinatorFixture(admission: admission)
+        guard case .blocked(.busy) = await other.coordinator.prepareOutput(other.scope.current) else { Issue.record("Uncertain retirement released admission"); return }
+        engine.confirm()
+        #expect(await f.coordinator.settle() == .quiet && f.coordinator.permit == nil)
+        let prepared = try await other.prepare()
+        #expect(other.coordinator.cancelPreparedOutput(prepared))
     }
-    @Test func activePermitIsRevokedSynchronouslyBeforeShutdownWaitAndLateEventsStayRejected() async {
-        let f = OutputCoordinatorFixture()
-        let request = Task { await f.coordinator.requestOutput(f.scope.current) }
-        await f.waitForRevocation(); f.web.confirm(); f.local.confirm()
-        guard case let .permitted(permit) = await request.value else { Issue.record("Expected permit"); return }
+    @Test func cancellationOfSourceChangeCannotAdmitAnotherEngineBeforeActualSettlement() async throws {
+        let admission = PlaybackOutputAdmission(), f = OutputCoordinatorFixture(admission: admission)
+        let engine = RetirementTestEngine(.web)
+        _ = try f.bind(await f.prepare(), to: engine)
+        f.scope.current = outputScope(engine: .local, from: f.scope.current)
+        let waiting = Task { await f.coordinator.prepareOutput(f.scope.current) }
+        await engine.waitForRevocation(); waiting.cancel()
+        guard case .blocked(.cancelled) = await waiting.value else { Issue.record("Expected bounded cancellation"); return }
+        let other = OutputCoordinatorFixture(admission: admission)
+        guard case .blocked(.busy) = await other.coordinator.prepareOutput(other.scope.current) else { Issue.record("Canceled native output released early"); return }
+        engine.confirm()
+        #expect(f.coordinator.permit == nil)
+        let prepared = try await other.prepare()
+        #expect(other.coordinator.cancelPreparedOutput(prepared))
+    }
+    @Test func wrongInstanceOrKindRetirementProofCannotReleaseOutput() async throws {
+        for wrongInstance in [true, false] {
+            let admission = PlaybackOutputAdmission(), f = OutputCoordinatorFixture(admission: admission)
+            let engine = RetirementTestEngine(.web)
+            engine.returnedInstance = wrongInstance ? UUID() : nil
+            engine.returnedKind = wrongInstance ? nil : .local
+            _ = try f.bind(await f.prepare(), to: engine)
+            f.coordinator.quiesce(); engine.confirm()
+            #expect(await f.coordinator.settle() == .blocked(.unconfirmed))
+            let other = OutputCoordinatorFixture(admission: admission)
+            guard case .blocked(.busy) = await other.coordinator.prepareOutput(other.scope.current) else { Issue.record("Mismatched identity released gate"); return }
+        }
+    }
+    @Test func reentrantRetargetQuiesceRevokesImmediatelyAndRetiresOnlyTheRegisteredEngine() async throws {
+        let f = OutputCoordinatorFixture(), engine = RetirementTestEngine(.web)
+        let old = try f.bind(await f.prepare(), to: engine)
+        let event = try #require(f.coordinator.bindMediaEvents(old, engine: engine, nativeMediaID: UUID()))
+        engine.onInvalidate = { [weak coordinator = f.coordinator] in
+            #expect(!old.isCurrent && !event.isCurrent)
+            coordinator?.quiesce()
+        }
+        f.scope.current = outputScope(nextItem: true, from: f.scope.current)
+        guard case .blocked = f.coordinator.retargetOutput(old, to: f.scope.current) else { Issue.record("Reentrant revoked scope rebound"); return }
+        #expect(engine.calls == 1 && f.coordinator.permit == nil)
+        engine.confirm(); #expect(await f.coordinator.settle() == .quiet)
+    }
+    @Test func reentrantRevocationDoesNotRetireTwiceOrReleaseBeforeTheExactReceipt() async throws {
+        let f = OutputCoordinatorFixture(), engine = RetirementTestEngine(.web)
+        let permit = try f.bind(await f.prepare(), to: engine)
+        engine.onRevoke = { [weak coordinator = f.coordinator] in coordinator?.quiesce() }
         f.coordinator.quiesce()
-        #expect(!permit.isCurrent && f.coordinator.permit == nil)
-        #expect(!f.coordinator.acceptsEvent(scope: permit.scope, permitID: permit.id))
-        #expect(f.web.calls == 2 && f.local.calls == 2)
-        var settled = false
-        let waiting = Task { let result = await f.coordinator.settle(); settled = true; return result }
-        for _ in 0..<20 { await Task.yield() }
-        #expect(!settled)
-        f.web.confirm(); f.local.confirm()
-        #expect(await waiting.value == .quiet)
+        #expect(engine.calls == 1 && !permit.isCurrent)
+        engine.confirm(); #expect(await f.coordinator.settle() == .quiet)
+    }
+    @Test func retiredAndUnregisteredEnginesCannotObtainOutputOrEventAuthority() async throws {
+        let f = OutputCoordinatorFixture(), engine = RetirementTestEngine(.web)
+        let prepared = try await f.prepare()
+        _ = engine.revokeOutput(); engine.confirm()
+        guard case .blocked = f.coordinator.bindOutput(prepared, to: engine) else { Issue.record("Retired instance rebound"); return }
+        let live = RetirementTestEngine(.web), permit = try f.bind(prepared, to: live)
+        #expect(!permit.authorizes(engine))
+        #expect(f.coordinator.bindMediaEvents(permit, engine: engine, nativeMediaID: UUID()) == nil)
+        await f.close(live)
     }
 }
 
@@ -283,48 +397,72 @@ private final class RetirementTestResource {}
         let fake = RetirementTestView(id: id); targets.append(fake); return fake
     }
 }
-@MainActor private final class RetirementTestEngine: PlaybackOutputRetiring {
+@MainActor private final class RetirementTestEngine: PlaybackOutputEngine {
+    let outputInstanceID: UUID
     let outputKind: PlaybackOutputEngineKind
-    var calls = 0, revoked = false
+    var calls = 0, pauses = 0, mutes = 0
+    var effects: [PlaybackOutputRetargetEffect] = []
+    private(set) var isOutputRetired = false
     var operation: PlaybackOutputRetirement?
     private var deadline: RetirementTestDeadline?
-    var returnedKind: PlaybackOutputEngineKind?
-    var onRevoke: (() -> Void)?
-    init(_ kind: PlaybackOutputEngineKind) { outputKind = kind }
+    var returnedKind: PlaybackOutputEngineKind?, returnedInstance: UUID?
+    var onRevoke: (() -> Void)?, onInvalidate: (() -> Void)?
+    init(_ kind: PlaybackOutputEngineKind, id: UUID = UUID()) { outputKind = kind; outputInstanceID = id }
+    func invalidateOutputScopes(_ effect: PlaybackOutputRetargetEffect) {
+        effects.append(effect)
+        if effect == .nextItemPreparation { pauses += 1; mutes += 1 }
+        onInvalidate?()
+    }
     func revokeOutput() -> PlaybackOutputRetirement {
-        calls += 1; revoked = true; onRevoke?()
+        if let operation { return operation }
+        calls += 1; isOutputRetired = true; onRevoke?()
         let clock = RetirementTestDeadline(); deadline = clock
-        let value = PlaybackOutputRetirement(engine: returnedKind ?? outputKind, retaining: RetirementTestResource(), sleep: clock.sleep)
+        let value = PlaybackOutputRetirement(engine: returnedKind ?? outputKind, instanceID: returnedInstance ?? outputInstanceID,
+            retaining: RetirementTestResource(), sleep: clock.sleep)
         operation = value; return value
     }
     func confirm() { if let operation { operation.confirmQuiet(ticket: operation.ticket) } }
     func timeout() { deadline?.fire() }
+    func waitForRevocation() async {
+        for _ in 0..<1_000 { if calls > 0 { return }; await Task.yield() }
+        Issue.record("Synthetic retirement did not start")
+    }
 }
 @MainActor private final class OutputScopeBox { var current: PlaybackOutputScope; init(_ scope: PlaybackOutputScope) { current = scope } }
 @MainActor private final class OutputCoordinatorFixture {
-    let web = RetirementTestEngine(.web), local = RetirementTestEngine(.local)
     let scope: OutputScopeBox
     let coordinator: PlaybackOutputCoordinator
     init(admission: PlaybackOutputAdmission? = nil) {
-        let value = outputScope(); scope = OutputScopeBox(value)
+        scope = OutputScopeBox(outputScope())
         let scope = scope
-        coordinator = PlaybackOutputCoordinator(engines: [web, local], admission: admission ?? PlaybackOutputAdmission(), isCurrent: { scope.current == $0 })
+        coordinator = PlaybackOutputCoordinator(admission: admission ?? PlaybackOutputAdmission(), isCurrent: { scope.current == $0 })
     }
-    func waitForRevocation() async {
-        for _ in 0..<1_000 { if web.calls > 0 && local.calls > 0 { return }; await Task.yield() }
-        Issue.record("Synthetic retirement did not start")
+    func prepare() async throws -> PreparedPlaybackOutputPermit { try preparedValue(await coordinator.prepareOutput(scope.current)) }
+    func bind(_ prepared: PreparedPlaybackOutputPermit, to engine: RetirementTestEngine) throws -> PlaybackOutputPermit {
+        try boundValue(coordinator.bindOutput(prepared, to: engine))
     }
-    func close() async { coordinator.quiesce(); web.confirm(); local.confirm(); _ = await coordinator.settle() }
+    func close(_ engine: RetirementTestEngine) async { coordinator.quiesce(); engine.confirm(); _ = await coordinator.settle() }
 }
-private func outputScope(changing field: Int? = nil, from old: PlaybackOutputScope? = nil) -> PlaybackOutputScope {
+private enum OutputFixtureError: Error { case blocked }
+@MainActor private func preparedValue(_ result: PlaybackOutputPreparationResult) throws -> PreparedPlaybackOutputPermit {
+    guard case let .prepared(value) = result else { Issue.record("Expected preparation"); throw OutputFixtureError.blocked }
+    return value
+}
+@MainActor private func boundValue(_ result: PlaybackOutputAdmissionResult) throws -> PlaybackOutputPermit {
+    guard case let .permitted(value) = result else { Issue.record("Expected exact engine binding"); throw OutputFixtureError.blocked }
+    return value
+}
+private func outputScope(changing field: Int? = nil, engine: PlaybackOutputEngineKind? = nil, nextItem: Bool = false,
+                         from old: PlaybackOutputScope? = nil) -> PlaybackOutputScope {
     let initial = old ?? .init(sessionID: UUID(), profileGeneration: UUID(), accountGeneration: UUID(),
         occurrence: .init(sessionID: UUID(), entryID: UUID(), trackID: "abcDEF12_-3", generation: 1),
-        engine: .local, itemID: UUID(), intentRevision: 1)
+        engine: .web, itemID: UUID(), intentRevision: 1)
     return .init(sessionID: field == 0 ? UUID() : initial.sessionID,
         profileGeneration: field == 1 ? UUID() : initial.profileGeneration,
         accountGeneration: field == 2 ? UUID() : initial.accountGeneration,
-        occurrence: field == 3 ? .init(sessionID: initial.occurrence.sessionID, entryID: UUID(), trackID: initial.occurrence.trackID, generation: 1) :
+        occurrence: field == 3 || nextItem ? .init(sessionID: initial.occurrence.sessionID, entryID: UUID(), trackID: initial.occurrence.trackID, generation: 1) :
             field == 4 ? .init(sessionID: initial.occurrence.sessionID, entryID: initial.occurrence.entryID, trackID: initial.occurrence.trackID, generation: 2) : initial.occurrence,
-        engine: field == 5 ? .web : initial.engine, itemID: field == 6 ? UUID() : initial.itemID,
-        intentRevision: field == 7 ? initial.intentRevision + 1 : initial.intentRevision)
+        engine: engine ?? (field == 5 ? (initial.engine == .web ? .local : .web) : initial.engine),
+        itemID: field == 6 || nextItem ? UUID() : initial.itemID,
+        intentRevision: (old != nil && field == nil) || field == 7 ? initial.intentRevision + 1 : initial.intentRevision)
 }

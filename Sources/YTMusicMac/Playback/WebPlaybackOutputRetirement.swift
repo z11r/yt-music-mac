@@ -31,8 +31,8 @@ import WebKit
     private(set) var isHeld = false
     private let ledger: PlaybackViewRetirementLedger
     var operation: PlaybackOutputRetirement? { ledger.operation }
-    init(sleep: @escaping @Sendable () async throws -> Void = { try await Task.sleep(for: .seconds(3)) }) {
-        ledger = PlaybackViewRetirementLedger(sleep: sleep)
+    init(instanceID: UUID = UUID(), sleep: @escaping @Sendable () async throws -> Void = { try await Task.sleep(for: .seconds(3)) }) {
+        ledger = PlaybackViewRetirementLedger(instanceID: instanceID, sleep: sleep)
     }
     func revoke(historyIsComplete: Bool, willRevoke: () -> Void,
                 targets: () -> [any PlaybackViewRetirementTarget]) -> PlaybackOutputRetirement {
@@ -47,10 +47,13 @@ import WebKit
 typealias WebPlaybackRetirementTargetFactory = @MainActor (WKWebView, UUID, @escaping @MainActor () -> Void) -> any PlaybackViewRetirementTarget
 
 /// This adapter is inert until the future facade explicitly revokes output.
-@MainActor final class WebPlayerOutputAdapter: PlaybackOutputRetiring {
+@MainActor final class WebPlayerOutputAdapter: PlaybackOutputEngine {
     let outputKind = PlaybackOutputEngineKind.web
     private let player: WebPlayer
+    var outputInstanceID: UUID { player.outputInstanceID }
+    var isOutputRetired: Bool { player.isOutputOwnershipHeld }
     init(player: WebPlayer) { self.player = player }
+    func invalidateOutputScopes(_ effect: PlaybackOutputRetargetEffect) { player.invalidateOutputScopesForRetarget(effect) }
     func revokeOutput() -> PlaybackOutputRetirement { player.revokeOutputForHandoff() }
 }
 

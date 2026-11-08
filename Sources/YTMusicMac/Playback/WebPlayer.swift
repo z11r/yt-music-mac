@@ -105,6 +105,8 @@ final class WebPlayer: NSObject {
     @ObservationIgnored private var navigation: WKNavigation?
     @ObservationIgnored private var deadline: Task<Void, Never>?
     @ObservationIgnored private var commandRevision = 0
+    @ObservationIgnored private var outputCommandEpoch = UUID()
+    @ObservationIgnored private var minimumOutputCommandRevision = 0
     @ObservationIgnored private var navigationRevision = 0
     @ObservationIgnored private var replacementPending = false
     @ObservationIgnored private var fallbackCount = 0
@@ -119,6 +121,7 @@ final class WebPlayer: NSObject {
     @ObservationIgnored private var sessionRestoreTask: Task<Void, Never>?
     @ObservationIgnored private var sessionRestoreDeadline: Task<Void, Never>?
     @ObservationIgnored private var sessionMediaSuspended = false
+    @ObservationIgnored let outputInstanceID: UUID
     @ObservationIgnored private let outputHold: WebPlaybackOutputHold
     @ObservationIgnored private let retiringOutputViews = RetiringPlaybackViews()
     @ObservationIgnored private let retirementTargetFactory: WebPlaybackRetirementTargetFactory
@@ -147,7 +150,9 @@ final class WebPlayer: NSObject {
          retirementTargetFactory: @escaping WebPlaybackRetirementTargetFactory = { WKPlaybackRetirementTarget(view: $0, id: $1, didClose: $2) },
          retirementSleep: @escaping @Sendable () async throws -> Void = { try await Task.sleep(for: .seconds(3)) }) {
         self.retirementTargetFactory = retirementTargetFactory
-        self.outputHold = WebPlaybackOutputHold(sleep: retirementSleep)
+        let outputInstanceID = UUID()
+        self.outputInstanceID = outputInstanceID
+        self.outputHold = WebPlaybackOutputHold(instanceID: outputInstanceID, sleep: retirementSleep)
         let handler = PlayerMessageHandler()
         let scriptURL = AppIdentity.resourceBundle.url(forResource: "PlayerBridge", withExtension: "js")
         let source = scriptURL.flatMap { try? String(contentsOf: $0, encoding: .utf8) }
@@ -327,6 +332,24 @@ final class WebPlayer: NSObject {
         return operation
     }
 
+    /// Scope invalidation is not a retirement receipt. The facade must bind new
+    /// callbacks only after the exact native load/command acknowledges its scope.
+    func invalidateOutputScopesForRetarget(_ effect: PlaybackOutputRetargetEffect) {
+        guard !outputHold.isHeld else { return }
+        self.outputCommandEpoch = UUID()
+        self.commandRevision += 1
+        self.minimumOutputCommandRevision = self.commandRevision
+        self.presentationRevision += 1
+        self.segmentIdentity = nil
+        self.episodeRates.invalidate(clearOwnership: false)
+        self.verifiedRateOccurrence = nil
+        if effect == .nextItemPreparation {
+            // Reduce old output while preparation waits; this is no silence proof.
+            self.sendCommand("volume", value: 0)
+            self.pause()
+        }
+    }
+
     func play() {
         guard !outputHold.isHeld else { return }
         self.wantsPlaying = true
@@ -433,6 +456,8 @@ final class WebPlayer: NSObject {
         self.retiredEpisodeRateTarget = nil
         self.gate.activate(loadID: loadID, occurrence: occurrence)
         self.commandRevision = 0
+        self.minimumOutputCommandRevision = 0
+        self.outputCommandEpoch = UUID()
         self.navigationRevision += 1
         self.failureReported = false
         self.isPlaying = false
@@ -523,6 +548,7 @@ final class WebPlayer: NSObject {
         guard !outputHold.isHeld, let loadID = self.gate.loadID, self.gate.documentID != nil else { completion?(false); return }
         self.commandRevision += 1
         let revision = self.commandRevision
+        let outputEpoch = self.outputCommandEpoch
         var command: [String: Any] = ["loadID": loadID.uuidString, "revision": revision, "name": name]
         if let value { command["value"] = value }
         if let sectionGuard { command["sectionGuard"] = sectionGuard.payload }
@@ -532,7 +558,7 @@ final class WebPlayer: NSObject {
             in: nil,
             in: .defaultClient
         ) { [weak self] result in
-            guard let self, self.gate.loadID == loadID, self.commandRevision == revision else { completion?(false); return }
+            guard let self, !self.outputHold.isHeld, self.outputCommandEpoch == outputEpoch, self.gate.loadID == loadID, self.commandRevision == revision else { completion?(false); return }
             if sectionGuard != nil {
                 if case let .success(value) = result { completion?(value as? Bool == true) }
                 else { completion?(false) }
@@ -556,7 +582,7 @@ final class WebPlayer: NSObject {
     }
 
     private func receive(_ message: PlaybackBridgeMessage) {
-        guard !outputHold.isHeld, self.gate.accept(message), !self.failureReported else { return }
+        guard !outputHold.isHeld, message.commandRevision >= self.minimumOutputCommandRevision, self.gate.accept(message), !self.failureReported else { return }
         if message.interruptsPlaybackOutput { self.segmentIdentity = nil }
         if let occurrence, message.interruptsPlaybackOutput { self.onPlaybackOutputInterrupted?(occurrence) }
         if let occurrence, !message.confirmsEpisodeProgress || (message.kind != .progress && message.kind != .ended) {
