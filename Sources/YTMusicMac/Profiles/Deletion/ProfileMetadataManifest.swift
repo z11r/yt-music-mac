@@ -45,7 +45,7 @@ struct ProfileMetadataManifest: Codable, Equatable, Sendable {
             guard let format = ProfileMetadataFormat.identify(file.path), file.digest.count == 32,
                   file.identity.size >= 0, file.identity.size <= format.byteLimit,
                   file.identity.links == 1, file.identity.mode == 0o100600,
-                  format == .storeLock ? file.schema == .init(version: 0, revision: nil) : file.schema.version > 0 else { throw AppProfileError.invalidRegistry }
+                  format.accepts(file.schema) else { throw AppProfileError.invalidRegistry }
         }
         for folder in folders {
             guard ProfileMetadataPaths.isFolder(folder.path), folder.identity.mode & 0o170000 == 0o040000 else { throw AppProfileError.invalidRegistry }
@@ -103,12 +103,13 @@ extension ProfileMetadataIdentity {
 }
 
 extension ProfileMetadataSchemaProof {
-    private enum Keys: String, CodingKey { case version, revision }
+    private enum Keys: String, CodingKey { case version, revision, versionTags }
     init(from decoder: any Decoder) throws {
-        try ProfileSchema.keys(decoder, ["version", "revision"])
+        try ProfileSchema.keys(decoder, ["version", "revision", "versionTags"])
         let c = try decoder.container(keyedBy: Keys.self)
         version = try c.decode(Int.self, forKey: .version)
         revision = try c.decodeIfPresent(UUID.self, forKey: .revision)
+        versionTags = try c.decode([String: Int].self, forKey: .versionTags)
     }
 }
 

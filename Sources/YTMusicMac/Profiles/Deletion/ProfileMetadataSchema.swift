@@ -23,6 +23,35 @@ enum ProfileMetadataFormat: String, Codable, Sendable {
         default: return nil
         }
     }
+    /// Cleanup pins its own supported contract rather than inheriting migrations.
+    var supportedVersion: Int {
+        switch self {
+        case .queue, .organization: 2
+        case .storeLock: 0
+        case .namedQueues, .cache, .rules, .episodes, .listenBrainz, .lastFM, .pendingPlaylist, .localAudio: 1
+        }
+    }
+    var allowedVersionTags: [String: Int] {
+        if self == .storeLock { return [:] }
+        var tags = ["version": supportedVersion]
+        switch self {
+        case .queue: tags["entries[].track.localAudioReference.version"] = 1
+        case .namedQueues:
+            tags["queues[].snapshot.version"] = 2
+            tags["queues[].snapshot.entries[].track.localAudioReference.version"] = 1
+        case .localAudio: tags["records[].reference.version"] = 1
+        default: break
+        }
+        return tags
+    }
+    var requiresRevision: Bool { self == .localAudio || self == .pendingPlaylist }
+    func accepts(_ proof: ProfileMetadataSchemaProof) -> Bool {
+        guard proof.version == supportedVersion, (proof.revision != nil) == requiresRevision else { return false }
+        if self == .storeLock { return proof.versionTags.isEmpty }
+        let allowed = allowedVersionTags
+        return proof.versionTags["version"] == supportedVersion && proof.versionTags.count <= allowed.count &&
+            proof.versionTags.allSatisfy { key, value in allowed[key] == value }
+    }
     var byteLimit: Int {
         switch self {
         case .queue: 4 << 20
@@ -39,6 +68,11 @@ enum ProfileMetadataFormat: String, Codable, Sendable {
 struct ProfileMetadataSchemaProof: Codable, Equatable, Sendable {
     let version: Int
     let revision: UUID?
+    let versionTags: [String: Int]
+    init(version: Int, revision: UUID?, versionTags: [String: Int]? = nil) {
+        self.version = version; self.revision = revision
+        self.versionTags = versionTags ?? (version == 0 ? [:] : ["version": version])
+    }
 }
 enum ProfileMetadataSchema {
     static func validate(_ data: Data, path: String, profileID: UUID) throws -> ProfileMetadataSchemaProof {
@@ -49,7 +83,8 @@ enum ProfileMetadataSchema {
         }
         try ProfileMetadataJSON.check(data)
         let source = try JSONSerialization.jsonObject(with: data)
-        guard let object = source as? [String: Any], let version = object["version"] as? Int else { throw ProfileCleanupProblem.savedData }
+        guard let object = source as? [String: Any], let version = object["version"] as? Int,
+              version == format.supportedVersion else { throw ProfileCleanupProblem.savedData }
         let account = path.split(separator: "/").dropFirst().first.map(String.init)?.replacingOccurrences(of: ".json", with: "")
         var revision: UUID?
         let canonical: Data
@@ -88,18 +123,52 @@ enum ProfileMetadataSchema {
             revision = value.revision; canonical = try JSONEncoder().encode(value)
         case .storeLock: throw ProfileCleanupProblem.savedData
         }
-        // Decoding alone silently ignores future nested fields. Require every
-        // input key to survive the supported model's encoder, without rewriting.
-        guard keysRecognized(source, by: try JSONSerialization.jsonObject(with: canonical)) else { throw ProfileCleanupProblem.savedData }
-        return .init(version: version, revision: revision)
+        // Model decoding may migrate tagged variants or silently ignore fields.
+        // Keep key admission and raw tag admission separate from model validity.
+        var tags: [String: Int] = [:]
+        guard keysRecognized(source, by: try JSONSerialization.jsonObject(with: canonical), format: format, tags: &tags) else { throw ProfileCleanupProblem.savedData }
+        let proof = ProfileMetadataSchemaProof(version: version, revision: revision, versionTags: tags)
+        guard format.accepts(proof) else { throw ProfileCleanupProblem.savedData }
+        return proof
     }
-    private static func keysRecognized(_ input: Any, by encoded: Any) -> Bool {
+    private static let stringDiscriminators: Set<String> = [
+        "repeatMode", "origin", "contentKind", "kind", "field", "operation", "match", "scope",
+        "provider", "completionSource", "state", "mode", "phase"
+    ]
+    private static func versionTag(at path: [String]) -> String {
+        var name = ""
+        for part in path {
+            if part == "*" { name += "[]" }
+            else { name += name.isEmpty ? part : "." + part }
+        }
+        return name.isEmpty ? "version" : name + ".version"
+    }
+    private static func keysRecognized(_ input: Any, by encoded: Any, format: ProfileMetadataFormat, path: [String] = [], tags: inout [String: Int]) -> Bool {
         if let input = input as? [String: Any], let encoded = encoded as? [String: Any] {
-            return input.allSatisfy { key, value in encoded[key].map { keysRecognized(value, by: $0) } == true }
+            return input.allSatisfy { key, value in
+                guard let canonical = encoded[key] else { return false }
+                if key == "version" {
+                    let tag = versionTag(at: path)
+                    guard let expected = format.allowedVersionTags[tag],
+                          let raw = value as? NSNumber, CFGetTypeID(raw) != CFBooleanGetTypeID(),
+                          let checked = canonical as? NSNumber, CFGetTypeID(checked) != CFBooleanGetTypeID(),
+                          raw == NSNumber(value: expected), checked == NSNumber(value: expected),
+                          tags[tag].map({ $0 == expected }) ?? true else { return false }
+                    tags[tag] = expected
+                } else if stringDiscriminators.contains(key) {
+                    guard let raw = value as? String, let checked = canonical as? String, raw == checked else { return false }
+                }
+                return keysRecognized(value, by: canonical, format: format, path: path + [key], tags: &tags)
+            }
         }
         if let input = input as? [Any], let encoded = encoded as? [Any] {
-            return input.count == encoded.count && zip(input, encoded).allSatisfy { keysRecognized($0, by: $1) }
+            return input.count == encoded.count && zip(input, encoded).allSatisfy {
+                keysRecognized($0, by: $1, format: format, path: path + ["*"], tags: &tags)
+            }
         }
+        // Supported model validation owns ordinary scalar values. UUID casing,
+        // date-number representation and omitted model defaults may normalize;
+        // none can change an explicitly present version or discriminator above.
         return !(input is [String: Any]) && !(input is [Any])
     }
 }

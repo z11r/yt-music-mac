@@ -40,6 +40,63 @@ import Testing
         }, folders: manifest.folders)
         #expect(throws: (any Error).self) { try tooMany.validate() }
     }
+    @Test func nestedQueueLegacyVersionCannotBeNormalizedIntoCleanupAdmission() throws {
+        let snapshot = QueueSnapshot(entries: [])
+        let queue = NamedQueue(name: "Fixture", createdAt: Date(timeIntervalSinceReferenceDate: 1), updatedAt: Date(timeIntervalSinceReferenceDate: 1), snapshot: snapshot)
+        var row = try JSONSerialization.jsonObject(with: JSONEncoder().encode(queue)) as! [String: Any]
+        var nested = row["snapshot"] as! [String: Any]; nested["version"] = 1; row["snapshot"] = nested
+        let raw = try JSONSerialization.data(withJSONObject: ["version": 1, "queues": [row]])
+        let retained = raw
+        #expect(throws: (any Error).self) { try ProfileMetadataSchema.validate(raw, path: "SavedQueues/" + metadataAccount + "/queues.json", profileID: metadataProfile) }
+        #expect(raw == retained)
+    }
+    @Test func explicitDiscriminatorCannotNormalizeButOmittedDefaultsAndUUIDCaseRemainSupported() throws {
+        let value = QueueSnapshot(entries: [.init(track: .init(id: "fixture", title: "Fixture", artist: "Artist"))])
+        var object = try JSONSerialization.jsonObject(with: JSONEncoder().encode(value)) as! [String: Any]
+        var entries = object["entries"] as! [[String: Any]]
+        entries[0]["origin"] = NSNull(); object["entries"] = entries
+        #expect(throws: (any Error).self) { try ProfileMetadataSchema.validate(JSONSerialization.data(withJSONObject: object), path: "queue.json", profileID: metadataProfile) }
+        entries[0].removeValue(forKey: "origin")
+        entries[0]["id"] = (entries[0]["id"] as! String).lowercased(); object["entries"] = entries
+        _ = try ProfileMetadataSchema.validate(JSONSerialization.data(withJSONObject: object), path: "queue.json", profileID: metadataProfile)
+    }
+    @Test func absentFileProofsRequireTheExactSupportedVersionAndRevisionContract() throws {
+        let folder = ProfileMetadataIdentity(device: 1, inode: 2, generation: 1, owner: 501, mode: 0o040700,
+            links: 1, size: 0, modifiedSeconds: 1, modifiedNanoseconds: 0, changedSeconds: 1, changedNanoseconds: 0)
+        for (path, bytes) in try metadataArchives() {
+            let proof = try ProfileMetadataSchema.validate(bytes, path: path, profileID: metadataProfile)
+            let identity = ProfileMetadataIdentity(device: 1, inode: 1, generation: 1, owner: 501, mode: 0o100600,
+                links: 1, size: Int64(bytes.count), modifiedSeconds: 1, modifiedNanoseconds: 0, changedSeconds: 1, changedNanoseconds: 0)
+            func manifest(_ proof: ProfileMetadataSchemaProof) -> ProfileMetadataManifest {
+                .init(files: [.init(path: path, identity: identity, digest: Data(repeating: 1, count: 32), schema: proof)], folders: [.init(path: "", identity: folder)])
+            }
+            try manifest(proof).validate()
+            let future = manifest(.init(version: 99, revision: proof.revision))
+            #expect(throws: (any Error).self) { try future.validate() }
+            let unexpectedRevision = manifest(.init(version: proof.version, revision: proof.revision == nil ? UUID() : nil))
+            #expect(throws: (any Error).self) { try unexpectedRevision.validate() }
+        }
+    }
+    @Test func observedNestedVersionTagsArePersistedWithoutPerRowGrowth() throws {
+        let libraryBytes = try metadataArchives()["LocalAudio/library.json"]!
+        let library = try JSONDecoder().decode(LocalAudioLibraryDocument.self, from: libraryBytes)
+        let record = try #require(library.records.first)
+        let track = try record.metadata.track(reference: record.reference)
+        let snapshot = QueueSnapshot(entries: [.init(track: track)])
+        let direct = try ProfileMetadataSchema.validate(JSONEncoder().encode(snapshot), path: "queue.json", profileID: metadataProfile)
+        #expect(direct.versionTags == ["version": 2, "entries[].track.localAudioReference.version": 1])
+        let local = try ProfileMetadataSchema.validate(libraryBytes, path: "LocalAudio/library.json", profileID: metadataProfile)
+        #expect(local.versionTags == ["version": 1, "records[].reference.version": 1])
+        let queues = (0..<50).map { value in NamedQueue(name: "Fixture " + String(value), createdAt: Date(timeIntervalSinceReferenceDate: 1), updatedAt: Date(timeIntervalSinceReferenceDate: 1), snapshot: snapshot) }
+        let rows = try JSONSerialization.jsonObject(with: JSONEncoder().encode(queues))
+        let bytes = try JSONSerialization.data(withJSONObject: ["version": 1, "queues": rows])
+        let proof = try ProfileMetadataSchema.validate(bytes, path: "SavedQueues/" + metadataAccount + "/queues.json", profileID: metadataProfile)
+        #expect(proof.versionTags == ["version": 1, "queues[].snapshot.version": 2, "queues[].snapshot.entries[].track.localAudioReference.version": 1])
+        #expect(try JSONDecoder().decode(ProfileMetadataSchemaProof.self, from: JSONEncoder().encode(proof)) == proof)
+        #expect(ProfileMetadataFormat.namedQueues.accepts(.init(version: 1, revision: nil, versionTags: ["version": 1, "queues[].snapshot.version": 3])) == false)
+        #expect(ProfileMetadataFormat.namedQueues.accepts(.init(version: 1, revision: nil, versionTags: ["queues[].snapshot.version": 2])) == false)
+        #expect(ProfileMetadataFormat.namedQueues.accepts(.init(version: 1, revision: nil, versionTags: ["version": 1, "unknown[].version": 1])) == false)
+    }
     @Test func everyRecognizedCurrentFormatHasPureBoundedAdmission() throws {
         for (path, bytes) in try metadataArchives() {
             _ = try ProfileMetadataSchema.validate(bytes, path: path, profileID: metadataProfile)

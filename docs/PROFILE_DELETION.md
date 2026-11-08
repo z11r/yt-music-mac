@@ -62,6 +62,22 @@ per-file outcomes. Version-one registries and journals remain readable; unsuppor
 future data is retained. A manifest is limited to 64 files, 128 folders and 128 MiB
 in total, with stricter limits for each format and the existing 64 KiB registry
 limit. Unsupported older metadata variants also remain pending.
+Cleanup pins queue and organization archives to version two; the other JSON
+formats use version one. Stored queue snapshots nested inside named queues also
+require version two. Local-audio references require version one at their exact
+schema locations. Empty store-lock proofs use version zero. Local-audio and
+pending-playlist proofs require an archive revision; other proofs cannot carry
+one. Each proof also stores a bounded map of observed normalized version-tag
+paths, including nested queue snapshots and local-audio references. The map has
+one value per schema path rather than one entry per row. Its root tag is required;
+unexpected paths, conflicting versions and future nested versions are rejected.
+Lock proofs use an empty map with version zero. These rules also apply when a
+journaled file is already absent.
+
+Explicit version and enum tags must survive model decoding unchanged. A supported
+model's ordinary UUID casing, date-number representation and omitted defaults
+may normalize, but that never authorizes migration of a tagged archive variant.
+
 
 The target record remains
 until every step has a confirmed result. Running markers are saved and synced

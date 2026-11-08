@@ -357,6 +357,29 @@ struct ProfileDeletionTests {
         await f.prepare()
         #expect(f.adapter.calls == 0 && f.io.writes == 0 && f.io.bytes == duplicate)
     }
+    @Test func futureProofForAnAlreadyAbsentFilePreventsEveryCleanupEffect() async throws {
+        let f = try DeletionFixture(); var manifest = metadataManifestFixture()
+        let old = manifest.files[0]
+        manifest.files[0] = .init(path: old.path, identity: old.identity, digest: old.digest, schema: .init(version: 99, revision: nil))
+        let journal = ProfileDeletionJournal(target: f.target).withMetadata(manifest)
+        let bytes = try JSONEncoder().encode(AppProfileArchive(version: 2, selectedID: AppProfile.defaultID, profiles: [.original, f.target], deletions: [journal]))
+        f.io.force(bytes); f.session.manifest = manifest; f.session.existingMetadata = []
+        await f.prepare(); await f.confirm()
+        #expect(f.adapter.calls == 0 && f.session.effects.isEmpty && f.session.metadataEffects.isEmpty)
+        #expect(f.io.writes == 0 && f.io.bytes == bytes)
+    }
+    @Test func futureNestedProofForAnAbsentNamedQueuePreventsEveryCleanupEffect() async throws {
+        let f = try DeletionFixture(); var manifest = metadataManifestFixture()
+        let old = manifest.files[0]
+        manifest.files[0] = .init(path: "SavedQueues/" + String(repeating: "a", count: 64) + "/queues.json", identity: old.identity, digest: old.digest,
+            schema: .init(version: 1, revision: nil, versionTags: ["version": 1, "queues[].snapshot.version": 3]))
+        let journal = ProfileDeletionJournal(target: f.target).withMetadata(manifest)
+        let bytes = try JSONEncoder().encode(AppProfileArchive(version: 2, selectedID: AppProfile.defaultID, profiles: [.original, f.target], deletions: [journal]))
+        f.io.force(bytes); f.session.manifest = manifest; f.session.existingMetadata = []
+        await f.prepare(); await f.confirm()
+        #expect(f.adapter.calls == 0 && f.session.effects.isEmpty && f.session.metadataEffects.isEmpty)
+        #expect(f.io.writes == 0 && f.io.bytes == bytes)
+    }
     @Test func metadataManifestAndOldJournalsRejectFutureNestedFieldsWithoutRewriting() throws {
         let target = try deletionProfile(), legacy = ProfileDeletionJournal(target: target)
         let encoder = JSONEncoder(), decoder = JSONDecoder()
@@ -521,6 +544,6 @@ private func metadataManifestFixture() -> ProfileMetadataManifest {
               modifiedSeconds: 1, modifiedNanoseconds: 0, changedSeconds: 1, changedNanoseconds: 0)
     }
     return .init(files: ["queue.json", "LocalAudio/library.json"].enumerated().map { index, path in
-        .init(path: path, identity: identity(0o100600, inode: UInt64(index + 1)), digest: Data(repeating: 1, count: 32), schema: .init(version: path == "queue.json" ? 2 : 1, revision: nil))
+        .init(path: path, identity: identity(0o100600, inode: UInt64(index + 1)), digest: Data(repeating: 1, count: 32), schema: .init(version: path == "queue.json" ? 2 : 1, revision: path == "queue.json" ? nil : UUID()))
     }, folders: [.init(path: "", identity: identity(0o040700, inode: 3)), .init(path: "LocalAudio", identity: identity(0o040700, inode: 4))])
 }
