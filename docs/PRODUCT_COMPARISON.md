@@ -88,6 +88,10 @@ The following sequence updates the implementation-oriented batches in the
 the code that now exists, without reopening completed feature implementations.
 Each feature or integration fix should remain separately reviewable.
 
+A bounded batch of [small features and integrations](SMALL_FEATURES.md) can
+proceed alongside verification: finish Discord and scrobbling setup, then add
+one local convenience. Larger optional capabilities retain the sequence below.
+
 | Order | Deliverable and reason | Dependencies | Completion test |
 | --- | --- | --- | --- |
 | 1 | Verify one candidate build for daily listening. Highest value because the interface is already broad. | Exact packaged revision and signed-in test session | Search, library, multi-page Play All, radio, lyrics, local files and restore pass on that build; 100 actual transitions and two hours of listening show no wrong-track/double advances; retry, network loss and sleep/wake recover. Record failures and fix reproductions. |
