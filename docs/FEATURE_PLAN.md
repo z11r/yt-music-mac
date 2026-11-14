@@ -4,6 +4,10 @@ Status reviewed November 8, 2026. This plan expands the [roadmap](ROADMAP.md)
 with the remaining features, implementation order, and acceptance checks.
 It describes proposed work, not a released feature set or delivery dates.
 
+The November 14 [product comparison and next-work plan](PRODUCT_COMPARISON.md)
+uses the integrated feature checkpoint to prioritize acceptance, service edits
+and release work. Its delivery sequence follows the implementation recorded here.
+
 The target is a complete YouTube Music listening experience with native Mac
 controls, predictable queues, and measured resource use. Core actions should
 remain available on the macOS 14 target and both processor families. Features

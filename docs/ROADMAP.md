@@ -8,6 +8,10 @@ The [feature plan](FEATURE_PLAN.md) lists the current gaps, reference products,
 implemented and planned features, and acceptance checks for the next development
 batches. It expands this roadmap without replacing the release gates below.
 
+The [Spotify and YouTube Music comparison](PRODUCT_COMPARISON.md) reviews the
+later feature branch and prioritizes daily-use verification, service edits,
+native usability, and distribution before additional optional capabilities.
+
 ## 1. App foundation
 
 Create the Swift package, app bundle, and core test target. Use Swift 6.2 or
