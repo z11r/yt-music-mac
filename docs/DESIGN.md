@@ -4,6 +4,10 @@ This is the planned interface for YT Music for Mac. Build the playback and accou
 flows before applying the layout. A working control must reflect the service's
 actual state; unfinished actions stay out of the interface.
 
+The [interface refresh plan](UI_REFRESH_PLAN.md) proposes the next visual pass:
+larger artwork on Home and collection pages, a clearer player, and layouts that
+adapt to window width. It builds on these behavior and accessibility rules.
+
 The reference layout has a library sidebar, search, artwork shelves, and a bottom
 player. Keep that familiar structure and use Mac window controls, menus, selection,
 and keyboard behavior. Apple recommends flexible windows and direct access to

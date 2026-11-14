@@ -88,6 +88,10 @@ The following sequence updates the implementation-oriented batches in the
 the code that now exists, without reopening completed feature implementations.
 Each feature or integration fix should remain separately reviewable.
 
+The [interface refresh plan](UI_REFRESH_PLAN.md) covers presentation work,
+starting with Home and the player bar. It can proceed alongside the acceptance
+work below without changing service-edit or release gates.
+
 A bounded batch of [small features and integrations](SMALL_FEATURES.md) can
 proceed alongside verification: finish Discord and scrobbling setup, then add
 one local convenience. Larger optional capabilities retain the sequence below.
